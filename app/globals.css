@@ -33,3 +33,13 @@ body {
 .font-editorial {
   font-family: var(--font-editorial);
 }
+
+/* Fix for browser autofill white background in dark mode */
+input:-webkit-autofill,
+input:-webkit-autofill:hover, 
+input:-webkit-autofill:focus, 
+input:-webkit-autofill:active{
+    transition: background-color 5000s ease-in-out 0s !important;
+    -webkit-text-fill-color: white !important;
+    caret-color: white !important;
+}

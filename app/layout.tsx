@@ -19,13 +19,18 @@ export const metadata: Metadata = {
   description: "Forensix web application",
 };
 
+import { Toaster } from "@/components/ui/sonner";
+
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en"
       className={`${inter.variable} ${sourceSerif.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col font-ui">{children}</body>
+      <body className="min-h-full flex flex-col font-ui">
+        {children}
+        <Toaster />
+      </body>
     </html>
   );
 }
