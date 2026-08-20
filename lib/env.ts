@@ -11,6 +11,7 @@ export const env = createEnv({
     NODE_ENV: z
       .enum(["development", "test", "production"])
       .default("development"),
+    BETTER_AUTH_API_KEY: z.string().min(1),
   },
 
   /*
@@ -27,6 +28,7 @@ export const env = createEnv({
   runtimeEnv: {
     DATABASE_URL: process.env.DATABASE_URL,
     NODE_ENV: process.env.NODE_ENV,
+    BETTER_AUTH_API_KEY: process.env.BETTER_AUTH_API_KEY,
     // NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
   },
   
