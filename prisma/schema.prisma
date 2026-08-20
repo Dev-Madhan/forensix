@@ -1,0 +1,112 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  name      String?
+  role      String   @default("Investigator")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  cases     Case[]
+  auditLogs AuditLog[]
+}
+
+model Case {
+  id          String   @id @default(uuid())
+  caseId      String   @unique
+  title       String?
+  description String?
+  status      String   @default("ACTIVE")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  investigatorId String
+  investigator   User   @relation(fields: [investigatorId], references: [id])
+
+  witnesses          Witness[]
+  sketches           Sketch[]
+  recognitionResults RecognitionResult[]
+  reports            Report[]
+}
+
+model Witness {
+  id         String   @id @default(uuid())
+  name       String
+  statement  String?
+  attributes Json?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  caseId String
+  case   Case   @relation(fields: [caseId], references: [id], onDelete: Cascade)
+}
+
+model Sketch {
+  id        String   @id @default(uuid())
+  imageUrl  String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  caseId String
+  case   Case   @relation(fields: [caseId], references: [id], onDelete: Cascade)
+}
+
+model Criminal {
+  id         String   @id @default(uuid())
+  criminalId String   @unique
+  name       String
+  details    String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  recognitionResults RecognitionResult[]
+}
+
+model RecognitionResult {
+  id              String   @id @default(uuid())
+  confidenceScore Float
+  matchStatus     String
+  ranking         Int?
+  createdAt       DateTime @default(now())
+
+  caseId String
+  case   Case   @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  criminalId String
+  criminal   Criminal @relation(fields: [criminalId], references: [id])
+}
+
+model Report {
+  id        String   @id @default(uuid())
+  title     String
+  content   String?
+  fileUrl   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  caseId String
+  case   Case   @relation(fields: [caseId], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  action    String
+  details   String?
+  createdAt DateTime @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
+}
