@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
@@ -17,71 +18,34 @@ import { MdLock, MdEmail, MdVisibility, MdVisibilityOff, MdArrowBack } from "rea
 import { FaGithub } from "react-icons/fa";
 import { FcGoogle } from "react-icons/fc";
 import Link from "next/link";
-import { motion, AnimatePresence, type Variants } from "motion/react";
+import { motion, type Variants } from "motion/react";
 import { AnimatedButton } from "@/components/ui/animated-button";
-
-export interface SocialProvider {
-  /** Display name of the provider */
-  name: string;
-  /** React node for the provider icon */
-  icon: React.ReactNode;
-  /** Callback fired when this provider is clicked */
-  onClick?: () => void;
-}
+import { toast } from "sonner";
+import { authClient } from "@/lib/auth-client";
+import { Loader2 } from "lucide-react";
 
 export interface Auth1Props {
   /** Brand / product name */
   brandName?: string;
-  /** Short descriptor below the brand */
-  brandDescriptor?: string;
-  /** Badge text shown above the heading */
-  badgeText?: string;
   /** Main heading */
   heading?: string;
   /** Sub-copy below the heading */
   subheading?: string;
-  /** Email field label */
-  emailLabel?: string;
   /** Email field placeholder */
   emailPlaceholder?: string;
-  /** Password field label */
-  passwordLabel?: string;
   /** Password field placeholder */
   passwordPlaceholder?: string;
   /** Label for the primary submit button */
   submitLabel?: string;
-  /** Social / OAuth providers */
-  socialProviders?: SocialProvider[];
   /** Text between social buttons and email form */
   dividerText?: string;
-  /** Forgot password link text */
-  forgotPasswordText?: string;
-  /** Callback when forgot password is clicked */
-  onForgotPassword?: () => void;
   /** Bottom prompt text (before the link) */
   bottomPromptText?: string;
   /** Bottom prompt link text */
   bottomPromptLinkText?: string;
-  /** Bottom prompt link href (e.g. /signup or /auth) */
+  /** Bottom prompt link href */
   bottomPromptHref?: string;
-  /** Callback when bottom prompt link is clicked */
-  onBottomPromptClick?: () => void;
-  /** Callback when form is submitted */
-  onSubmit?: (email: string, password: string) => void;
-  /** Footer note text */
-  footerNote?: string;
 }
-
-const DEFAULT_SOCIAL_PROVIDERS: SocialProvider[] = [
-  {
-    name: "Google",
-    icon: <FcGoogle className="h-4 w-4" />,
-  },
-  {
-    name: "GitHub",
-    icon: <FaGithub className="h-4 w-4" />,
-  },
-];
 
 const containerVariants: Variants = {
   hidden: { opacity: 0, y: 16 },
@@ -113,26 +77,61 @@ export function Auth1({
   brandName = "Forensix",
   heading = "Welcome back",
   subheading = "Enter your credentials to access your workspace.",
-  emailLabel = "Officer Email",
-  emailPlaceholder = "officer@forensix.gov",
-  passwordLabel = "Password",
+  emailPlaceholder = "example@gmail.com",
   passwordPlaceholder = "••••••••••••",
   submitLabel = "Authenticate & Proceed",
-  socialProviders = DEFAULT_SOCIAL_PROVIDERS,
   dividerText = "or continue with SSO",
   bottomPromptText = "Don't have an account?",
   bottomPromptLinkText = "Sign up",
   bottomPromptHref = "/signup",
-  onBottomPromptClick,
-  onSubmit,
 }: Auth1Props) {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [oauthPending, setOauthPending] = useState<"google" | "github" | null>(null);
+  const [isPending, setIsPending] = useState(false);
+  
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  // Global ToastListener handles OAuth redirect toasts
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    onSubmit?.(email, password);
+    setIsPending(true);
+
+    const formData = new FormData(e.currentTarget);
+    const email = formData.get("email") as string;
+    const password = formData.get("password") as string;
+
+    const { data, error } = await authClient.signIn.email({
+      email,
+      password,
+    });
+
+    if (error) {
+      toast.error(error.message || "Invalid email or password.");
+      setIsPending(false);
+    } else {
+      const firstName = data?.user?.name?.split(" ")[0] || "";
+      toast.success(`Welcome back, ${firstName}!`);
+      router.refresh();
+      router.push("/cases");
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    setOauthPending("google");
+    await authClient.signIn.social({
+      provider: "google",
+      callbackURL: "/cases?toast=google",
+    });
+  };
+
+  const handleGithubSignIn = async () => {
+    setOauthPending("github");
+    await authClient.signIn.social({
+      provider: "github",
+      callbackURL: "/cases?toast=github",
+    });
   };
 
   return (
@@ -158,7 +157,7 @@ export function Auth1({
         animate="visible"
         className="w-full max-w-sm flex flex-col items-center gap-6"
       >
-        {/* Brand Logo & Name outside and above the card */}
+        {/* Brand Logo & Name */}
         {brandName && (
           <motion.div variants={itemVariants}>
             <Link
@@ -202,12 +201,12 @@ export function Auth1({
                     <MdEmail className="text-muted-foreground absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2" />
                     <Input
                       id="Auth1-email"
+                      name="email"
                       type="email"
                       placeholder={emailPlaceholder}
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
                       className="bg-muted border-2 border-border focus-visible:ring-primary/20 focus-visible:border-primary/50 h-9 pl-10 text-sm transition-all"
                       required
+                      disabled={isPending}
                     />
                   </motion.div>
 
@@ -215,12 +214,12 @@ export function Auth1({
                     <MdLock className="text-muted-foreground absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2" />
                     <Input
                       id="Auth1-password"
+                      name="password"
                       type={showPassword ? "text" : "password"}
                       placeholder={passwordPlaceholder}
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
                       className="bg-muted border-2 border-border focus-visible:ring-primary/20 focus-visible:border-primary/50 h-9 pr-10 pl-10 text-sm transition-all"
                       required
+                      disabled={isPending}
                     />
                     <button
                       type="button"
@@ -240,9 +239,17 @@ export function Auth1({
                 <motion.div variants={itemVariants} whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.985 }}>
                   <Button
                     type="submit"
-                    className="h-11 w-full bg-[linear-gradient(135deg,#6C63FF_0%,#574BDB_100%)] hover:bg-[linear-gradient(135deg,#7B73FF_0%,#6357E8_100%)] text-white text-sm font-semibold shadow-[0_8px_30px_rgba(99,91,255,0.20)] hover:shadow-[0_10px_35px_rgba(99,91,255,0.35)] transition-all duration-200 cursor-pointer"
+                    disabled={isPending}
+                    className="h-11 w-full bg-[linear-gradient(135deg,#6C63FF_0%,#574BDB_100%)] hover:bg-[linear-gradient(135deg,#7B73FF_0%,#6357E8_100%)] text-white text-sm font-semibold shadow-[0_8px_30px_rgba(99,91,255,0.20)] hover:shadow-[0_10px_35px_rgba(99,91,255,0.35)] transition-all duration-200 cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed"
                   >
-                    {submitLabel}
+                    {isPending ? (
+                      <span className="flex items-center gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Authenticating...
+                      </span>
+                    ) : (
+                      submitLabel
+                    )}
                   </Button>
                 </motion.div>
               </form>
@@ -256,18 +263,36 @@ export function Auth1({
               </motion.div>
 
               <motion.div variants={itemVariants} className="grid grid-cols-2 gap-2.5">
-                {socialProviders.map((provider) => (
-                  <motion.div key={provider.name} whileHover={{ y: -1, scale: 1.01 }} whileTap={{ scale: 0.98 }}>
-                    <Button
-                      variant="outline"
-                      type="button"
-                      className="bg-muted h-10 w-full gap-1.5 border-0 text-xs font-medium shadow-xs cursor-pointer hover:bg-muted/80"
-                      onClick={provider.onClick}
-                    >
-                      {provider.icon}
-                    </Button>
-                  </motion.div>
-                ))}
+                <motion.div whileHover={{ y: -1, scale: 1.01 }} whileTap={{ scale: 0.98 }}>
+                  <Button
+                    variant="outline"
+                    type="button"
+                    disabled={oauthPending !== null}
+                    className="bg-muted h-10 w-full gap-1.5 border-0 text-xs font-medium shadow-xs cursor-pointer hover:bg-muted/80 disabled:opacity-70 disabled:cursor-not-allowed"
+                    onClick={handleGoogleSignIn}
+                  >
+                    {oauthPending === "google" ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <FcGoogle className="h-4 w-4" />
+                    )}
+                  </Button>
+                </motion.div>
+                <motion.div whileHover={{ y: -1, scale: 1.01 }} whileTap={{ scale: 0.98 }}>
+                  <Button
+                    variant="outline"
+                    type="button"
+                    disabled={oauthPending !== null}
+                    className="bg-muted h-10 w-full gap-1.5 border-0 text-xs font-medium shadow-xs cursor-pointer hover:bg-muted/80 disabled:opacity-70 disabled:cursor-not-allowed"
+                    onClick={handleGithubSignIn}
+                  >
+                    {oauthPending === "github" ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <FaGithub className="h-4 w-4" />
+                    )}
+                  </Button>
+                </motion.div>
               </motion.div>
             </CardContent>
           </div>
@@ -275,23 +300,12 @@ export function Auth1({
           <CardFooter className="justify-center border-0 pt-5">
             <motion.p variants={itemVariants} className="text-muted-foreground text-sm">
               {bottomPromptText}{" "}
-              {bottomPromptHref ? (
-                <Link
-                  href={bottomPromptHref}
-                  onClick={onBottomPromptClick}
-                  className="text-primary font-semibold underline-offset-4 transition-all hover:underline"
-                >
-                  {bottomPromptLinkText}
-                </Link>
-              ) : (
-                <button
-                  type="button"
-                  onClick={onBottomPromptClick}
-                  className="text-primary font-semibold underline-offset-4 transition-all hover:underline cursor-pointer"
-                >
-                  {bottomPromptLinkText}
-                </button>
-              )}
+              <Link
+                href={bottomPromptHref ?? "/signup"}
+                className="text-primary font-semibold underline-offset-4 transition-all hover:underline"
+              >
+                {bottomPromptLinkText}
+              </Link>
             </motion.p>
           </CardFooter>
         </Card>

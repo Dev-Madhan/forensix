@@ -28,123 +28,163 @@ enum MatchStatus {
 // --- MODELS ---
 
 model User {
-  id            String     @id @default(uuid())
-  email         String     @unique
+  id            String   @id @default(uuid())
+  email         String   @unique
   name          String
-  passwordHash  String?    
-  role          Role       @default(INVESTIGATOR)
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
-  
-  cases         Case[]     @relation("AssignedCases")
-  reports       Report[]   @relation("ReportAuthor")
-  auditLogs     AuditLog[]
+  emailVerified Boolean  @default(false)
+  image         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  passwordHash String?
+  role         Role    @default(INVESTIGATOR)
+  badgeId      String? @unique
+  provider     String  @default("email")
+  avatarUrl    String?
+
+  cases     Case[]     @relation("AssignedCases")
+  reports   Report[]   @relation("ReportAuthor")
+  auditLogs AuditLog[]
+  sessions  Session[]
+  accounts  Account[]
+
+  @@map("user")
 }
 
 model Case {
-  id            String     @id @default(uuid())
-  title         String
-  description   String?
-  status        CaseStatus @default(OPEN)
-  
-  assignedToId  String
-  assignedTo    User       @relation("AssignedCases", fields: [assignedToId], references: [id])
-  
-  witnesses     Witness[]
-  sketches      Sketch[]
-  reports       Report[]
-  
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
+  id           String     @id @default(uuid())
+  title        String
+  description  String?
+  status       CaseStatus @default(OPEN)
+  assignedToId String
+  assignedTo   User       @relation("AssignedCases", fields: [assignedToId], references: [id])
+  witnesses    Witness[]
+  sketches     Sketch[]
+  reports      Report[]
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
 }
 
 model Witness {
-  id            String     @id @default(uuid())
-  name          String
-  contactInfo   String?
-  statement     String?    @db.Text
-  
-  caseId        String
-  case          Case       @relation(fields: [caseId], references: [id], onDelete: Cascade)
-  
-  sketches      Sketch[]   // Sketches based on this witness's description
-  
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
+  id          String   @id @default(uuid())
+  name        String
+  contactInfo String?
+  statement   String?  @db.Text
+  caseId      String
+  case        Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  sketches    Sketch[] // Sketches based on this witness's description
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 model Sketch {
-  id            String     @id @default(uuid())
-  imageUrl      String     // URL to the generated composite sketch
-  description   String?    @db.Text
-  
-  caseId        String
-  case          Case       @relation(fields: [caseId], references: [id], onDelete: Cascade)
-  
-  witnessId     String?    // Optional: if tied to a specific witness
-  witness       Witness?   @relation(fields: [witnessId], references: [id], onDelete: SetNull)
-  
+  id                 String              @id @default(uuid())
+  imageUrl           String // URL to the generated composite sketch
+  description        String?             @db.Text
+  caseId             String
+  case               Case                @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  witnessId          String? // Optional: if tied to a specific witness
+  witness            Witness?            @relation(fields: [witnessId], references: [id], onDelete: SetNull)
   recognitionResults RecognitionResult[]
-  
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
 }
 
 model Criminal {
-  id                String     @id @default(uuid())
-  firstName         String
-  lastName          String
-  alias             String?
-  mugshotUrl        String?
-  demographics      Json?      // e.g., height, eye color, tattoos
-  lastKnownLocation String?
-  
+  id                 String              @id @default(uuid())
+  firstName          String
+  lastName           String
+  alias              String?
+  mugshotUrl         String?
+  demographics       Json? // e.g., height, eye color, tattoos
+  lastKnownLocation  String?
   recognitionResults RecognitionResult[]
-  
-  createdAt         DateTime   @default(now())
-  updatedAt         DateTime   @updatedAt
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
 }
 
 model RecognitionResult {
-  id            String      @id @default(uuid())
-  matchScore    Float       // Confidence score (e.g., 0.0 to 1.0)
-  status        MatchStatus @default(PENDING)
-  
-  sketchId      String
-  sketch        Sketch      @relation(fields: [sketchId], references: [id], onDelete: Cascade)
-  
-  criminalId    String
-  criminal      Criminal    @relation(fields: [criminalId], references: [id], onDelete: Cascade)
-  
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  id         String      @id @default(uuid())
+  matchScore Float // Confidence score (e.g., 0.0 to 1.0)
+  status     MatchStatus @default(PENDING)
+  sketchId   String
+  sketch     Sketch      @relation(fields: [sketchId], references: [id], onDelete: Cascade)
+  criminalId String
+  criminal   Criminal    @relation(fields: [criminalId], references: [id], onDelete: Cascade)
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
 }
 
 model Report {
-  id            String     @id @default(uuid())
-  title         String
-  content       String     @db.Text
-  fileUrl       String?    // Optional link to a generated PDF
-  
-  caseId        String
-  case          Case       @relation(fields: [caseId], references: [id], onDelete: Cascade)
-  
-  authorId      String
-  author        User       @relation("ReportAuthor", fields: [authorId], references: [id])
-  
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
+  id        String   @id @default(uuid())
+  title     String
+  content   String   @db.Text
+  fileUrl   String? // Optional link to a generated PDF
+  caseId    String
+  case      Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  authorId  String
+  author    User     @relation("ReportAuthor", fields: [authorId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model AuditLog {
-  id            String     @id @default(uuid())
-  action        String     // e.g., "CASE_CREATED", "MATCH_CONFIRMED"
-  entityType    String     // e.g., "Case", "Sketch"
-  entityId      String?
-  details       Json?      // Additional context about the action
-  
-  userId        String?
-  user          User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
-  
-  createdAt     DateTime   @default(now())
+  id         String   @id @default(uuid())
+  action     String // e.g., "CASE_CREATED", "MATCH_CONFIRMED"
+  entityType String // e.g., "Case", "Sketch"
+  entityId   String?
+  details    Json? // Additional context about the action
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  createdAt  DateTime @default(now())
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  expiresAt DateTime
+  token     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([token])
+  @@index([userId])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id @default(uuid())
+  issuer                String    @db.Text
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?   @db.Text
+  refreshToken          String?   @db.Text
+  idToken               String?   @db.Text
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@unique([issuer, accountId])
+  @@index([userId])
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id @default(uuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("verification")
 }

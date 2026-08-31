@@ -6,7 +6,16 @@ import { Portal, PortalBackdrop } from "@/components/portal";
 import { navLinks } from "@/components/header";
 import { X, Menu } from "lucide-react";
 
-export function MobileNav() {
+interface MobileNavProps {
+	user?: {
+		name: string;
+		email: string;
+		image?: string;
+		role?: string;
+	};
+}
+
+export function MobileNav({ user }: MobileNavProps) {
 	const [open, setOpen] = React.useState(false);
 
 	// Close drawer on Escape key
@@ -61,14 +70,21 @@ export function MobileNav() {
 							))}
 
 							<div className="mt-6 pt-5 border-t border-border">
-								<Button
-									className="w-full h-10 rounded-md font-medium"
-									onClick={() => setOpen(false)}
-									render={<Link href="/auth" />}
-									nativeButton={false}
-								>
-									Get started
-								</Button>
+								{user ? (
+									<div className="flex flex-col gap-1">
+										<p className="text-sm font-semibold text-foreground">{user.name}</p>
+										<p className="text-xs text-muted-foreground">{user.email}</p>
+									</div>
+								) : (
+									<Button
+										className="w-full h-10 rounded-md font-medium"
+										onClick={() => setOpen(false)}
+										render={<Link href="/auth" />}
+										nativeButton={false}
+									>
+										Get started
+									</Button>
+								)}
 							</div>
 						</div>
 					</nav>

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
@@ -28,15 +29,9 @@ import { FcGoogle } from "react-icons/fc";
 import Link from "next/link";
 import { motion, AnimatePresence, type Variants } from "motion/react";
 import { AnimatedButton } from "@/components/ui/animated-button";
-
-export interface SocialProvider {
-  /** Display name of the provider */
-  name: string;
-  /** React node for the provider icon */
-  icon: React.ReactNode;
-  /** Callback fired when this provider is clicked */
-  onClick?: () => void;
-}
+import { toast } from "sonner";
+import { authClient } from "@/lib/auth-client";
+import { Loader2 } from "lucide-react";
 
 export interface SignUpProps {
   /** Brand / product name */
@@ -57,8 +52,6 @@ export interface SignUpProps {
   confirmPasswordPlaceholder?: string;
   /** Label for the primary submit button */
   submitLabel?: string;
-  /** Social / OAuth providers */
-  socialProviders?: SocialProvider[];
   /** Text between social buttons and credentials form */
   dividerText?: string;
   /** Bottom prompt text */
@@ -67,27 +60,7 @@ export interface SignUpProps {
   bottomPromptLinkText?: string;
   /** Bottom prompt link href */
   bottomPromptHref?: string;
-  /** Callback when bottom prompt link is clicked */
-  onBottomPromptClick?: () => void;
-  /** Callback when form is submitted */
-  onSubmit?: (data: {
-    name: string;
-    email: string;
-    badgeId?: string;
-    password: string;
-  }) => void;
 }
-
-const DEFAULT_SOCIAL_PROVIDERS: SocialProvider[] = [
-  {
-    name: "Google",
-    icon: <FcGoogle className="h-4 w-4" />,
-  },
-  {
-    name: "GitHub",
-    icon: <FaGithub className="h-4 w-4" />,
-  },
-];
 
 const containerVariants: Variants = {
   hidden: { opacity: 0, y: 16 },
@@ -125,32 +98,70 @@ export function SignUpCard({
   passwordPlaceholder = "Create password",
   confirmPasswordPlaceholder = "Confirm password",
   submitLabel = "Register & Get Started",
-  socialProviders = DEFAULT_SOCIAL_PROVIDERS,
   dividerText = "or sign up with SSO",
   bottomPromptText = "Already have an account?",
   bottomPromptLinkText = "Sign in",
   bottomPromptHref = "/auth",
-  onBottomPromptClick,
-  onSubmit,
 }: SignUpProps) {
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [badgeId, setBadgeId] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [showBadgeHelp, setShowBadgeHelp] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [oauthPending, setOauthPending] = useState<"google" | "github" | null>(null);
+  const [isPending, setIsPending] = useState(false);
+  
+  const router = useRouter();
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    setIsPending(true);
+
+    const formData = new FormData(e.currentTarget);
+    const name = formData.get("name") as string;
+    const email = formData.get("email") as string;
+    const badgeId = formData.get("badgeId") as string;
+    const password = formData.get("password") as string;
+    const confirmPassword = formData.get("confirmPassword") as string;
+
     if (password !== confirmPassword) {
-      setError("Passwords do not match");
+      toast.error("Passwords do not match.");
+      setIsPending(false);
       return;
     }
-    setError(null);
-    onSubmit?.({ name, email, badgeId, password });
+
+    const { error } = await authClient.signUp.email({
+      name,
+      email,
+      password,
+      // @ts-expect-error - Custom field configured in Better Auth server
+      badgeId: badgeId || undefined,
+      provider: "email",
+    });
+
+    if (error) {
+      toast.error(error.message || "Failed to create account.");
+      setIsPending(false);
+    } else {
+      const firstName = name.split(" ")[0] || "";
+      toast.success(`Welcome to Forensix, ${firstName}!`);
+      router.refresh();
+      router.push("/cases");
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    setOauthPending("google");
+    await authClient.signIn.social({
+      provider: "google",
+      callbackURL: "/cases?toast=google",
+    });
+  };
+
+  const handleGithubSignIn = async () => {
+    setOauthPending("github");
+    await authClient.signIn.social({
+      provider: "github",
+      callbackURL: "/cases?toast=github",
+    });
   };
 
   return (
@@ -176,7 +187,7 @@ export function SignUpCard({
         animate="visible"
         className="w-full max-w-md flex flex-col items-center gap-6"
       >
-        {/* Brand Logo & Name outside and above the card */}
+        {/* Brand Logo & Name */}
         {brandName && (
           <motion.div variants={itemVariants}>
             <Link
@@ -215,55 +226,49 @@ export function SignUpCard({
 
             <CardContent className="space-y-4">
               <form onSubmit={handleSubmit} className="space-y-3.5">
-                {error && (
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.95 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    className="rounded-lg bg-destructive/10 border border-destructive/20 px-3 py-2 text-xs font-medium text-destructive text-center"
-                  >
-                    {error}
-                  </motion.div>
-                )}
-
                 {/* Name */}
-                <motion.div variants={itemVariants} className="relative">
-                  <MdPerson className="text-muted-foreground absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2" />
-                  <Input
-                    id="signup-name"
-                    type="text"
-                    placeholder={namePlaceholder}
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="bg-muted border-2 border-border focus-visible:ring-primary/20 focus-visible:border-primary/50 h-9 pl-10 text-sm transition-all"
-                    required
-                  />
+                <motion.div variants={itemVariants} className="space-y-1">
+                  <div className="relative">
+                    <MdPerson className="text-muted-foreground absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2" />
+                    <Input
+                      id="signup-name"
+                      name="name"
+                      type="text"
+                      placeholder={namePlaceholder}
+                      className="bg-muted border-2 border-border focus-visible:ring-primary/20 focus-visible:border-primary/50 h-9 pl-10 text-sm transition-all"
+                      required
+                      disabled={isPending}
+                    />
+                  </div>
                 </motion.div>
 
                 {/* Email */}
-                <motion.div variants={itemVariants} className="relative">
-                  <MdEmail className="text-muted-foreground absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2" />
-                  <Input
-                    id="signup-email"
-                    type="email"
-                    placeholder={emailPlaceholder}
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="bg-muted border-2 border-border focus-visible:ring-primary/20 focus-visible:border-primary/50 h-9 pl-10 text-sm transition-all"
-                    required
-                  />
+                <motion.div variants={itemVariants} className="space-y-1">
+                  <div className="relative">
+                    <MdEmail className="text-muted-foreground absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2" />
+                    <Input
+                      id="signup-email"
+                      name="email"
+                      type="email"
+                      placeholder={emailPlaceholder}
+                      className="bg-muted border-2 border-border focus-visible:ring-primary/20 focus-visible:border-primary/50 h-9 pl-10 text-sm transition-all"
+                      required
+                      disabled={isPending}
+                    />
+                  </div>
                 </motion.div>
 
-                {/* Badge ID (Optional) */}
+                {/* Badge ID */}
                 <motion.div variants={itemVariants} className="space-y-1.5">
                   <div className="relative">
                     <MdBadge className="text-muted-foreground absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2" />
                     <Input
                       id="signup-badge"
+                      name="badgeId"
                       type="text"
                       placeholder={badgeIdPlaceholder}
-                      value={badgeId}
-                      onChange={(e) => setBadgeId(e.target.value)}
                       className="bg-muted border-2 border-border focus-visible:ring-primary/20 focus-visible:border-primary/50 h-9 pr-9 pl-10 text-sm transition-all"
+                      disabled={isPending}
                     />
                     <button
                       type="button"
@@ -300,10 +305,7 @@ export function SignUpCard({
                               <strong className="text-foreground font-medium">Purpose:</strong> Links your digital account to official law enforcement credentials for audit logging, chain of custody reports, and security verification.
                             </p>
                             <p>
-                              <strong className="text-foreground font-medium">How to Feed:</strong> Enter manually here during registration, or automatically populate via Enterprise Single Sign-On (SSO / SAML).
-                            </p>
-                            <p>
-                              <strong className="text-foreground font-medium">Accepted Formats:</strong> Any standard department alphanumeric ID. Examples:
+                              <strong className="text-foreground font-medium">Accepted Formats:</strong>
                             </p>
                             <div className="flex flex-wrap gap-1 pt-0.5">
                               <code className="bg-background px-1.5 py-0.5 rounded border border-border text-[10px] font-mono text-foreground font-medium">BADGE-12345</code>
@@ -319,71 +321,69 @@ export function SignUpCard({
                 </motion.div>
 
                 {/* Password */}
-                <motion.div variants={itemVariants} className="relative">
-                  <MdLock className="text-muted-foreground absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2" />
-                  <Input
-                    id="signup-password"
-                    type={showPassword ? "text" : "password"}
-                    placeholder={passwordPlaceholder}
-                    value={password}
-                    onChange={(e) => {
-                      setPassword(e.target.value);
-                      if (error) setError(null);
-                    }}
-                    className="bg-muted border-2 border-border focus-visible:ring-primary/20 focus-visible:border-primary/50 h-9 pr-10 pl-10 text-sm transition-all"
-                    required
-                    minLength={6}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword((v) => !v)}
-                    className="text-muted-foreground hover:text-foreground absolute top-1/2 right-3 -translate-y-1/2 transition-colors cursor-pointer"
-                    aria-label="Toggle password visibility"
-                  >
-                    {showPassword ? (
-                      <MdVisibilityOff className="h-4 w-4" />
-                    ) : (
-                      <MdVisibility className="h-4 w-4" />
-                    )}
-                  </button>
+                <motion.div variants={itemVariants} className="space-y-1">
+                  <div className="relative">
+                    <MdLock className="text-muted-foreground absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2" />
+                    <Input
+                      id="signup-password"
+                      name="password"
+                      type={showPassword ? "text" : "password"}
+                      placeholder={passwordPlaceholder}
+                      className="bg-muted border-2 border-border focus-visible:ring-primary/20 focus-visible:border-primary/50 h-9 pr-10 pl-10 text-sm transition-all"
+                      required
+                      minLength={8}
+                      disabled={isPending}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((v) => !v)}
+                      className="text-muted-foreground hover:text-foreground absolute top-1/2 right-3 -translate-y-1/2 transition-colors cursor-pointer"
+                      aria-label="Toggle password visibility"
+                    >
+                      {showPassword ? <MdVisibilityOff className="h-4 w-4" /> : <MdVisibility className="h-4 w-4" />}
+                    </button>
+                  </div>
                 </motion.div>
 
                 {/* Confirm Password */}
-                <motion.div variants={itemVariants} className="relative">
-                  <MdLock className="text-muted-foreground absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2" />
-                  <Input
-                    id="signup-confirm-password"
-                    type={showConfirmPassword ? "text" : "password"}
-                    placeholder={confirmPasswordPlaceholder}
-                    value={confirmPassword}
-                    onChange={(e) => {
-                      setConfirmPassword(e.target.value);
-                      if (error) setError(null);
-                    }}
-                    className="bg-muted border-2 border-border focus-visible:ring-primary/20 focus-visible:border-primary/50 h-9 pr-10 pl-10 text-sm transition-all"
-                    required
-                    minLength={6}
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowConfirmPassword((v) => !v)}
-                    className="text-muted-foreground hover:text-foreground absolute top-1/2 right-3 -translate-y-1/2 transition-colors cursor-pointer"
-                    aria-label="Toggle confirm password visibility"
-                  >
-                    {showConfirmPassword ? (
-                      <MdVisibilityOff className="h-4 w-4" />
-                    ) : (
-                      <MdVisibility className="h-4 w-4" />
-                    )}
-                  </button>
+                <motion.div variants={itemVariants} className="space-y-1">
+                  <div className="relative">
+                    <MdLock className="text-muted-foreground absolute top-1/2 left-3.5 h-4 w-4 -translate-y-1/2" />
+                    <Input
+                      id="signup-confirm-password"
+                      name="confirmPassword"
+                      type={showConfirmPassword ? "text" : "password"}
+                      placeholder={confirmPasswordPlaceholder}
+                      className="bg-muted border-2 border-border focus-visible:ring-primary/20 focus-visible:border-primary/50 h-9 pr-10 pl-10 text-sm transition-all"
+                      required
+                      minLength={8}
+                      disabled={isPending}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword((v) => !v)}
+                      className="text-muted-foreground hover:text-foreground absolute top-1/2 right-3 -translate-y-1/2 transition-colors cursor-pointer"
+                      aria-label="Toggle confirm password visibility"
+                    >
+                      {showConfirmPassword ? <MdVisibilityOff className="h-4 w-4" /> : <MdVisibility className="h-4 w-4" />}
+                    </button>
+                  </div>
                 </motion.div>
 
                 <motion.div variants={itemVariants} whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.985 }}>
                   <Button
                     type="submit"
-                    className="h-11 w-full bg-[linear-gradient(135deg,#6C63FF_0%,#574BDB_100%)] hover:bg-[linear-gradient(135deg,#7B73FF_0%,#6357E8_100%)] text-white text-sm font-semibold shadow-[0_8px_30px_rgba(99,91,255,0.20)] hover:shadow-[0_10px_35px_rgba(99,91,255,0.35)] transition-all duration-200 cursor-pointer mt-1"
+                    disabled={isPending}
+                    className="h-11 w-full bg-[linear-gradient(135deg,#6C63FF_0%,#574BDB_100%)] hover:bg-[linear-gradient(135deg,#7B73FF_0%,#6357E8_100%)] text-white text-sm font-semibold shadow-[0_8px_30px_rgba(99,91,255,0.20)] hover:shadow-[0_10px_35px_rgba(99,91,255,0.35)] transition-all duration-200 cursor-pointer mt-1 disabled:opacity-70 disabled:cursor-not-allowed"
                   >
-                    {submitLabel}
+                    {isPending ? (
+                      <span className="flex items-center gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Creating Account...
+                      </span>
+                    ) : (
+                      submitLabel
+                    )}
                   </Button>
                 </motion.div>
               </form>
@@ -397,18 +397,36 @@ export function SignUpCard({
               </motion.div>
 
               <motion.div variants={itemVariants} className="grid grid-cols-2 gap-2.5">
-                {socialProviders.map((provider) => (
-                  <motion.div key={provider.name} whileHover={{ y: -1, scale: 1.01 }} whileTap={{ scale: 0.98 }}>
-                    <Button
-                      variant="outline"
-                      type="button"
-                      className="bg-muted h-10 w-full gap-1.5 border-0 text-xs font-medium shadow-xs cursor-pointer hover:bg-muted/80"
-                      onClick={provider.onClick}
-                    >
-                      {provider.icon}
-                    </Button>
-                  </motion.div>
-                ))}
+                <motion.div whileHover={{ y: -1, scale: 1.01 }} whileTap={{ scale: 0.98 }}>
+                  <Button
+                    variant="outline"
+                    type="button"
+                    disabled={oauthPending !== null}
+                    className="bg-muted h-10 w-full gap-1.5 border-0 text-xs font-medium shadow-xs cursor-pointer hover:bg-muted/80 disabled:opacity-70 disabled:cursor-not-allowed"
+                    onClick={handleGoogleSignIn}
+                  >
+                    {oauthPending === "google" ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <FcGoogle className="h-4 w-4" />
+                    )}
+                  </Button>
+                </motion.div>
+                <motion.div whileHover={{ y: -1, scale: 1.01 }} whileTap={{ scale: 0.98 }}>
+                  <Button
+                    variant="outline"
+                    type="button"
+                    disabled={oauthPending !== null}
+                    className="bg-muted h-10 w-full gap-1.5 border-0 text-xs font-medium shadow-xs cursor-pointer hover:bg-muted/80 disabled:opacity-70 disabled:cursor-not-allowed"
+                    onClick={handleGithubSignIn}
+                  >
+                    {oauthPending === "github" ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <FaGithub className="h-4 w-4" />
+                    )}
+                  </Button>
+                </motion.div>
               </motion.div>
             </CardContent>
           </div>
@@ -416,23 +434,12 @@ export function SignUpCard({
           <CardFooter className="justify-center border-0 pt-5">
             <motion.p variants={itemVariants} className="text-muted-foreground text-sm">
               {bottomPromptText}{" "}
-              {bottomPromptHref ? (
-                <Link
-                  href={bottomPromptHref}
-                  onClick={onBottomPromptClick}
-                  className="text-primary font-semibold underline-offset-4 transition-all hover:underline"
-                >
-                  {bottomPromptLinkText}
-                </Link>
-              ) : (
-                <button
-                  type="button"
-                  onClick={onBottomPromptClick}
-                  className="text-primary font-semibold underline-offset-4 transition-all hover:underline cursor-pointer"
-                >
-                  {bottomPromptLinkText}
-                </button>
-              )}
+              <Link
+                href={bottomPromptHref ?? "/auth"}
+                className="text-primary font-semibold underline-offset-4 transition-all hover:underline"
+              >
+                {bottomPromptLinkText}
+              </Link>
             </motion.p>
           </CardFooter>
         </Card>

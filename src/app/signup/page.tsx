@@ -1,4 +1,7 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
+import { auth } from "@/lib/auth";
+import { headers } from "next/headers";
 import { SignUpCard } from "@/components/watermelon-ui/signup-01";
 
 export const metadata: Metadata = {
@@ -6,7 +9,14 @@ export const metadata: Metadata = {
   description: "Register for an authorized Forensix investigator account.",
 };
 
-export default function SignUpPage() {
+export default async function SignUpPage() {
+  // If already authenticated, redirect to dashboard
+  const reqHeaders = await headers();
+  const session = await auth.api.getSession({ headers: reqHeaders });
+  if (session) {
+    redirect("/cases");
+  }
+
   return (
     <main className="flex flex-1 items-center justify-center py-4 md:py-8">
       <SignUpCard
@@ -16,7 +26,7 @@ export default function SignUpPage() {
         namePlaceholder="Full Name"
         emailPlaceholder="example@gmail.com"
         badgeIdPlaceholder="Badge ID (i.e BADGE-12345)"
-        passwordPlaceholder="Password (min 6 characters)"
+        passwordPlaceholder="Password (min 8 characters)"
         confirmPasswordPlaceholder="Confirm password"
         submitLabel="Register & Get Started"
         dividerText="or sign up with SSO"

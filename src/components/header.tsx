@@ -6,6 +6,9 @@ import { cn } from "@/lib/utils";
 import { useScroll } from "@/hooks/use-scroll";
 import { Button } from "@/components/ui/button";
 import { MobileNav } from "@/components/mobile-nav";
+import { AvatarDropdown } from "@/components/avatar-dropdown";
+
+import { motion, AnimatePresence } from "motion/react";
 
 export const navLinks = [
 	{
@@ -26,7 +29,16 @@ export const navLinks = [
 	},
 ];
 
-export function Header() {
+interface HeaderProps {
+	user?: {
+		name: string;
+		email: string;
+		image?: string;
+		role: string;
+	} | null;
+}
+
+export function Header({ user }: HeaderProps) {
 	const pathname = usePathname();
 	const scrolled = useScroll(10);
 
@@ -36,7 +48,11 @@ export function Header() {
 	}
 
 	return (
-		<header
+		<motion.header
+			suppressHydrationWarning
+			initial={{ y: -24, opacity: 0 }}
+			animate={{ y: 0, opacity: 1 }}
+			transition={{ ease: [0.16, 1, 0.3, 1], duration: 0.8, delay: 0.1 }}
 			className={cn(
 				"sticky top-0 z-50 mx-auto w-full md:w-[calc(100%-2rem)] max-w-4xl border-border border-b-2 md:border-2 md:rounded-xl md:transition-all md:duration-300 md:ease-out mt-0 md:mt-3 lg:mt-4 bg-background/80 backdrop-blur-xl",
 				{
@@ -86,20 +102,39 @@ export function Header() {
 				</div>
 
 				{/* Right: Actions */}
-				<div className="flex items-center gap-2 z-10">
-					<Button
-						size="sm"
-						className="hidden md:inline-flex rounded-md text-xs lg:text-sm h-8 px-3 font-medium shrink-0"
-						render={<Link href="/auth" />}
-						nativeButton={false}
-					>
-						Get started
-					</Button>
-					<div className="md:hidden">
-						<MobileNav />
-					</div>
+				<div className="flex items-center gap-2 z-10 min-w-[120px] justify-end">
+					<AnimatePresence mode="wait">
+						{user ? (
+							<motion.div
+								key="avatar"
+								initial={{ opacity: 0, scale: 0.9, y: 5 }}
+								animate={{ opacity: 1, scale: 1, y: 0 }}
+								exit={{ opacity: 0, scale: 0.9, y: -5 }}
+								transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+							>
+								<AvatarDropdown user={user} />
+							</motion.div>
+						) : (
+							<motion.div
+								key="login-btn"
+								initial={{ opacity: 0, scale: 0.9, y: 5 }}
+								animate={{ opacity: 1, scale: 1, y: 0 }}
+								exit={{ opacity: 0, scale: 0.9, y: -5 }}
+								transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+							>
+								<Button
+									size="sm"
+									className="hidden md:inline-flex rounded-md text-xs lg:text-sm h-8 px-3 font-medium shrink-0"
+									render={<Link href="/auth" />}
+									nativeButton={false}
+								>
+									Get started
+								</Button>
+							</motion.div>
+						)}
+					</AnimatePresence>
 				</div>
 			</nav>
-		</header>
+		</motion.header>
 	);
 }
