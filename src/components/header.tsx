@@ -1,6 +1,7 @@
 "use client";
 import Image from "next/image";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useScroll } from "@/hooks/use-scroll";
 import { Button } from "@/components/ui/button";
@@ -26,7 +27,13 @@ export const navLinks = [
 ];
 
 export function Header() {
+	const pathname = usePathname();
 	const scrolled = useScroll(10);
+
+	// Hide header on authentication pages for a clean, focused user experience
+	if (pathname === "/auth" || pathname === "/signup") {
+		return null;
+	}
 
 	return (
 		<header
@@ -80,8 +87,13 @@ export function Header() {
 
 				{/* Right: Actions */}
 				<div className="flex items-center gap-2 z-10">
-					<Button size="sm" className="hidden md:inline-flex rounded-md text-xs lg:text-sm h-8 px-3 font-medium shrink-0">
-						Login
+					<Button
+						size="sm"
+						className="hidden md:inline-flex rounded-md text-xs lg:text-sm h-8 px-3 font-medium shrink-0"
+						render={<Link href="/auth" />}
+						nativeButton={false}
+					>
+						Get started
 					</Button>
 					<div className="md:hidden">
 						<MobileNav />

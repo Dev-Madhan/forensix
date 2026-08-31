@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export default function Home() {
   return (
     <div className="flex min-h-screen flex-col items-center justify-center p-24 bg-background text-foreground">
@@ -10,9 +12,12 @@ export default function Home() {
         </p>
         
         <div className="flex gap-4 mt-8">
-          <button className="px-6 py-3 rounded-full bg-primary hover:opacity-90 transition-opacity font-medium text-primary-foreground cursor-pointer">
+          <Link
+            href="/auth"
+            className="px-6 py-3 rounded-full bg-primary hover:opacity-90 transition-opacity font-medium text-primary-foreground cursor-pointer inline-flex items-center justify-center"
+          >
             Get Started
-          </button>
+          </Link>
           <button className="px-6 py-3 rounded-full bg-secondary hover:bg-secondary/80 transition-colors font-medium text-secondary-foreground cursor-pointer">
             Documentation
           </button>

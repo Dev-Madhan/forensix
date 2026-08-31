@@ -64,8 +64,10 @@ export function MobileNav() {
 								<Button
 									className="w-full h-10 rounded-md font-medium"
 									onClick={() => setOpen(false)}
+									render={<Link href="/auth" />}
+									nativeButton={false}
 								>
-									Login
+									Get started
 								</Button>
 							</div>
 						</div>
