@@ -1,36 +1,123 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Forensix (Criminal Eye)
 
-## Getting Started
+Forensix is an AI-powered forensic sketch generation and criminal face recognition platform built for modern law enforcement and investigative agencies. It allows investigators to generate composite sketches from witness descriptions, match facial embeddings against criminal databases, and manage ongoing case intelligence.
 
-First, run the development server:
+---
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+## 📁 Project Folder Structure
+
+```text
+forensix/
+├── .agents/                        # AI coding assistant skills, rules, and configurations
+│   └── skills/                     # Local skill definitions (Radix-to-Base, Prisma Composer, Shadcn)
+├── .claude/                        # Claude-specific workspace skills and instructions
+├── .cursor/                        # Cursor IDE rules and skills
+├── .devin/                         # Devin workspace skills
+├── prisma/                         # Database schema & ORM configuration
+│   └── schema.prisma               # PostgreSQL & Prisma data models (User, Case, Criminal, etc.)
+├── public/                         # Static assets served by Next.js
+│   └── images/
+│       └── Logo.png                # Forensix application brand logo
+├── src/                            # Application source code
+│   ├── app/                        # Next.js App Router pages, layouts, and route handlers
+│   │   ├── admin/                  # Admin dashboard (KPI metrics, activity feed, user management)
+│   │   │   └── page.tsx
+│   │   ├── auth/                   # Authentication sign-in portal
+│   │   │   └── page.tsx
+│   │   ├── cases/                  # Investigation cases management hub
+│   │   │   └── page.tsx
+│   │   ├── criminals/              # Criminal database & facial recognition registry
+│   │   │   └── page.tsx
+│   │   ├── signup/                 # User registration & onboarding page
+│   │   │   └── page.tsx
+│   │   ├── sketch/                 # AI forensic sketch generator interface
+│   │   │   └── page.tsx
+│   │   ├── favicon.ico             # Application favicon
+│   │   ├── globals.css             # Global styles, Tailwind v4 theme variables & utilities
+│   │   ├── layout.tsx              # Root layout wrapping all pages (theme, nav, fonts)
+│   │   └── page.tsx                # Landing / home presentation page
+│   ├── components/                 # Reusable React components
+│   │   ├── ui/                     # Primitives & design system components (Base UI / Shadcn)
+│   │   │   ├── animated-button.tsx # Interactive button with motion animations
+│   │   │   ├── avatar.tsx          # User & profile avatar element
+│   │   │   ├── button.tsx          # Base button component
+│   │   │   ├── card.tsx            # Card container component
+│   │   │   ├── dropdown-menu.tsx   # Context and action dropdown menus
+│   │   │   ├── field.tsx           # Accessible form field wrapper
+│   │   │   ├── input.tsx           # Styled text input control
+│   │   │   ├── label.tsx           # Accessible form label
+│   │   │   └── separator.tsx       # Divider / line separator
+│   │   ├── watermelon-ui/          # Specialized UI kits & custom compound blocks
+│   │   │   ├── auth-01.tsx         # Modern login card template
+│   │   │   └── signup-01.tsx       # Modern registration card template
+│   │   ├── avatar-dropdown.tsx     # Header user profile dropdown trigger & actions
+│   │   ├── header.tsx              # Global navigation bar with brand & route links
+│   │   ├── mobile-nav.tsx          # Responsive mobile navigation drawer
+│   │   └── portal.tsx              # Client-side portal utility for overlays/modals
+│   ├── hooks/                      # Custom React lifecycle and utility hooks
+│   │   └── use-scroll.ts           # Window/container scroll detection hook
+│   └── lib/                        # Shared utilities, database clients & helpers
+│       ├── prisma.ts               # Global Prisma client singleton instance
+│       └── utils.ts                # Class merge (clsx + tailwind-merge) utility
+├── .env                            # Environment variables (Database URL, API secrets)
+├── .gitignore                      # Git ignored files and directories
+├── AGENTS.md                       # Workspace coding guidelines and Next.js agent rules
+├── CLAUDE.md                       # Claude project instructions and shortcuts
+├── components.json                 # Shadcn UI configuration file
+├── eslint.config.mjs               # ESLint configuration
+├── next.config.ts                  # Next.js framework configuration
+├── package.json                    # Project dependencies, scripts, and package metadata
+├── pnpm-lock.yaml                  # PNPM deterministic dependency lockfile
+├── pnpm-workspace.yaml             # PNPM workspace configuration
+├── postcss.config.mjs              # PostCSS configuration for Tailwind CSS v4
+├── project_overview.md             # Comprehensive architecture and AI pipeline documentation
+├── README.md                       # Project overview, folder structure, and getting started
+├── skills-lock.json                # Locked versions for agent skills
+└── tsconfig.json                   # TypeScript compiler options and path aliases
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+---
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 🏛️ Directory Descriptions
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+| Directory / File | Description |
+| :--- | :--- |
+| **`src/app/`** | Implements the Next.js App Router. Each subdirectory (`admin`, `auth`, `cases`, `criminals`, `signup`, `sketch`) represents a distinct route in the application. |
+| **`src/components/ui/`** | Headless and styled primitive UI components built with `@base-ui/react`, Tailwind CSS v4, and Lucide icons. |
+| **`src/components/watermelon-ui/`** | Pre-built, styled authentication and form layout components. |
+| **`src/lib/`** | Application helpers, including the Prisma database client instance (`prisma.ts`) and CSS class combiners (`utils.ts`). |
+| **`src/hooks/`** | Reusable custom React hooks like `use-scroll.ts` to manage header states and scroll events. |
+| **`prisma/`** | Defines the PostgreSQL data models (`User`, `Case`, `Witness`, `Sketch`, `Criminal`, `RecognitionResult`, `Report`, `AuditLog`). |
+| **`public/`** | Contains static public files such as logos and brand imagery. |
+| **`project_overview.md`** | Detailed technical specification covering page components and the AI diffusion & facial embedding pipeline. |
 
-## Learn More
+---
 
-To learn more about Next.js, take a look at the following resources:
+## 🚀 Getting Started
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+First, install dependencies:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+pnpm install
+```
 
-## Deploy on Vercel
+Run the development server:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+pnpm dev
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Open [http://localhost:3000](http://localhost:3000) in your browser to view the application.
+
+---
+
+## 🛠️ Tech Stack
+
+- **Framework**: [Next.js 16](https://nextjs.org/) (App Router, Turbopack)
+- **Language**: [TypeScript](https://www.typescriptlang.org/)
+- **Styling**: [Tailwind CSS v4](https://tailwindcss.com/)
+- **UI Components**: [Base UI](https://base-ui.com/) & [Shadcn UI](https://ui.shadcn.com/)
+- **Animations**: [Motion](https://motion.dev/) (Framer Motion)
+- **Database ORM**: [Prisma 6](https://www.prisma.io/) with PostgreSQL
+- **Icons**: [Lucide React](https://lucide.dev/) & [React Icons](https://react-icons.github.io/react-icons/)
+
