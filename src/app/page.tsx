@@ -5,8 +5,8 @@ export default function Home() {
   return (
     <main className="flex min-h-screen flex-col items-center justify-between">
       <Hero
-        title="When every detail matters."
-        titleLine2="Turn memory into evidence."
+        title="Every detail matters."
+        titleLine2="Memory to evidence."
         description="Forensix transforms eyewitness descriptions into AI-generated composite sketches, potential facial matches, and actionable case intelligence."
         mobileDescription="AI-generated sketches, facial matches, and case intelligence from witness memory."
         searchPlaceholder="Describe a suspect..."

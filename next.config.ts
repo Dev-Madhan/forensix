@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 import "./src/env";
 const nextConfig: NextConfig = {
+  allowedDevOrigins: ["192.168.29.12"],
   reactCompiler: true,
   images: {
     remotePatterns: [
