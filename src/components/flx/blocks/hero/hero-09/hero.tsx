@@ -203,7 +203,8 @@ export function Hero({
       {/* GSAP scan line — decorative only */}
       <div
         ref={scanLineRef}
-        className="absolute inset-x-0 top-0 z-20 h-px bg-gradient-to-r from-transparent via-white to-transparent opacity-0 pointer-events-none [filter:drop-shadow(0_0_6px_rgba(255,255,255,0.75))_drop-shadow(0_0_12px_rgba(255,255,255,0.4))]"
+        className="absolute inset-x-0 top-0 z-20 h-px bg-gradient-to-r from-transparent via-white to-transparent opacity-0 pointer-events-none"
+        style={{ filter: 'drop-shadow(0 0 6px rgba(255,255,255,0.75)) drop-shadow(0 0 12px rgba(255,255,255,0.4))' }}
       />
       <div
         className={cn(
