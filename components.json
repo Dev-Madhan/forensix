@@ -23,6 +23,8 @@
   "menuAccent": "subtle",
   "registries": {
     "@efferd": "https://efferd.com/r/{style}/{name}.json",
-    "@flx": "https://ui.flexnative.com/r/{name}.json"
+    "@flx": "https://ui.flexnative.com/r/{name}.json",
+    "@ui-layouts": "https://ui-layouts.com/r/{name}.json",
+    "@skiper-ui": "https://skiper-ui.com/registry/{name}.json"
   }
 }

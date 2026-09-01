@@ -1,5 +1,6 @@
 import { Hero } from "@/components/flx/blocks/hero/hero-09/hero";
 import { Feature02 } from "@/components/flx/blocks/feature/feature-02/feature";
+import { BoldStats } from "@/components/blocks/stats-bold";
 
 export default function Home() {
   return (
@@ -15,6 +16,8 @@ export default function Home() {
         heroAlt="Forensix Hero Image"
         bottomTitle=""
       />
+
+      <BoldStats />
 
       <Feature02
         title="Uncover the Truth, Efficiently."
