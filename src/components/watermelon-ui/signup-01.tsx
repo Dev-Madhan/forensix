@@ -144,7 +144,7 @@ export function SignUpCard({
       const firstName = name.split(" ")[0] || "";
       toast.success(`Welcome to Forensix, ${firstName}!`);
       router.refresh();
-      router.push("/cases");
+      router.push("/");
     }
   };
 
@@ -152,7 +152,7 @@ export function SignUpCard({
     setOauthPending("google");
     await authClient.signIn.social({
       provider: "google",
-      callbackURL: "/cases?toast=google",
+      callbackURL: "/?toast=google",
     });
   };
 
@@ -160,7 +160,7 @@ export function SignUpCard({
     setOauthPending("github");
     await authClient.signIn.social({
       provider: "github",
-      callbackURL: "/cases?toast=github",
+      callbackURL: "/?toast=github",
     });
   };
 

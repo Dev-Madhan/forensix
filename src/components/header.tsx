@@ -87,7 +87,9 @@ export function Header({ user }: HeaderProps) {
 
 				{/* Center: Navigation Links */}
 				<div className="hidden md:flex items-center absolute left-1/2 -translate-x-1/2 gap-0.5 lg:gap-1">
-					{navLinks.map((link) => (
+					{navLinks
+						.filter(link => link.label !== "Dashboard" || user?.role === "ADMIN")
+						.map((link) => (
 						<Button
 							key={link.label}
 							size="sm"

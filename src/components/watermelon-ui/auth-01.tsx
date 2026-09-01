@@ -114,7 +114,7 @@ export function Auth1({
       const firstName = data?.user?.name?.split(" ")[0] || "";
       toast.success(`Welcome back, ${firstName}!`);
       router.refresh();
-      router.push("/cases");
+      router.push("/");
     }
   };
 
@@ -122,7 +122,7 @@ export function Auth1({
     setOauthPending("google");
     await authClient.signIn.social({
       provider: "google",
-      callbackURL: "/cases?toast=google",
+      callbackURL: "/?toast=google",
     });
   };
 
@@ -130,7 +130,7 @@ export function Auth1({
     setOauthPending("github");
     await authClient.signIn.social({
       provider: "github",
-      callbackURL: "/cases?toast=github",
+      callbackURL: "/?toast=github",
     });
   };
 

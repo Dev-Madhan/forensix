@@ -14,7 +14,7 @@ export default async function AuthPage() {
   const reqHeaders = await headers();
   const session = await auth.api.getSession({ headers: reqHeaders });
   if (session) {
-    redirect("/cases");
+    redirect("/");
   }
 
   return (

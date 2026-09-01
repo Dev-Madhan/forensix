@@ -158,17 +158,19 @@ export function AvatarDropdown({
             <PenTool className="size-4 text-muted-foreground/70" />
             <span className="font-medium text-sm">Sketch Generator</span>
           </DropdownMenuItem>
-          <DropdownMenuItem 
-            onPointerEnter={() => setHoveredItem("dashboard")}
-            render={<Link href="/admin" />} 
-            className="relative z-0 group flex items-center gap-2 cursor-pointer px-2 py-1.5 rounded-md transition-colors focus:text-accent-foreground hover:text-accent-foreground !bg-transparent"
-          >
-            {hoveredItem === "dashboard" && (
-              <motion.div layoutId="dropdown-hover" className="absolute inset-0 z-[-1] rounded-md bg-accent/80" transition={{ type: "spring", bounce: 0.3, duration: 0.4 }} />
-            )}
-            <LayoutDashboard className="size-4 text-muted-foreground/70" />
-            <span className="font-medium text-sm">Dashboard</span>
-          </DropdownMenuItem>
+          {user.role === "ADMIN" && (
+            <DropdownMenuItem 
+              onPointerEnter={() => setHoveredItem("dashboard")}
+              render={<Link href="/admin" />} 
+              className="relative z-0 group flex items-center gap-2 cursor-pointer px-2 py-1.5 rounded-md transition-colors focus:text-accent-foreground hover:text-accent-foreground !bg-transparent"
+            >
+              {hoveredItem === "dashboard" && (
+                <motion.div layoutId="dropdown-hover" className="absolute inset-0 z-[-1] rounded-md bg-accent/80" transition={{ type: "spring", bounce: 0.3, duration: 0.4 }} />
+              )}
+              <LayoutDashboard className="size-4 text-muted-foreground/70" />
+              <span className="font-medium text-sm">Dashboard</span>
+            </DropdownMenuItem>
+          )}
         </DropdownMenuGroup>
 
         <DropdownMenuSeparator className="opacity-50" />

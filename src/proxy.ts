@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 
 // Routes that require authentication
-const PROTECTED_ROUTES = ["/cases", "/criminals", "/sketch", "/admin"];
+const PROTECTED_ROUTES = ["/cases", "/criminals", "/sketch", "/admin", "/profile", "/settings"];
 
 // Routes only for unauthenticated users
 const AUTH_ROUTES = ["/auth", "/signup"];
@@ -46,7 +46,7 @@ export async function proxy(request: NextRequest): Promise<NextResponse> {
 
   // Authenticated user trying to access auth routes
   if (isAuthRoute && session) {
-    return NextResponse.redirect(new URL("/cases", appUrl));
+    return NextResponse.redirect(new URL("/", appUrl));
   }
 
   // Admin-only route authorization check
