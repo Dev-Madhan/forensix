@@ -29,11 +29,11 @@ export interface HeroProps {
 
 const variantStyles = {
   standard: {
-    section: 'py-8 sm:py-16 lg:py-28',
-    title: 'text-2xl sm:text-3xl md:text-5xl lg:text-5xl',
-    description: 'max-w-sm md:max-w-3xl text-sm sm:text-base md:text-xl text-balance line-clamp-2 md:line-clamp-none',
-    header: 'gap-3 sm:gap-6',
-    content: 'gap-6 sm:gap-12 lg:gap-18',
+    section: 'py-10 sm:py-16 lg:py-28',
+    title: 'text-[1.65rem] leading-[1.15] sm:text-3xl md:text-5xl lg:text-5xl',
+    description: 'max-w-[17rem] sm:max-w-sm md:max-w-3xl text-[0.8rem] leading-relaxed sm:text-base md:text-xl text-balance',
+    header: 'gap-4 sm:gap-6',
+    content: 'gap-7 sm:gap-12 lg:gap-18',
     media: 'max-w-6xl',
     imageAspect: 'aspect-[4/3] sm:aspect-[16/10] lg:aspect-[21/9]',
     bottomTitle: 'text-xl sm:text-3xl md:text-4xl',
@@ -126,10 +126,17 @@ export function Hero({
     if (reduce || !imageWrapRef.current) return
 
     const ctx = gsap.context(() => {
-      gsap.timeline({ delay: 0.55 })
-        .set(scanLineRef.current, { opacity: 1, scaleX: 0, transformOrigin: 'left center' })
-        .to(scanLineRef.current, { scaleX: 1, duration: 0.4, ease: 'power2.inOut' })
-        .to(scanLineRef.current, { opacity: 0, duration: 0.2, ease: 'power1.in' })
+      gsap.timeline({ delay: 0.8 })
+        // Materialise — soft fade-in as line descends into frame
+        .fromTo(
+          scanLineRef.current,
+          { opacity: 0, top: '0%' },
+          { opacity: 1, top: '10%', duration: 0.45, ease: 'power3.out' },
+        )
+        // Sweep — silky constant glide through the image
+        .to(scanLineRef.current, { top: '90%', duration: 1.5, ease: 'power1.inOut' })
+        // Dissolve — line fades as it exits the bottom
+        .to(scanLineRef.current, { opacity: 0, top: '100%', duration: 0.4, ease: 'power3.in' })
     }, sectionRef)
 
     return () => ctx.revert()
@@ -172,17 +179,20 @@ export function Hero({
   const searchElement = (
     <form
       onSubmit={(e) => e.preventDefault()}
-      className="bg-elevated focus-within:ring-ring/40 mx-auto flex w-full max-w-xl items-center rounded-full border border-border p-1.5 shadow-sm transition focus-within:ring-2"
+      className="bg-elevated focus-within:ring-ring/40 mx-auto flex w-full max-w-xl items-center rounded-full border border-border p-1 sm:p-1.5 shadow-sm transition focus-within:ring-2"
     >
-      <div className="text-muted-foreground pl-3">
-        <Search className="size-4" />
+      <div className="text-muted-foreground pl-2.5 sm:pl-3 shrink-0">
+        <Search className="size-3.5 sm:size-4" />
       </div>
       <input
         aria-label={searchPlaceholder}
         placeholder={searchPlaceholder}
-        className="h-10 flex-1 bg-transparent px-3 text-sm text-foreground placeholder:text-muted-foreground/50 outline-none border-none ring-0"
+        className="h-8 sm:h-10 min-w-0 flex-1 bg-transparent px-2 sm:px-3 text-xs sm:text-sm text-foreground placeholder:text-muted-foreground/50 outline-none border-none ring-0"
       />
-      <Button type="submit" className="shrink-0 rounded-full px-5 h-9 text-sm font-medium">
+      <Button
+        type="submit"
+        className="shrink-0 rounded-full px-3 sm:px-5 h-7 sm:h-9 text-xs sm:text-sm font-medium"
+      >
         {searchButtonText}
       </Button>
     </form>
@@ -193,7 +203,7 @@ export function Hero({
       {/* GSAP scan line — decorative only */}
       <div
         ref={scanLineRef}
-        className="absolute inset-x-0 top-1/3 z-20 h-px bg-gradient-to-r from-transparent via-white/50 to-transparent opacity-0 pointer-events-none"
+        className="absolute inset-x-0 top-0 z-20 h-px bg-gradient-to-r from-transparent via-white to-transparent opacity-0 pointer-events-none [filter:drop-shadow(0_0_6px_rgba(255,255,255,0.75))_drop-shadow(0_0_12px_rgba(255,255,255,0.4))]"
       />
       <div
         className={cn(
