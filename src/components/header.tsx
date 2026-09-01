@@ -124,7 +124,7 @@ export function Header({ user }: HeaderProps) {
 							>
 								<Button
 									size="sm"
-									className="hidden md:inline-flex rounded-md text-xs lg:text-sm h-8 px-3 font-medium shrink-0"
+									className="inline-flex rounded-md text-xs lg:text-sm h-8 px-3 font-medium shrink-0"
 									render={<Link href="/auth" />}
 									nativeButton={false}
 								>

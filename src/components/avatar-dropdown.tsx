@@ -64,12 +64,9 @@ export function AvatarDropdown({
     setIsPending(true);
     try {
       await authClient.signOut();
-      toast.success("Signed out successfully.");
-      router.refresh();
-      router.push("/");
+      window.location.href = "/";
     } catch {
       toast.error("Something went wrong. Please try again.");
-    } finally {
       setIsPending(false);
     }
   }
