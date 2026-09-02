@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 type AnimatedButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> &
   MotionProps & {
     children?: React.ReactNode;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     as?: any;
   };
 
@@ -21,6 +22,7 @@ const AnimatedButton: React.FC<AnimatedButtonProps> = ({
   as = "button",
   ...rest
 }) => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const Component = (motion as any)[as] || motion.button;
 
   return (
@@ -51,7 +53,9 @@ const AnimatedButton: React.FC<AnimatedButtonProps> = ({
           maskImage:
             "linear-gradient(-75deg, white calc(var(--mask-x) + 20%), transparent calc(var(--mask-x) + 30%), white calc(var(--mask-x) + 100%))",
         }}
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         initial={{ ["--mask-x" as any]: "100%" } as any}
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         animate={{ ["--mask-x" as any]: "-100%" } as any}
         transition={{
           repeat: Infinity,

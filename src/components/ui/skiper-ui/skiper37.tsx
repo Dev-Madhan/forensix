@@ -51,6 +51,7 @@ const AnimatedNumber_001 = () => {
 
   // Reset timer when resetTrigger changes
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setCount(60);
   }, [resetTrigger]);
 
@@ -164,7 +165,7 @@ export const AnimatedNumber_003 = () => {
   const [isAnimating, setIsAnimating] = useState(false);
   const hasAnimated = useRef(false);
 
-  const formatNumber = (num: any) => {
+  const formatNumber = (num: number) => {
     return new Intl.NumberFormat("en-US").format(num);
   };
 
@@ -231,6 +232,7 @@ function AnimatedNumber_004() {
         },
       });
     } else {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setDisplayValue(3);
     }
   }, [inView, count]);

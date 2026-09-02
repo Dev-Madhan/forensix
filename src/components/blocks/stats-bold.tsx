@@ -3,7 +3,7 @@
 import React, { useRef, useEffect, useState } from 'react'
 import { TimelineAnimation } from '@/components/ui/timeline-animation'
 import NumberFlow from '@number-flow/react'
-import { animate, useMotionValue } from 'framer-motion'
+import { animate, useMotionValue, Variants } from 'framer-motion'
 import { useInView } from 'react-intersection-observer'
 
 function AnimatedStatValue({ 
@@ -29,6 +29,7 @@ function AnimatedStatValue({
         onUpdate: (latest) => setDisplayValue(Math.round(latest)),
       })
     } else {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setDisplayValue(startValue)
     }
   }, [inView, count, value, startValue])
@@ -43,7 +44,7 @@ function AnimatedStatValue({
 export const BoldStats = () => {
   const timelineRef = useRef<HTMLElement>(null)
 
-  const customVariants = {
+  const customVariants: Variants = {
     visible: (i: number) => ({
       filter: 'blur(0px)',
       y: 0,
@@ -71,7 +72,7 @@ export const BoldStats = () => {
             customVariants={customVariants}
             className="flex flex-col md:flex-row items-baseline gap-4"
           >
-            <span className="md:text-8xl text-8xl lg:text-9xl font-medium tracking-tighter text-foreground ">
+            <span className="md:text-8xl text-8xl lg:text-9xl font-medium tracking-tighter text-foreground tabular-nums w-37.5 md:w-55 lg:w-70 shrink-0">
               <AnimatedStatValue value={10} suffix="k+" />
             </span>
             <div className="max-w-xs">
@@ -88,11 +89,11 @@ export const BoldStats = () => {
             timelineRef={timelineRef} 
             animationNum={1} 
             customVariants={customVariants}
-            className="relative sm:w-96 w-full h-52 mt-8 md:mt-0 rounded-xl overflow-hidden"
+            className="relative sm:w-96 w-full h-52 mt-8 md:mt-0 rounded-xl overflow-hidden shrink-0"
           >
             {/* Gradient overlays to fade the edges into the background */}
-            <div className="absolute inset-0 bg-gradient-to-r from-background via-transparent to-background z-10 pointer-events-none" />
-            <div className="absolute inset-0 bg-gradient-to-b from-background via-transparent to-background z-10 pointer-events-none" />
+            <div className="absolute inset-0 bg-linear-to-r from-background via-transparent to-background z-10 pointer-events-none" />
+            <div className="absolute inset-0 bg-linear-to-b from-background via-transparent to-background z-10 pointer-events-none" />
             <img
               src="/images/stats-image.png"
               alt="Forensix AI visualization"
@@ -101,9 +102,9 @@ export const BoldStats = () => {
           </TimelineAnimation>
         </div>
 
-        <div className="flex justify-between items-center gap-5">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-10 sm:gap-5">
           <TimelineAnimation timelineRef={timelineRef} animationNum={2} customVariants={customVariants}>
-            <p className="md:text-5xl text-4xl font-medium tracking-tighter text-foreground mb-2 ">
+            <p className="md:text-5xl text-4xl font-medium tracking-tighter text-foreground mb-2 tabular-nums">
               <AnimatedStatValue value={98} suffix="%" />
             </p>
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
@@ -111,7 +112,7 @@ export const BoldStats = () => {
             </p>
           </TimelineAnimation>
           <TimelineAnimation timelineRef={timelineRef} animationNum={3} customVariants={customVariants}>
-            <p className="md:text-5xl text-4xl font-medium tracking-tighter text-foreground mb-2 ">
+            <p className="md:text-5xl text-4xl font-medium tracking-tighter text-foreground mb-2 tabular-nums">
               <AnimatedStatValue value={2} prefix="<" suffix="s" />
             </p>
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
@@ -119,7 +120,7 @@ export const BoldStats = () => {
             </p>
           </TimelineAnimation>
           <TimelineAnimation timelineRef={timelineRef} animationNum={4} customVariants={customVariants}>
-            <p className="md:text-5xl text-4xl font-medium tracking-tighter text-foreground mb-2 ">
+            <p className="md:text-5xl text-4xl font-medium tracking-tighter text-foreground mb-2 tabular-nums">
               <AnimatedStatValue value={24} suffix="/7" />
             </p>
             <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
