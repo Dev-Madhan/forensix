@@ -12,7 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    "ai-service/**",
   ]),
+
 ]);
 
 export default eslintConfig;

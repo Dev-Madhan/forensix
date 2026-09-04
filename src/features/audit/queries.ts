@@ -1,11 +1,18 @@
 import { prisma } from "@/lib/prisma";
 
+export interface AuditLogDetails {
+  fileName?: string;
+  sha256Hash?: string;
+  caseId?: string;
+  [key: string]: unknown;
+}
+
 export interface CaseAuditLogItem {
   id: string;
   action: string;
   entityType: string;
   entityId: string | null;
-  details: any;
+  details: AuditLogDetails | null;
   userId: string | null;
   createdAt: Date;
   user: {
@@ -15,6 +22,7 @@ export interface CaseAuditLogItem {
     badgeId: string | null;
   } | null;
 }
+
 
 /**
  * Fetches the chronological audit history for a specific case.
@@ -49,8 +57,9 @@ export async function getCaseAuditTimeline(caseId: string): Promise<CaseAuditLog
       take: 50,
     });
 
-    return logs;
+    return logs as unknown as CaseAuditLogItem[];
   } catch (error) {
+
     console.error("Failed to fetch case audit timeline:", error);
     return [];
   }

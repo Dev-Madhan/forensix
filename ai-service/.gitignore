@@ -1,0 +1,39 @@
+# Python virtual environments
+.venv/
+env/
+venv/
+ENV/
+
+# Byte-compiled / optimized files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment files
+.env
+.env.local
+
+# Pytest / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# IDE files
+.vscode/
+.idea/
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# Local AI Models, Datasets & Outputs (heavy files)
+models/
+datasets/
+outputs/
+*.gguf
+*.safetensors
+*.bin
+*.pt
+*.task
+

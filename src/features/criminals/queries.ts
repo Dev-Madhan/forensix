@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
-import { CriminalStatus } from "@prisma/client";
+import { CriminalStatus, Prisma } from "@prisma/client";
 
 export async function getCriminals(filters?: { status?: CriminalStatus; search?: string }) {
   const session = await auth.api.getSession({
@@ -12,7 +12,8 @@ export async function getCriminals(filters?: { status?: CriminalStatus; search?:
     throw new Error("Unauthorized");
   }
 
-  const whereClause: any = {};
+  const whereClause: Prisma.CriminalWhereInput = {};
+
 
   if (filters?.status) {
     whereClause.status = filters.status;

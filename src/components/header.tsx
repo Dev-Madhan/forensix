@@ -5,8 +5,8 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useScroll } from "@/hooks/use-scroll";
 import { Button } from "@/components/ui/button";
-import { MobileNav } from "@/components/mobile-nav";
 import { AvatarDropdown } from "@/components/avatar-dropdown";
+
 
 import { motion, AnimatePresence } from "motion/react";
 

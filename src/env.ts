@@ -18,6 +18,8 @@ export const env = createEnv({
     TIGRIS_ACCESS_KEY_ID: z.string().min(1).optional(),
     TIGRIS_SECRET_ACCESS_KEY: z.string().min(1).optional(),
     TIGRIS_BUCKET_NAME: z.string().min(1).optional(),
+    AI_SERVICE_URL: z.string().url().default("http://localhost:8000"),
+    AI_SERVICE_SECRET: z.string().min(1).optional(),
   },
   /*
    * Environment variables available on the client (and server).
@@ -46,6 +48,8 @@ export const env = createEnv({
     TIGRIS_ACCESS_KEY_ID: process.env.TIGRIS_ACCESS_KEY_ID,
     TIGRIS_SECRET_ACCESS_KEY: process.env.TIGRIS_SECRET_ACCESS_KEY,
     TIGRIS_BUCKET_NAME: process.env.TIGRIS_BUCKET_NAME,
+    AI_SERVICE_URL: process.env.AI_SERVICE_URL,
+    AI_SERVICE_SECRET: process.env.AI_SERVICE_SECRET,
   },
   /**
    * Run `build` or `dev` with `SKIP_ENV_VALIDATION` to skip env validation.

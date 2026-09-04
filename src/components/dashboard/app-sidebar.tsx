@@ -11,9 +11,8 @@ import {
   ShieldAlert,
   ShieldCheck,
   LogOut,
-  BadgeAlert,
-  Sparkles,
 } from "lucide-react";
+
 import {
   Sidebar,
   SidebarContent,

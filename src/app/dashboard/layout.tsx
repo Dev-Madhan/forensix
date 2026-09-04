@@ -28,7 +28,16 @@ export default async function DashboardLayout({
 
   return (
     <SidebarProvider defaultOpen={true}>
-      <AppSidebar user={session.user as any} />
+      <AppSidebar
+        user={{
+          name: session.user.name,
+          email: session.user.email,
+          image: session.user.image,
+          role: (session.user as { role?: string }).role || "INVESTIGATOR",
+          badgeId: (session.user as { badgeId?: string | null }).badgeId,
+        }}
+      />
+
       <SidebarInset className="bg-background min-h-screen flex flex-col">
         {/* Top Operational Header Bar */}
         <header className="flex h-14 shrink-0 items-center justify-between gap-2 border-b border-border/70 px-4 bg-background/95 backdrop-blur-sm sticky top-0 z-40">

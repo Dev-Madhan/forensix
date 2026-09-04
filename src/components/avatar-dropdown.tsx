@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { User, Settings, Shield, LogOut, Briefcase, Users, PenTool, LayoutDashboard } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
-import { navLinks } from "@/components/header";
+
 
 import { motion, AnimatePresence } from "motion/react";
 
@@ -64,8 +64,10 @@ export function AvatarDropdown({
     setIsPending(true);
     try {
       await authClient.signOut();
-      window.location.href = "/";
+      router.push("/");
+      router.refresh();
     } catch {
+
       toast.error("Something went wrong. Please try again.");
       setIsPending(false);
     }

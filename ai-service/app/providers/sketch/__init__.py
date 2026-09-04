@@ -1,0 +1,1 @@
+"""Sketch generation provider adapters."""
