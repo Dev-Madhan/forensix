@@ -1,0 +1,22 @@
+{
+  "dataset": "FS2K",
+  "version": "1.0",
+  "splits": {
+    "train": {
+      "count": 1683,
+      "ratio": 0.80,
+      "description": "Deterministic training partition for style adaptation / LoRA fine-tuning"
+    },
+    "val": {
+      "count": 210,
+      "ratio": 0.10,
+      "description": "Validation partition for hyperparameter tuning and early stopping"
+    },
+    "test": {
+      "count": 211,
+      "ratio": 0.10,
+      "description": "Isolated benchmark test partition; never exposed to training"
+    }
+  },
+  "random_seed": 42
+}

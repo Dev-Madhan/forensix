@@ -11,7 +11,9 @@ __pycache__/
 
 # Environment files
 .env
+.env.*
 .env.local
+!.env.example
 
 # Pytest / coverage
 .pytest_cache/
@@ -22,18 +24,52 @@ htmlcov/
 .vscode/
 .idea/
 
-# Distribution / packaging
+# Distribution, packaging & download caches
 dist/
 build/
 *.egg-info/
+*.whl
+.cache/
+.cache_downloads/
 
-# Local AI Models, Datasets & Outputs (heavy files)
+# Local AI Models, Outputs & Checkpoints (heavy files >100MB)
 models/
-datasets/
 outputs/
 *.gguf
 *.safetensors
 *.bin
 *.pt
+*.pth
 *.task
+*.onnx
+*.ckpt
+*.h5
+*.pkl
+*.joblib
+*.tflite
+*.weights
 
+# Datasets - ignore raw dataset collections/images, keep taxonomy folders and metadata
+datasets/FS2K/
+datasets/**/*.jpg
+datasets/**/*.jpeg
+datasets/**/*.png
+datasets/**/*.webp
+datasets/**/*.bmp
+datasets/**/*.npy
+datasets/**/*.parquet
+datasets/**/*.arrow
+
+# Archive formats
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.7z
+*.rar
+*.gz
+
+# Logs & temporary files
+*.log
+tmp/
+temp/

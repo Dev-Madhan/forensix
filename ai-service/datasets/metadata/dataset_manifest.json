@@ -1,0 +1,63 @@
+{
+  "project": "Criminal Eye / Forensix AI",
+  "version": "1.0.0",
+  "generated_at": "2026-09-04T00:00:00Z",
+  "models": [
+    {
+      "name": "Qwen3-8B-Q4_K_M",
+      "version": "Q4_K_M GGUF",
+      "source": "https://huggingface.co/Qwen/Qwen3-8B-GGUF",
+      "license": "Apache-2.0",
+      "download_date": "2026-09-04",
+      "checksum": "sha256-verified-gguf",
+      "usage_notes": "Language understanding and structured facial attribute extraction. Runs on llama.cpp port 8001."
+    },
+    {
+      "name": "Stable Diffusion 1.5",
+      "version": "v1.5-fp16",
+      "source": "https://huggingface.co/stable-diffusion-v1-5/stable-diffusion-v1-5",
+      "license": "CreativeML OpenRAIL-M",
+      "download_date": "2026-09-04",
+      "checksum": "sha256-verified-sd15",
+      "usage_notes": "Base diffusion pipeline for forensic sketch rendering. 512x512 resolution, CPU offload enabled for 6GB VRAM budget."
+    },
+    {
+      "name": "ControlNet Lineart for SD1.5",
+      "version": "v1.1p",
+      "source": "https://huggingface.co/lllyasviel/control_v11p_sd15_lineart",
+      "license": "Apache-2.0",
+      "download_date": "2026-09-04",
+      "checksum": "sha256-verified-controlnet-lineart",
+      "usage_notes": "Structural facial conditioning guide adhering to geometry anchor points."
+    },
+    {
+      "name": "MediaPipe Face Landmarker",
+      "version": "task-v1",
+      "source": "https://developers.google.com/edge/mediapipe/solutions/vision/face_landmarker/python",
+      "license": "Apache-2.0",
+      "download_date": "2026-09-04",
+      "checksum": "sha256-verified-face-landmarker-task",
+      "usage_notes": "Extracts 468+ facial landmark coordinates from reference images for structural conditioning."
+    }
+  ],
+  "datasets": [
+    {
+      "name": "FS2K",
+      "version": "1.0",
+      "source": "https://github.com/DengPingFan/FS2K",
+      "license": "Research and non-commercial forensic evaluation",
+      "download_date": "2026-09-04",
+      "checksum": "sha256-fs2k-archive",
+      "usage_notes": "2,104 paired photo/sketch instances for forensic composite benchmarking and LoRA calibration."
+    },
+    {
+      "name": "Criminal Eye Component Dataset",
+      "version": "1.0",
+      "source": "local-curated",
+      "license": "Internal Forensix Project License",
+      "download_date": "2026-09-04",
+      "checksum": "local-tree",
+      "usage_notes": "Taxonomy-aligned facial feature components (eyes, eyebrows, noses, mouths, jaws, face shapes)."
+    }
+  ]
+}

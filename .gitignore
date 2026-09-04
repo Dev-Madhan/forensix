@@ -13,25 +13,38 @@
 # testing
 /coverage
 
-# next.js
+# next.js & turbo
 /.next/
 /out/
+.turbo
 
 # production
 /build
+dist/
 
-# misc
+# misc & OS
 .DS_Store
+Thumbs.db
+Desktop.ini
 *.pem
 
-# debug
+# IDEs
+.vscode/
+.idea/
+
+# debug & logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
+*.log
 
-# env files (can opt-in for committing if needed)
-.env*
+# env files
+.env
+.env.*
+.env*.local
+!.env.example
+!ai-service/.env.example
 
 # vercel
 .vercel
@@ -40,10 +53,67 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# python
-.venv
-ai-service/.venv
+# python virtual environments & cache
+.venv/
+venv/
+env/
+ENV/
+ai-service/.venv/
 __pycache__/
 *.py[cod]
+*$py.class
 .pytest_cache/
+.coverage
+htmlcov/
+*.egg-info/
+pip-wheel-metadata/
 
+# Python packages, wheels & download caches (large binaries)
+*.whl
+.cache/
+**/.cache/
+.cache_downloads/
+**/.cache_downloads/
+
+# AI Model weights & checkpoints (large files >100MB, cannot be pushed to GitHub)
+models/
+**/models/
+*.gguf
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.task
+*.onnx
+*.ckpt
+*.h5
+*.pkl
+*.joblib
+*.tflite
+*.weights
+
+# AI Service outputs & heavy dataset collections
+outputs/
+**/outputs/
+**/datasets/FS2K/
+ai-service/datasets/**/*.jpg
+ai-service/datasets/**/*.jpeg
+ai-service/datasets/**/*.png
+ai-service/datasets/**/*.webp
+ai-service/datasets/**/*.bmp
+
+# Archives & compressed files
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.7z
+*.rar
+*.gz
+
+# Databases & local storage
+*.sqlite
+*.sqlite3
+*.db
+*.db-shm
+*.db-wal
