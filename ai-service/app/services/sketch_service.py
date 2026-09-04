@@ -14,7 +14,13 @@ settings = get_settings()
 
 class SketchService:
     def __init__(self, provider: Optional[BaseSketchProvider] = None):
-        self.provider = provider or MockSketchProvider()
+        if provider:
+            self.provider = provider
+        elif settings.SKETCH_PROVIDER == "diffusion_local":
+            from app.providers.sketch.diffusion_local import LocalDiffusionProvider
+            self.provider = LocalDiffusionProvider()
+        else:
+            self.provider = MockSketchProvider()
 
     async def generate_sketch(
         self,
@@ -34,11 +40,31 @@ class SketchService:
             geometry = geometry_service.compute_anchors(request.attributes, resolution=request.resolution)
 
             # 2. Invoke sketch provider with geometry and conditioning parameters
-            image_data = await self.provider.generate_sketch(
-                case_id=request.case_id,
-                witness_id=request.witness_id,
-                attributes=request.attributes,
-            )
+            if hasattr(self.provider, "generate_sketch"):
+                # Support extended kwargs for local diffusion provider
+                import inspect
+                sig = inspect.signature(self.provider.generate_sketch)
+                kwargs = {
+                    "case_id": request.case_id,
+                    "witness_id": request.witness_id,
+                    "attributes": request.attributes,
+                }
+                if "seed" in sig.parameters:
+                    kwargs["seed"] = generation_seed
+                if "resolution" in sig.parameters:
+                    kwargs["resolution"] = request.resolution
+                if "steps" in sig.parameters:
+                    kwargs["steps"] = request.steps
+                if "control_strength" in sig.parameters:
+                    kwargs["control_strength"] = request.control_strength
+
+                image_data = await self.provider.generate_sketch(**kwargs)
+            else:
+                image_data = await self.provider.generate_sketch(
+                    case_id=request.case_id,
+                    witness_id=request.witness_id,
+                    attributes=request.attributes,
+                )
         except Exception as e:
             logger.error(
                 f"Error in sketch provider: {str(e)}",
@@ -59,11 +85,16 @@ class SketchService:
             ),
             seed=generation_seed,
             metadata={
+                "schema_version": "1.0",
+                "llm_model": "Qwen3-8B-Q4_K_M",
+                "diffusion_model": "stable-diffusion-v1-5",
+                "controlnet_model": "control_v11p_sd15_lineart",
                 "resolution": request.resolution,
                 "steps": request.steps,
                 "control_strength": request.control_strength,
                 "geometry_anchors": geometry.anchors.model_dump(),
                 "model": "SD1.5 + ControlNet Lineart (FP16)",
+                "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             },
             processing_time_ms=elapsed_ms,
         )

@@ -1,9 +1,24 @@
+# Web Framework & Core Runtime
 fastapi>=0.115.0
 uvicorn[standard]>=0.32.0
 pydantic>=2.10.0
 pydantic-settings>=2.6.0
 httpx>=0.28.0
-pillow>=10.4.0
 python-multipart>=0.0.12
+
+# Image Processing & Geometry
+pillow>=10.4.0
+opencv-python>=4.10.0
+numpy>=1.26.0
+mediapipe>=0.10.14
+
+# Local Diffusion & Transformers (RTX 4050 6GB VRAM Optimization)
+transformers>=4.45.0
+accelerate>=1.0.0
+diffusers[torch]>=0.31.0
+safetensors>=0.4.5
+huggingface_hub>=0.26.0
+
+# Testing & Quality Assurance
 pytest>=8.3.0
 pytest-asyncio>=0.24.0

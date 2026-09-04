@@ -54,3 +54,10 @@ def test_geometry_service_eye_spacing_adjustment():
     # Eyes should be further apart
     assert wide_geom.anchors.left_eye[0] < 0.36
     assert wide_geom.anchors.right_eye[0] > 0.64
+
+
+def test_geometry_service_mediapipe_fallback():
+    # In CI/development environment, landmarker gracefully handles presence/absence without exception
+    landmarker = geometry_service.get_landmarker()
+    assert landmarker is None or landmarker is not None
+

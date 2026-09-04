@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     # Server-to-server Authentication
     AI_SERVICE_SECRET: str | None = None
 
+    # Next.js Frontend URL
+    NEXT_APP_URL: str = "http://localhost:3000"
+
     # CORS Allowed Origins
     ALLOWED_ORIGINS: List[str] = [
         "http://localhost:3000",

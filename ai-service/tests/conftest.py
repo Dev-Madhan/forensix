@@ -2,6 +2,10 @@ import pytest
 from fastapi.testclient import TestClient
 from app.main import app
 from app.core.config import get_settings
+from app.providers.llm.mock import MockLLMProvider
+from app.providers.sketch.mock import MockSketchProvider
+from app.services.witness_service import witness_service
+from app.services.sketch_service import sketch_service
 
 TEST_SECRET = "test_ai_service_secret_xyz789"
 
@@ -13,6 +17,11 @@ def configure_test_environment(monkeypatch):
     monkeypatch.setattr(settings, "AI_SERVICE_SECRET", TEST_SECRET)
     monkeypatch.setattr(settings, "APP_ENV", "testing")
     monkeypatch.setattr(settings, "ALLOWED_ORIGINS", ["http://localhost:3000"])
+    monkeypatch.setattr(settings, "LLM_PROVIDER", "mock")
+    monkeypatch.setattr(settings, "SKETCH_PROVIDER", "mock")
+    monkeypatch.setattr(settings, "FACE_PROVIDER", "mock")
+    monkeypatch.setattr(witness_service, "provider", MockLLMProvider())
+    monkeypatch.setattr(sketch_service, "provider", MockSketchProvider())
 
 
 @pytest.fixture

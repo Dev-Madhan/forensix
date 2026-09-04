@@ -190,6 +190,14 @@ async def handle_unhandled_exception(request: Request, exc: Exception):
 # --- Mount API v1 Routers ---
 app.include_router(api_v1_router, prefix=settings.API_V1_PREFIX)
 
+# --- Mount Generated Outputs Directory ---
+from pathlib import Path
+from fastapi.staticfiles import StaticFiles
+
+output_path = Path(settings.OUTPUT_DIR)
+output_path.mkdir(parents=True, exist_ok=True)
+app.mount("/outputs", StaticFiles(directory=str(output_path)), name="outputs")
+
 
 # --- Root Endpoint ---
 @app.get("/", include_in_schema=False)
