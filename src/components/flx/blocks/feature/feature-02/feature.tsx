@@ -2,8 +2,6 @@
 
 import * as React from 'react'
 import { motion, useReducedMotion, type Variants } from 'motion/react'
-import Balancer from 'react-wrap-balancer'
-
 import { cn } from '@/lib/utils'
 
 export interface Feature02Step {
@@ -110,7 +108,7 @@ function StepCard({
           {step.title}
         </h3>
         <p className="text-muted-foreground mt-2 text-sm leading-relaxed">
-          <Balancer>{step.description}</Balancer>
+          {step.description}
         </p>
       </div>
     </>
@@ -160,13 +158,13 @@ export function Feature02({
         vs.title,
       )}
     >
-      <Balancer>{title}</Balancer>
+      {title}
     </h1>
   )
 
   const descriptionElement = description && (
-    <p className={cn('text-muted-foreground', vs.description)}>
-      <Balancer>{description}</Balancer>
+    <p className={cn('text-muted-foreground text-balance', vs.description)}>
+      {description}
     </p>
   )
 

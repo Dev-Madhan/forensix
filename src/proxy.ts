@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 
 // Routes that require authentication
-const PROTECTED_ROUTES = ["/cases", "/criminals", "/sketch", "/admin", "/profile", "/settings"];
+const PROTECTED_ROUTES = ["/dashboard", "/cases", "/criminals", "/sketch", "/admin", "/profile", "/settings"];
 
 // Routes only for unauthenticated users
 const AUTH_ROUTES = ["/auth", "/signup"];

@@ -3,6 +3,8 @@ import { Inter, Space_Grotesk, Bricolage_Grotesque } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import { HeaderServer } from "@/components/header-server";
 import { ToastListener } from "@/components/toast-listener";
+import { ThemeProvider } from "@/components/theme-provider";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
 
 const inter = Inter({
@@ -29,13 +31,21 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html
       lang="en"
-      className={`${inter.variable} ${spaceGrotesk.variable} ${bricolage.variable} h-full antialiased dark`}
+      suppressHydrationWarning
+      className={`${inter.variable} ${spaceGrotesk.variable} ${bricolage.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col font-sans">
-        <HeaderServer />
-        <ToastListener />
-        {children}
-        <Toaster
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="dark"
+          enableSystem
+          disableTransitionOnChange
+        >
+          <TooltipProvider>
+            <HeaderServer />
+            <ToastListener />
+            {children}
+            <Toaster
           position="bottom-right"
           theme="dark"
           closeButton
@@ -51,6 +61,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             },
           }}
         />
+          </TooltipProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

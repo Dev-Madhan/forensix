@@ -12,20 +12,20 @@ import { motion, AnimatePresence } from "motion/react";
 
 export const navLinks = [
 	{
+		label: "Dashboard",
+		href: "/dashboard",
+	},
+	{
 		label: "Cases",
-		href: "/cases",
+		href: "/dashboard/cases",
 	},
 	{
 		label: "Criminal Database",
-		href: "/criminals",
+		href: "/dashboard/criminals",
 	},
 	{
 		label: "Sketch Generator",
 		href: "/sketch",
-	},
-	{
-		label: "Dashboard",
-		href: "/admin",
 	},
 ];
 
@@ -42,8 +42,8 @@ export function Header({ user }: HeaderProps) {
 	const pathname = usePathname();
 	const scrolled = useScroll(10);
 
-	// Hide header on authentication pages for a clean, focused user experience
-	if (pathname === "/auth" || pathname === "/signup") {
+	// Hide header on authentication and dashboard pages for a focused user experience
+	if (pathname === "/auth" || pathname === "/signup" || pathname.startsWith("/dashboard")) {
 		return null;
 	}
 

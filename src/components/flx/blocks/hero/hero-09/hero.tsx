@@ -5,8 +5,6 @@ import { useRef, useEffect } from 'react'
 import { motion, useReducedMotion, type Variants } from 'motion/react'
 import { gsap } from 'gsap'
 import { Search } from 'lucide-react'
-import Balancer from 'react-wrap-balancer'
-
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
@@ -149,15 +147,15 @@ export function Hero({
   const titleElement = title && (
     <h1
       className={cn(
-        'text-foreground font-heading font-normal tracking-tight md:whitespace-nowrap',
+        'text-foreground font-heading font-normal tracking-tight text-balance md:whitespace-nowrap',
         vs.title,
       )}
     >
-      <Balancer>{title}</Balancer>
+      {title}
       {titleLine2 && (
         <>
           <br />
-          <Balancer>{titleLine2}</Balancer>
+          {titleLine2}
         </>
       )}
     </h1>
@@ -166,12 +164,12 @@ export function Hero({
   const descriptionElement = description && (
     <>
       {mobileDescription && (
-        <p className={cn('text-muted-foreground md:hidden', vs.description)}>
-          <Balancer>{mobileDescription}</Balancer>
+        <p className={cn('text-muted-foreground text-balance md:hidden', vs.description)}>
+          {mobileDescription}
         </p>
       )}
-      <p className={cn('text-muted-foreground', vs.description, mobileDescription && 'hidden md:block')}>
-        <Balancer>{description}</Balancer>
+      <p className={cn('text-muted-foreground text-balance', vs.description, mobileDescription && 'hidden md:block')}>
+        {description}
       </p>
     </>
   )
@@ -235,11 +233,11 @@ export function Hero({
     >
       {bottomTitle && (
         <h2 className={cn('text-foreground font-heading font-normal tracking-tight text-balance', vs.bottomTitle)}>
-          <Balancer>{bottomTitle}</Balancer>
+          {bottomTitle}
           {bottomTitleLine2 && (
             <>
               <br />
-              <Balancer>{bottomTitleLine2}</Balancer>
+              {bottomTitleLine2}
             </>
           )}
         </h2>
@@ -247,12 +245,12 @@ export function Hero({
       {bottomText && (
         <p className="text-muted-foreground max-w-md text-sm sm:text-base md:justify-self-end text-balance">
           {mobileBottomText && (
-            <Balancer>
+            <>
               <span className="md:hidden">{mobileBottomText}</span>
               <span className="hidden md:inline">{bottomText}</span>
-            </Balancer>
+            </>
           )}
-          {!mobileBottomText && <Balancer>{bottomText}</Balancer>}
+          {!mobileBottomText && bottomText}
         </p>
       )}
     </div>

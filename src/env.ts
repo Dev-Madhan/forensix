@@ -14,6 +14,10 @@ export const env = createEnv({
     GITHUB_CLIENT_SECRET: z.string().min(1),
     BETTER_AUTH_SECRET: z.string().min(1),
     BETTER_AUTH_URL: z.string().url().optional(),
+    TIGRIS_ENDPOINT: z.string().url().optional(),
+    TIGRIS_ACCESS_KEY_ID: z.string().min(1).optional(),
+    TIGRIS_SECRET_ACCESS_KEY: z.string().min(1).optional(),
+    TIGRIS_BUCKET_NAME: z.string().min(1).optional(),
   },
   /*
    * Environment variables available on the client (and server).
@@ -38,6 +42,10 @@ export const env = createEnv({
     BETTER_AUTH_SECRET: process.env.BETTER_AUTH_SECRET,
     BETTER_AUTH_URL: process.env.BETTER_AUTH_URL,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
+    TIGRIS_ENDPOINT: process.env.TIGRIS_ENDPOINT,
+    TIGRIS_ACCESS_KEY_ID: process.env.TIGRIS_ACCESS_KEY_ID,
+    TIGRIS_SECRET_ACCESS_KEY: process.env.TIGRIS_SECRET_ACCESS_KEY,
+    TIGRIS_BUCKET_NAME: process.env.TIGRIS_BUCKET_NAME,
   },
   /**
    * Run `build` or `dev` with `SKIP_ENV_VALIDATION` to skip env validation.
