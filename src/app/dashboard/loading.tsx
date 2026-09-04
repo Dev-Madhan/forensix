@@ -1,8 +1,4 @@
-import { Suspense } from "react"
-import { headers } from "next/headers"
-import { auth } from "@/lib/auth"
 import { AppSidebar } from "@/components/app-sidebar"
-import { DashboardContent } from "@/components/dashboard-content"
 import { DashboardSkeleton } from "@/components/dashboard-skeleton"
 import {
   Breadcrumb,
@@ -17,13 +13,7 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar"
 
-export default async function Page() {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  })
-
-  const userName = session?.user?.name || "Investigator"
-
+export default function DashboardLoading() {
   return (
     <SidebarProvider>
       <AppSidebar />
@@ -46,9 +36,7 @@ export default async function Page() {
         </header>
         <div className="flex flex-1 flex-col">
           <div className="@container/main flex flex-1 flex-col gap-2">
-            <Suspense fallback={<DashboardSkeleton />}>
-              <DashboardContent userName={userName} />
-            </Suspense>
+            <DashboardSkeleton />
           </div>
         </div>
       </SidebarInset>

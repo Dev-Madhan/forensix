@@ -1,0 +1,36 @@
+- generic [active] [ref=e1]:
+  - main [ref=e2]:
+    - generic [ref=e3]:
+      - link [ref=e5] [cursor=pointer]:
+        - /url: /
+        - button "Back to home" [ref=e6]
+      - generic [ref=e13]:
+        - link "Forensix Logo Forensix" [ref=e15] [cursor=pointer]:
+          - /url: /
+          - img "Forensix Logo" [ref=e16]
+          - generic [ref=e17]: Forensix
+        - generic [ref=e18]:
+          - generic [ref=e19]:
+            - generic [ref=e20]:
+              - generic [ref=e21]: Welcome back
+              - generic [ref=e23]: Enter your credentials to access your workspace.
+            - generic [ref=e25]:
+              - generic [ref=e26]:
+                - generic [ref=e27]:
+                  - textbox "example@gmail.com" [ref=e32]
+                  - generic [ref=e33]:
+                    - textbox "••••••••••••" [ref=e37]
+                    - button "Toggle password visibility" [ref=e38] [cursor=pointer]
+                - button "Authenticate & Proceed" [ref=e43] [cursor=pointer]
+              - generic [ref=e44]:
+                - separator [ref=e45]
+                - generic [ref=e46]: or continue with SSO
+                - separator [ref=e47]
+              - generic [ref=e48]:
+                - button [ref=e50] [cursor=pointer]
+                - button [ref=e52] [cursor=pointer]
+          - paragraph [ref=e54]:
+            - text: Don't have an account?
+            - link "Sign up" [ref=e55] [cursor=pointer]:
+              - /url: /signup
+  - region "Notifications alt+T"
