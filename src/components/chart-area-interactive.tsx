@@ -208,7 +208,7 @@ export function ChartAreaInteractive() {
                       {option.label}
                     </span>
                     {timeRange === option.value && (
-                      <Check className="size-3.5 text-blue-400" />
+                      <Check className="size-3.5 text-[#665AEF]" />
                     )}
                   </DropdownMenuItem>
                 ))}

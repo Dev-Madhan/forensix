@@ -45,7 +45,7 @@ export default async function Page() {
           </div>
         </header>
         <div className="flex flex-1 flex-col">
-          <div className="@container/main flex flex-1 flex-col gap-2">
+          <div className="@container/main flex flex-1 flex-col gap-2 transition-all duration-400 ease-[cubic-bezier(0.16,1,0.3,1)]">
             <Suspense fallback={<DashboardSkeleton />}>
               <DashboardContent userName={userName} />
             </Suspense>

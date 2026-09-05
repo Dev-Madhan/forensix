@@ -37,8 +37,8 @@ export function RecentSketches({ sketches = [] }: RecentSketchesProps) {
 
   return (
     <Card className="@container/card rounded-xl border border-border/70 bg-card/70 shadow-xs h-full flex flex-col justify-between">
-      <CardHeader className="flex flex-row items-center justify-between gap-4 border-b border-border/40 px-5 sm:px-6 py-4">
-        <div className="space-y-1">
+      <CardHeader className="flex flex-row items-center justify-between gap-3 sm:gap-4 border-b border-border/40 px-5 sm:px-6 py-4">
+        <div className="space-y-1 min-w-0 flex-1">
           <CardTitle className="text-base font-semibold tracking-tight text-foreground">
             Recent Sketches
           </CardTitle>
@@ -48,10 +48,10 @@ export function RecentSketches({ sketches = [] }: RecentSketchesProps) {
         </div>
         <Link
           href="/sketch"
-          className="group flex items-center gap-1 text-xs font-medium text-blue-400 hover:text-blue-300 transition-colors"
+          className="group shrink-0 whitespace-nowrap inline-flex items-center gap-1 text-xs font-medium text-[#a594fd] hover:text-[#c4b8ff] transition-colors"
         >
-          <span>View all</span>
-          <ArrowRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
+          <span className="whitespace-nowrap">View all</span>
+          <ArrowRight className="size-3.5 shrink-0 transition-transform group-hover:translate-x-0.5" />
         </Link>
       </CardHeader>
       <CardContent className="p-5 flex-1 flex flex-col justify-center">
@@ -102,7 +102,7 @@ export function RecentSketches({ sketches = [] }: RecentSketchesProps) {
             <EmptyContent>
               <Button
                 size="sm"
-                className="h-8 gap-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium cursor-pointer shadow-xs"
+                className="h-8 gap-1.5 rounded-lg bg-[#665AEF] hover:bg-[#5749DF] text-white text-xs font-medium cursor-pointer shadow-xs shadow-[#665AEF]/25"
                 render={<Link href="/sketch" />}
                 nativeButton={false}
               >

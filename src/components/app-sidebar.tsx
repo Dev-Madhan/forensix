@@ -4,7 +4,7 @@ import * as React from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { motion } from "motion/react";
+import { motion, AnimatePresence, LayoutGroup } from "motion/react";
 import { cn } from "@/lib/utils";
 import {
   Sidebar,
@@ -135,51 +135,164 @@ export function AppSidebar({ user: propUser, ...props }: AppSidebarProps) {
         className="px-2"
         onPointerLeave={() => setHoveredItem(null)}
       >
-        {/* Top Standalone Dashboard Item */}
-        <SidebarGroup className="py-1">
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <SidebarMenuButton
-                isActive={isDashboardActive}
-                onPointerEnter={() => setHoveredItem("Dashboard")}
-                className={cn(
-                  "relative z-0 gap-3 py-2.5 text-sm font-medium transition-colors hover:!bg-transparent cursor-pointer",
-                  isDashboardActive
-                    ? "text-blue-400 font-semibold before:absolute before:left-0 before:top-1.5 before:bottom-1.5 before:w-[3px] before:rounded-r-full before:bg-blue-500"
-                    : "text-muted-foreground hover:text-foreground",
-                  isDashboardActive && hoveredItem !== "Dashboard"
-                    ? "bg-blue-600/15"
-                    : "!bg-transparent"
-                )}
-                render={<Link href="/dashboard" />}
-              >
-                {hoveredItem === "Dashboard" && (
-                  <motion.div
-                    layoutId="sidebar-hover"
-                    className="absolute inset-0 z-[-1] rounded-md bg-accent/80"
-                    transition={{ type: "spring", bounce: 0.3, duration: 0.4 }}
+        <LayoutGroup id="sidebar-nav">
+          {/* Top Standalone Dashboard Item */}
+          <SidebarGroup className="py-1">
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  isActive={isDashboardActive}
+                  onPointerEnter={() => setHoveredItem("Dashboard")}
+                  className={cn(
+                    "relative z-0 gap-3 py-2.5 text-sm font-medium transition-colors duration-200 hover:!bg-transparent cursor-pointer",
+                    isDashboardActive
+                      ? "text-[#a594fd] font-semibold"
+                      : "text-muted-foreground hover:text-foreground",
+                    "!bg-transparent"
+                  )}
+                  render={<Link href="/dashboard" />}
+                >
+                  {/* Active background pill */}
+                  {isDashboardActive && (
+                    <motion.div
+                      layoutId="sidebar-active-pill"
+                      className="absolute inset-0 z-[-1] rounded-md bg-[#665AEF]/15"
+                      transition={{
+                        type: "spring",
+                        stiffness: 350,
+                        damping: 30,
+                        mass: 0.8,
+                      }}
+                    />
+                  )}
+                  {/* Active left indicator bar */}
+                  {isDashboardActive && (
+                    <motion.div
+                      layoutId="sidebar-active-indicator"
+                      className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-r-full bg-[#665AEF]"
+                      transition={{
+                        type: "spring",
+                        stiffness: 350,
+                        damping: 30,
+                        mass: 0.8,
+                      }}
+                    />
+                  )}
+                  {/* Hover background pill */}
+                  <AnimatePresence>
+                    {hoveredItem === "Dashboard" && !isDashboardActive && (
+                      <motion.div
+                        layoutId="sidebar-hover"
+                        className="absolute inset-0 z-[-1] rounded-md bg-accent/80"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{
+                          type: "spring",
+                          stiffness: 350,
+                          damping: 30,
+                          mass: 0.8,
+                        }}
+                      />
+                    )}
+                  </AnimatePresence>
+                  <LayoutDashboard
+                    className={cn(
+                      "size-4 shrink-0 transition-colors duration-200",
+                      isDashboardActive ? "text-[#a594fd]" : "text-muted-foreground"
+                    )}
                   />
-                )}
-                <LayoutDashboard
-                  className={`size-4 shrink-0 ${
-                    isDashboardActive ? "text-blue-400" : "text-blue-500"
-                  }`}
-                />
-                <span>Dashboard</span>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          </SidebarMenu>
-        </SidebarGroup>
+                  <span>Dashboard</span>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroup>
 
-        {/* Sections: INVESTIGATION & RESOURCES */}
-        {navSections.map((section) => (
-          <SidebarGroup key={section.label} className="py-2">
-            <SidebarGroupLabel className="text-[11px] font-semibold tracking-wider text-muted-foreground/70 uppercase px-3">
-              {section.label}
-            </SidebarGroupLabel>
+          {/* Sections: INVESTIGATION & RESOURCES */}
+          {navSections.map((section) => (
+            <SidebarGroup key={section.label} className="py-2">
+              <SidebarGroupLabel className="text-[11px] font-semibold tracking-wider text-muted-foreground/70 uppercase px-3">
+                {section.label}
+              </SidebarGroupLabel>
+              <SidebarGroupContent>
+                <SidebarMenu>
+                  {section.items.map((item) => {
+                    const isActive = pathname.startsWith(item.url);
+                    const isHovered = hoveredItem === item.title;
+                    return (
+                      <SidebarMenuItem key={item.title}>
+                        <SidebarMenuButton
+                          isActive={isActive}
+                          onPointerEnter={() => setHoveredItem(item.title)}
+                          className={cn(
+                            "relative z-0 gap-3 py-2 text-sm transition-colors duration-200 hover:!bg-transparent cursor-pointer",
+                            isActive
+                              ? "text-[#a594fd] font-medium"
+                              : "text-muted-foreground hover:text-foreground",
+                            "!bg-transparent"
+                          )}
+                          render={<Link href={item.url} />}
+                        >
+                          {/* Active background pill */}
+                          {isActive && (
+                            <motion.div
+                              layoutId="sidebar-active-pill"
+                              className="absolute inset-0 z-[-1] rounded-md bg-[#665AEF]/15"
+                              transition={{
+                                type: "spring",
+                                stiffness: 350,
+                                damping: 30,
+                                mass: 0.8,
+                              }}
+                            />
+                          )}
+                          {/* Active left indicator bar */}
+                          {isActive && (
+                            <motion.div
+                              layoutId="sidebar-active-indicator"
+                              className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-r-full bg-[#665AEF]"
+                              transition={{
+                                type: "spring",
+                                stiffness: 350,
+                                damping: 30,
+                                mass: 0.8,
+                              }}
+                            />
+                          )}
+                          {/* Hover background pill */}
+                          <AnimatePresence>
+                            {isHovered && !isActive && (
+                              <motion.div
+                                layoutId="sidebar-hover"
+                                className="absolute inset-0 z-[-1] rounded-md bg-accent/80"
+                                initial={{ opacity: 0 }}
+                                animate={{ opacity: 1 }}
+                                exit={{ opacity: 0 }}
+                                transition={{
+                                  type: "spring",
+                                  stiffness: 350,
+                                  damping: 30,
+                                  mass: 0.8,
+                                }}
+                              />
+                            )}
+                          </AnimatePresence>
+                          <item.icon className="size-4 shrink-0 transition-colors duration-200" />
+                          <span>{item.title}</span>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    );
+                  })}
+                </SidebarMenu>
+              </SidebarGroupContent>
+            </SidebarGroup>
+          ))}
+
+          {/* Secondary items: Settings & Help & Support */}
+          <SidebarGroup className="mt-auto py-2">
             <SidebarGroupContent>
               <SidebarMenu>
-                {section.items.map((item) => {
+                {secondaryItems.map((item) => {
                   const isActive = pathname.startsWith(item.url);
                   const isHovered = hoveredItem === item.title;
                   return (
@@ -188,28 +301,44 @@ export function AppSidebar({ user: propUser, ...props }: AppSidebarProps) {
                         isActive={isActive}
                         onPointerEnter={() => setHoveredItem(item.title)}
                         className={cn(
-                          "relative z-0 gap-3 py-2 text-sm transition-colors hover:!bg-transparent cursor-pointer",
+                          "relative z-0 gap-3 py-2 text-sm transition-colors duration-200 hover:!bg-transparent cursor-pointer",
                           isActive
-                            ? "text-blue-400 font-medium before:absolute before:left-0 before:top-1.5 before:bottom-1.5 before:w-[3px] before:rounded-r-full before:bg-blue-500"
+                            ? "text-[#a594fd] font-medium"
                             : "text-muted-foreground hover:text-foreground",
-                          isActive && !isHovered
-                            ? "bg-blue-600/15"
-                            : "!bg-transparent"
+                          "!bg-transparent"
                         )}
                         render={<Link href={item.url} />}
                       >
-                        {isHovered && (
+                        {isActive && (
                           <motion.div
-                            layoutId="sidebar-hover"
-                            className="absolute inset-0 z-[-1] rounded-md bg-accent/80"
+                            layoutId="sidebar-active-pill"
+                            className="absolute inset-0 z-[-1] rounded-md bg-[#665AEF]/15"
                             transition={{
                               type: "spring",
-                              bounce: 0.3,
-                              duration: 0.4,
+                              stiffness: 350,
+                              damping: 30,
+                              mass: 0.8,
                             }}
                           />
                         )}
-                        <item.icon className="size-4 shrink-0" />
+                        <AnimatePresence>
+                          {isHovered && !isActive && (
+                            <motion.div
+                              layoutId="sidebar-hover"
+                              className="absolute inset-0 z-[-1] rounded-md bg-accent/80"
+                              initial={{ opacity: 0 }}
+                              animate={{ opacity: 1 }}
+                              exit={{ opacity: 0 }}
+                              transition={{
+                                type: "spring",
+                                stiffness: 350,
+                                damping: 30,
+                                mass: 0.8,
+                              }}
+                            />
+                          )}
+                        </AnimatePresence>
+                        <item.icon className="size-4 shrink-0 transition-colors duration-200" />
                         <span>{item.title}</span>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
@@ -218,51 +347,7 @@ export function AppSidebar({ user: propUser, ...props }: AppSidebarProps) {
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
-        ))}
-
-        {/* Secondary items: Settings & Help & Support */}
-        <SidebarGroup className="mt-auto py-2">
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {secondaryItems.map((item) => {
-                const isActive = pathname.startsWith(item.url);
-                const isHovered = hoveredItem === item.title;
-                return (
-                  <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton
-                      isActive={isActive}
-                      onPointerEnter={() => setHoveredItem(item.title)}
-                      className={cn(
-                        "relative z-0 gap-3 py-2 text-sm transition-colors hover:!bg-transparent cursor-pointer",
-                        isActive
-                          ? "text-blue-400 font-medium"
-                          : "text-muted-foreground hover:text-foreground",
-                        isActive && !isHovered
-                          ? "bg-blue-600/15"
-                          : "!bg-transparent"
-                      )}
-                      render={<Link href={item.url} />}
-                    >
-                      {isHovered && (
-                        <motion.div
-                          layoutId="sidebar-hover"
-                          className="absolute inset-0 z-[-1] rounded-md bg-accent/80"
-                          transition={{
-                            type: "spring",
-                            bounce: 0.3,
-                            duration: 0.4,
-                          }}
-                        />
-                      )}
-                      <item.icon className="size-4 shrink-0" />
-                      <span>{item.title}</span>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                );
-              })}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        </LayoutGroup>
       </SidebarContent>
 
       {/* User profile dropdown component */}

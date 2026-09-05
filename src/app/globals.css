@@ -164,6 +164,7 @@
   }
   html {
     @apply font-sans;
+    scrollbar-gutter: stable;
   }
   h1, h2, h3, h4, h5, h6 {
     @apply font-heading;
@@ -181,4 +182,20 @@
 
 .animate-shine {
   animation: shine 1.5s infinite;
+}
+
+@utility no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
 }
