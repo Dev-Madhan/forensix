@@ -59,7 +59,7 @@ export function MobileNav({ user }: MobileNavProps) {
 					>
 						<div className="flex flex-col space-y-1 max-w-md mx-auto w-full">
 							{navLinks
-								.filter(link => link.label !== "Dashboard" || user?.role === "ADMIN")
+								.filter(link => link.label !== "Dashboard" || !!user)
 								.map((link) => (
 								<Link
 									key={link.label}
