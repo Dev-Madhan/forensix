@@ -150,7 +150,7 @@ export default async function CasesPage() {
               <div className="flex items-center gap-3">
                 <Button
                   className="h-10 gap-2 rounded-lg bg-[#665AEF] hover:bg-[#5749DF] text-white text-sm font-medium cursor-pointer shadow-sm shadow-[#665AEF]/25 px-4"
-                  render={<Link href="/dashboard/cases/new" />}
+                  render={<Link href="/case-details/new" />}
                   nativeButton={false}
                 >
                   <Plus className="size-4" />

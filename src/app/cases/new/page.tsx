@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
-export default function DashboardNewCasePage() {
+export default function CasesNewRedirectPage() {
   redirect("/case-details/new");
 }

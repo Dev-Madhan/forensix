@@ -217,7 +217,9 @@ export function AppSidebar({ user: propUser, ...props }: AppSidebarProps) {
               <SidebarGroupContent>
                 <SidebarMenu>
                   {section.items.map((item) => {
-                    const isActive = pathname.startsWith(item.url);
+                    const isActive =
+                      pathname.startsWith(item.url) ||
+                      (item.title === "Cases" && pathname.startsWith("/case-details"));
                     const isHovered = hoveredItem === item.title;
                     return (
                       <SidebarMenuItem key={item.title}>

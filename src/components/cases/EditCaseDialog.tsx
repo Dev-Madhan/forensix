@@ -20,9 +20,10 @@ interface EditCaseDialogProps {
     status: CaseStatus;
     priority: CasePriority;
   };
+  triggerClassName?: string;
 }
 
-export function EditCaseDialog({ caseData }: EditCaseDialogProps) {
+export function EditCaseDialog({ caseData, triggerClassName }: EditCaseDialogProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -55,9 +56,17 @@ export function EditCaseDialog({ caseData }: EditCaseDialogProps) {
 
   return (
     <>
-      <Button variant="outline" size="sm" onClick={() => setIsOpen(true)}>
-        <Edit className="w-3.5 h-3.5 mr-1.5" />
-        Edit Case
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => setIsOpen(true)}
+        className={
+          triggerClassName ||
+          "h-9 gap-2 rounded-lg border-2 border-border/80 bg-card/60 text-xs sm:text-sm font-medium hover:bg-muted/60 hover:text-foreground cursor-pointer shadow-xs"
+        }
+      >
+        <Edit className="size-3.5 text-muted-foreground" />
+        <span>Edit Case</span>
       </Button>
 
       <Modal

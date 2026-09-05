@@ -42,8 +42,13 @@ export function Header({ user }: HeaderProps) {
 	const pathname = usePathname();
 	const scrolled = useScroll(10);
 
-	// Hide header on authentication and dashboard pages for a focused user experience
-	if (pathname === "/auth" || pathname === "/signup" || pathname.startsWith("/dashboard")) {
+	// Hide header on authentication, dashboard, and case-details pages for a focused user experience
+	if (
+		pathname === "/auth" ||
+		pathname === "/signup" ||
+		pathname.startsWith("/dashboard") ||
+		pathname.startsWith("/case-details")
+	) {
 		return null;
 	}
 

@@ -44,151 +44,8 @@ import {
   ArrowRight,
 } from "lucide-react";
 
-export interface CaseItem {
-  id: string;
-  caseNumber: string;
-  title: string;
-  type: string;
-  location: string;
-  date: string;
-  timestamp?: string;
-  status: "Under Investigation" | "Open" | "Solved" | "Closed";
-  description?: string;
-  assignedTo?: string;
-}
-
-export const INITIAL_CASES: CaseItem[] = [
-  {
-    id: "1",
-    caseNumber: "FX-2026-184",
-    title: "Downtown Robbery",
-    type: "Theft",
-    location: "Chennai, TN",
-    date: "Oct 4, 2026",
-    timestamp: "09:14 PM",
-    status: "Under Investigation",
-    description:
-      "Armed robbery at a commercial establishment in T. Nagar. Suspect seen on CCTV fleeing towards North Boag Road.",
-    assignedTo: "Unknown Suspect",
-  },
-  {
-    id: "2",
-    caseNumber: "FX-2026-183",
-    title: "Missing Person",
-    type: "Missing Person",
-    location: "Coimbatore, TN",
-    date: "Oct 3, 2026",
-    timestamp: "04:30 PM",
-    status: "Open",
-    description:
-      "Individual last seen near Gandhipuram bus terminal. Investigation into transit footage ongoing.",
-    assignedTo: "Officer Raman",
-  },
-  {
-    id: "3",
-    caseNumber: "FX-2026-182",
-    title: "Fraud Identification",
-    type: "Fraud",
-    location: "Bengaluru, KA",
-    date: "Oct 2, 2026",
-    timestamp: "11:20 AM",
-    status: "Open",
-    description:
-      "Multi-tier identity impersonation at banking branches. Digital audit logs under forensic analysis.",
-    assignedTo: "Special Agent Priya",
-  },
-  {
-    id: "4",
-    caseNumber: "FX-2026-181",
-    title: "Assault Investigation",
-    type: "Assault",
-    location: "Madurai, TN",
-    date: "Oct 1, 2026",
-    timestamp: "08:45 PM",
-    status: "Solved",
-    description:
-      "Assault incident outside commercial hub. Suspect apprehended with matching physical sketch.",
-    assignedTo: "Inspector Selvam",
-  },
-  {
-    id: "5",
-    caseNumber: "FX-2026-180",
-    title: "Unknown Suspect",
-    type: "Unknown",
-    location: "Trichy, TN",
-    date: "Sep 30, 2026",
-    timestamp: "02:15 AM",
-    status: "Under Investigation",
-    description:
-      "Unidentified person captured on private surveillance tampering with telecom infrastructure.",
-    assignedTo: "Investigator K.",
-  },
-  {
-    id: "6",
-    caseNumber: "FX-2026-179",
-    title: "Identity Verification",
-    type: "Identity",
-    location: "Salem, TN",
-    date: "Sep 28, 2026",
-    timestamp: "06:10 PM",
-    status: "Closed",
-    description:
-      "Verification of disputed biometric records. Discrepancies cleared and verified.",
-    assignedTo: "Officer Meera",
-  },
-  {
-    id: "7",
-    caseNumber: "FX-2026-178",
-    title: "Cyber Crime",
-    type: "Cyber",
-    location: "Chennai, TN",
-    date: "Sep 27, 2026",
-    timestamp: "10:05 PM",
-    status: "Open",
-    description:
-      "Ransomware assault on municipal healthcare server. IP tracing in progress.",
-    assignedTo: "Cyber Forensics Unit",
-  },
-  {
-    id: "8",
-    caseNumber: "FX-2026-177",
-    title: "Homicide Case",
-    type: "Homicide",
-    location: "Tirunelveli, TN",
-    date: "Sep 25, 2026",
-    timestamp: "01:40 AM",
-    status: "Under Investigation",
-    description:
-      "Crime scene analysis with multiple physical evidence items submitted for lab sequencing.",
-    assignedTo: "Senior Det. Murugan",
-  },
-  {
-    id: "9",
-    caseNumber: "FX-2026-176",
-    title: "Stolen Vehicle",
-    type: "Theft",
-    location: "Erode, TN",
-    date: "Sep 24, 2026",
-    timestamp: "07:50 PM",
-    status: "Solved",
-    description:
-      "Commercial freight vehicle recovered at highway toll booth using automated license plate recognition.",
-    assignedTo: "Highway Patrol",
-  },
-  {
-    id: "10",
-    caseNumber: "FX-2026-175",
-    title: "Vandalism",
-    type: "Property Crime",
-    location: "Vellore, TN",
-    date: "Sep 22, 2026",
-    timestamp: "03:30 AM",
-    status: "Closed",
-    description:
-      "Defacement of public historical monument. Perpetrator identified and penal fine imposed.",
-    assignedTo: "District Station",
-  },
-];
+import { INITIAL_CASES, type CaseItem } from "@/constants/mock-cases";
+export { INITIAL_CASES, type CaseItem };
 
 function CaseRowActions({
   caseItem,
@@ -229,7 +86,7 @@ function CaseRowActions({
           className="space-y-0.5"
         >
           <DropdownMenuItem
-            render={<Link href={`/dashboard/cases/${caseItem.id}`} />}
+            render={<Link href={`/case-details/${caseItem.caseNumber}`} />}
             onPointerEnter={() => setHoveredAction("details")}
             className="relative z-0 group flex items-center justify-between cursor-pointer px-2.5 py-1.5 rounded-md transition-colors focus:text-accent-foreground hover:text-accent-foreground !bg-transparent text-xs font-medium"
           >
@@ -711,7 +568,7 @@ export function CasesTable({ initialCases = [] }: CasesTableProps) {
                     </TableCell>
                     <TableCell className="font-heading text-xs font-medium text-foreground px-2.5 py-3 whitespace-nowrap">
                       <Link
-                        href={`/dashboard/cases/${c.id}`}
+                        href={`/case-details/${c.caseNumber}`}
                         className="hover:text-[#a594fd] transition-colors"
                         onClick={(e) => e.stopPropagation()}
                       >
@@ -786,8 +643,12 @@ export function CasesTable({ initialCases = [] }: CasesTableProps) {
                   variant={currentPage === pageNum ? "default" : "ghost"}
                   size="xs"
                   onClick={() => setCurrentPage(pageNum)}
+                  style={{
+                    fontFamily:
+                      'var(--font-inter), "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                  }}
                   className={cn(
-                    "size-8 rounded-md text-xs font-medium transition-colors cursor-pointer",
+                    "size-8 rounded-md text-xs font-medium font-inter tabular-nums transition-colors cursor-pointer",
                     currentPage === pageNum
                       ? "bg-[#665AEF] hover:bg-[#5749DF] text-white shadow-xs shadow-[#665AEF]/25"
                       : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
@@ -898,10 +759,10 @@ function CaseDetailsPreview({ caseItem }: CaseDetailsPreviewProps) {
               priority
             />
             {/* Timestamp & Camera ID Overlay */}
-            <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5 font-mono text-[10px] tracking-wider text-white/90 bg-black/70 backdrop-blur-xs px-2 py-0.5 rounded">
+            <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5 font-heading font-semibold text-[10px] tracking-wider text-white/90 bg-black/70 backdrop-blur-xs px-2 py-0.5 rounded">
               <span>{`CAM 0${cctvIndex}`}</span>
             </div>
-            <div className="absolute top-2.5 right-2.5 flex items-center gap-1.5 font-mono text-[10px] tracking-wider text-white/90 bg-black/70 backdrop-blur-xs px-2 py-0.5 rounded">
+            <div className="absolute top-2.5 right-2.5 flex items-center gap-1.5 font-heading font-medium text-[10px] tracking-wider text-white/90 bg-black/70 backdrop-blur-xs px-2 py-0.5 rounded">
               <span>{caseItem.date} {caseItem.timestamp || "21:14:32"}</span>
             </div>
 
@@ -923,8 +784,14 @@ function CaseDetailsPreview({ caseItem }: CaseDetailsPreviewProps) {
               <ChevronRight className="size-4" />
             </button>
 
-            {/* Bottom-right 1/4 Pagination badge */}
-            <div className="absolute bottom-2.5 right-2.5 font-mono text-[10px] text-white/90 bg-black/75 backdrop-blur-xs px-2 py-0.5 rounded">
+            {/* Bottom-right 1/4 Pagination badge with Inter font */}
+            <div
+              className="absolute bottom-2.5 right-2.5 font-inter font-medium text-[10px] text-white/90 bg-black/75 backdrop-blur-xs px-2 py-0.5 rounded tabular-nums"
+              style={{
+                fontFamily:
+                  'var(--font-inter), "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+              }}
+            >
               {cctvIndex}/{totalCctvAngles}
             </div>
           </div>
@@ -987,7 +854,7 @@ function CaseDetailsPreview({ caseItem }: CaseDetailsPreviewProps) {
           <div className="pt-2 mt-auto">
             <Button
               className="w-full h-10 rounded-lg bg-[#665AEF] hover:bg-[#5749DF] text-white text-sm font-medium shadow-sm shadow-[#665AEF]/25 flex items-center justify-center gap-2 cursor-pointer transition-all"
-              render={<Link href={`/dashboard/cases/${caseItem.id}`} />}
+              render={<Link href={`/case-details/${caseItem.caseNumber}`} />}
               nativeButton={false}
             >
               <span>View Case Details</span>
