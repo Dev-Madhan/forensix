@@ -46,6 +46,9 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
 } from "@/components/ui/dropdown-menu";
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { Calendar as CalendarPicker } from "@/components/ui/calendar";
+import { format, isValid } from "date-fns";
 import { motion } from "motion/react";
 import { toast } from "sonner";
 import { CaseStatus, CasePriority } from "@prisma/client";
@@ -53,6 +56,15 @@ import { createCase } from "@/features/cases/actions";
 import { uploadEvidence } from "@/features/evidence/actions";
 import { CaseEvidenceUploadSection } from "./case-evidence-upload-section";
 import { resolveCaseLocation, LANDMARK_GAZETTEER } from "@/lib/case-location-resolver";
+
+function parseReportedDate(val?: string): Date | undefined {
+  if (!val || !val.trim()) return undefined;
+  const parsed = new Date(val);
+  if (isValid(parsed) && !isNaN(parsed.getTime())) {
+    return parsed;
+  }
+  return undefined;
+}
 
 interface CaseNewFormProps {
   initialUser?: {
@@ -223,6 +235,8 @@ export function CaseNewForm({ initialUser, suggestedCaseNumber }: CaseNewFormPro
 
   // Timeline & Location
   const [dateReported, setDateReported] = React.useState(getFormattedCurrentDate());
+  const [isDatePickerOpen, setIsDatePickerOpen] = React.useState(false);
+  const parsedDate = React.useMemo(() => parseReportedDate(dateReported), [dateReported]);
   const [timeOfIncident, setTimeOfIncident] = React.useState(getFormattedCurrentTime());
   const [location, setLocation] = React.useState("Chennai, TN");
   const [landmark, setLandmark] = React.useState("North Boag Road, T. Nagar");
@@ -796,7 +810,8 @@ export function CaseNewForm({ initialUser, suggestedCaseNumber }: CaseNewFormPro
                 {/* Investigation Status Dropdown */}
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                    Investigation Status
+                    <span className="sm:hidden">Status</span>
+                    <span className="hidden sm:inline">Investigation Status</span>
                   </Label>
                   <DropdownMenu>
                     <DropdownMenuTrigger
@@ -917,13 +932,70 @@ export function CaseNewForm({ initialUser, suggestedCaseNumber }: CaseNewFormPro
                     <Calendar className="size-3 text-muted-foreground shrink-0" />
                     <span>Date Reported</span>
                   </Label>
-                  <Input
-                    id="date-reported"
-                    value={dateReported}
-                    onChange={(e) => setDateReported(e.target.value)}
-                    placeholder="e.g. Oct 5, 2026"
-                    className="h-10 text-base sm:text-sm border-2 border-border/80 bg-background/50 focus-visible:border-ring"
-                  />
+                  <Popover open={isDatePickerOpen} onOpenChange={setIsDatePickerOpen}>
+                    <PopoverTrigger
+                      render={
+                        <Button
+                          id="date-reported"
+                          type="button"
+                          variant="outline"
+                          className="h-10 w-full justify-between rounded-lg border-2 border-border/80 bg-background/50 px-3 text-xs sm:text-sm font-medium hover:bg-muted/60 hover:text-foreground cursor-pointer flex items-center shadow-2xs active:scale-[0.99] touch-manipulation text-left"
+                        />
+                      }
+                    >
+                      <span className="truncate">
+                        {parsedDate ? format(parsedDate, "MMM d, yyyy") : (dateReported || "Select date")}
+                      </span>
+                      <ChevronDown className="size-3.5 text-muted-foreground opacity-70 shrink-0 ml-2" />
+                    </PopoverTrigger>
+                    <PopoverContent
+                      align="end"
+                      side="bottom"
+                      sideOffset={6}
+                      className="w-auto p-2 rounded-xl shadow-2xl bg-card/95 backdrop-blur-xl border-2 border-border overflow-hidden"
+                    >
+                      <CalendarPicker
+                        mode="single"
+                        selected={parsedDate}
+                        defaultMonth={parsedDate || new Date()}
+                        onSelect={(date) => {
+                          if (date) {
+                            setDateReported(format(date, "MMM d, yyyy"));
+                            setIsDatePickerOpen(false);
+                          }
+                        }}
+                      />
+                      <div className="flex items-center justify-between pt-2 border-t border-border/60 mt-1 px-1">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="xs"
+                          className="text-xs h-7 px-2 text-muted-foreground hover:text-foreground cursor-pointer"
+                          onClick={() => {
+                            const today = new Date();
+                            setDateReported(format(today, "MMM d, yyyy"));
+                            setIsDatePickerOpen(false);
+                          }}
+                        >
+                          Today
+                        </Button>
+                        {dateReported && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="xs"
+                            className="text-xs h-7 px-2 text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 cursor-pointer"
+                            onClick={() => {
+                              setDateReported("");
+                              setIsDatePickerOpen(false);
+                            }}
+                          >
+                            Clear
+                          </Button>
+                        )}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
                 </div>
 
                 {/* Time of Incident */}
