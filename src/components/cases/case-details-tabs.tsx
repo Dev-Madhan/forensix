@@ -2,12 +2,8 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import {
-  Tabs,
-  TabsList,
-  TabsTrigger,
-  TabsContent,
-} from "@/components/ui/tabs";
+import { motion, AnimatePresence } from "motion/react";
+import { cn } from "@/lib/utils";
 import {
   Card,
   CardHeader,
@@ -59,10 +55,37 @@ import type { ResolvedCaseDetail } from "@/features/cases/resolve-case";
 import { authClient } from "@/lib/auth-client";
 import { toast } from "sonner";
 import { resolveCaseLocation } from "@/lib/case-location-resolver";
+import { CaseStatusCard } from "@/components/cases/case-status-card";
+import { CaseKeyDetailsCard } from "@/components/cases/case-key-details-card";
+import { CaseIncidentMediaCard } from "@/components/cases/case-incident-media-card";
+import { CaseIncidentLocationCard } from "@/components/cases/case-incident-location-card";
+import { EvidenceTabContent } from "@/components/cases/evidence/evidence-tab-content";
 
 interface CaseDetailsTabsProps {
   caseData: ResolvedCaseDetail;
 }
+
+const tabContentVariants = {
+  initial: {
+    opacity: 0,
+    y: 6,
+  },
+  animate: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.2,
+      ease: [0.16, 1, 0.3, 1] as const,
+    },
+  },
+  exit: {
+    opacity: 0,
+    transition: {
+      duration: 0.1,
+      ease: "easeIn" as const,
+    },
+  },
+};
 
 export function CaseDetailsTabs({ caseData }: CaseDetailsTabsProps) {
   const { data: session } = authClient.useSession();
@@ -85,6 +108,16 @@ export function CaseDetailsTabs({ caseData }: CaseDetailsTabsProps) {
       .slice(0, 2) || "U";
 
   const [activeTab, setActiveTab] = useState("overview");
+
+  const tabs = React.useMemo(
+    () => [
+      { id: "overview", label: "Overview" },
+      { id: "evidence", label: `Evidence (${caseData.evidenceCount || 8})` },
+      { id: "suspects", label: `Suspects (${caseData.suspectsCount || 2})` },
+      { id: "activity", label: "Activity Log" },
+    ],
+    [caseData.evidenceCount, caseData.suspectsCount]
+  );
 
   // Interactive tags state
   const [tags, setTags] = useState<string[]>(
@@ -196,124 +229,190 @@ export function CaseDetailsTabs({ caseData }: CaseDetailsTabsProps) {
 
   return (
     <div className="w-full space-y-6">
-      <Tabs
-        value={activeTab}
-        onValueChange={setActiveTab}
-        className="w-full"
-      >
-        {/* Tab Navigation List: Reduced to the 4 requested tabs with refined padding */}
-        <div className="border-b border-border/60 pb-px">
-          <TabsList
-            variant="line"
-            className="flex w-full justify-start overflow-x-auto no-scrollbar gap-1 sm:gap-2 h-11 px-0"
-          >
-            <TabsTrigger
-              value="overview"
-              className="flex-initial text-xs sm:text-sm font-medium px-4 sm:px-5 py-2.5 cursor-pointer transition-colors"
-            >
-              Overview
-            </TabsTrigger>
-            <TabsTrigger
-              value="evidence"
-              className="flex-initial text-xs sm:text-sm font-medium px-4 sm:px-5 py-2.5 cursor-pointer transition-colors"
-            >
-              Evidence ({caseData.evidenceCount || 8})
-            </TabsTrigger>
-            <TabsTrigger
-              value="suspects"
-              className="flex-initial text-xs sm:text-sm font-medium px-4 sm:px-5 py-2.5 cursor-pointer transition-colors"
-            >
-              Suspects ({caseData.suspectsCount || 2})
-            </TabsTrigger>
-            <TabsTrigger
-              value="activity"
-              className="flex-initial text-xs sm:text-sm font-medium px-4 sm:px-5 py-2.5 cursor-pointer transition-colors"
-            >
-              Activity Log
-            </TabsTrigger>
-          </TabsList>
+      {/* Tab Navigation List: Buttery Smooth Framer Motion Tabs */}
+      <div className="relative border-b border-border/60 pb-px">
+        <div
+          role="tablist"
+          aria-label="Case details tabs"
+          className="flex w-full justify-start overflow-x-auto no-scrollbar gap-1 sm:gap-2 h-11 px-0 relative"
+        >
+          {tabs.map((tab) => {
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                role="tab"
+                id={`case-tab-${tab.id}`}
+                aria-controls={`case-tabpanel-${tab.id}`}
+                aria-selected={isActive}
+                tabIndex={isActive ? 0 : -1}
+                onClick={() => setActiveTab(tab.id)}
+                onKeyDown={(e) => {
+                  const currentIndex = tabs.findIndex((t) => t.id === tab.id);
+                  if (e.key === "ArrowRight") {
+                    e.preventDefault();
+                    const nextTab = tabs[(currentIndex + 1) % tabs.length];
+                    setActiveTab(nextTab.id);
+                    document.getElementById(`case-tab-${nextTab.id}`)?.focus();
+                  } else if (e.key === "ArrowLeft") {
+                    e.preventDefault();
+                    const prevTab = tabs[(currentIndex - 1 + tabs.length) % tabs.length];
+                    setActiveTab(prevTab.id);
+                    document.getElementById(`case-tab-${prevTab.id}`)?.focus();
+                  }
+                }}
+                className={cn(
+                  "relative inline-flex items-center justify-center px-4 sm:px-5 py-2.5 text-xs sm:text-sm font-medium transition-colors cursor-pointer select-none outline-none focus-visible:ring-2 focus-visible:ring-[#665AEF]/50",
+                  isActive
+                    ? "text-foreground font-semibold"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <span className="relative z-10">{tab.label}</span>
+
+                {/* Sliding Active Underline Indicator Bar */}
+                {isActive && (
+                  <motion.div
+                    layoutId="case-active-tab-indicator"
+                    className="absolute bottom-0 left-0 right-0 h-[2px] bg-[#665AEF] rounded-full z-10"
+                    transition={{
+                      type: "spring",
+                      stiffness: 400,
+                      damping: 32,
+                    }}
+                  />
+                )}
+              </button>
+            );
+          })}
         </div>
+      </div>
 
-        {/* 1. OVERVIEW TAB PANEL */}
-        <TabsContent value="overview" className="mt-6 space-y-6 outline-none">
-          {/* A. 4 Quick Stat Cards */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-            {/* Card 1: Evidence Files */}
-            <Card
-              onClick={() => setActiveTab("evidence")}
-              className="group border border-border/80 bg-card/40 hover:bg-card/70 hover:border-border transition-all p-3.5 sm:p-4 rounded-xl cursor-pointer shadow-2xs flex flex-col justify-between"
+      {/* Tab Content Panels with Smooth AnimatePresence */}
+      <div className="w-full min-h-[450px]">
+        <AnimatePresence mode="wait" initial={false}>
+          {/* 1. OVERVIEW TAB PANEL */}
+          {activeTab === "overview" && (
+            <motion.div
+              key="overview"
+              role="tabpanel"
+              id="case-tabpanel-overview"
+              aria-labelledby="case-tab-overview"
+              variants={tabContentVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              className="outline-none"
             >
-              <div className="flex items-center justify-between">
-                <Folder className="size-5 text-[#0070F3] group-hover:scale-110 transition-transform" />
-                <ChevronRight className="size-4 text-muted-foreground/40 group-hover:text-foreground group-hover:translate-x-0.5 transition-all" />
-              </div>
-              <div className="mt-3">
-                <span className="text-2xl font-bold font-heading text-foreground block leading-tight">
-                  {caseData.evidenceCount || 8}
-                </span>
-                <span className="text-xs text-muted-foreground font-medium block mt-1 truncate">
-                  Evidence Files
-                </span>
-              </div>
-            </Card>
+              <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start w-full">
+                <div className="xl:col-span-8 2xl:col-span-8 space-y-6 min-w-0">
+                  {/* A. 4 Quick Stat Cards */}
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                    {/* Card 1: Evidence Files */}
+                    <motion.div
+                      whileHover={{ y: -2 }}
+                      whileTap={{ scale: 0.98 }}
+                      transition={{ duration: 0.15 }}
+                      className="h-full"
+                    >
+                      <Card
+                        onClick={() => setActiveTab("evidence")}
+                        className="group border border-border/80 bg-card/40 hover:bg-card/70 hover:border-border transition-all p-3.5 sm:p-4 rounded-xl cursor-pointer shadow-2xs flex flex-col justify-between h-full"
+                      >
+                        <div className="flex items-center justify-between">
+                          <Folder className="size-5 text-[#665AEF] group-hover:scale-110 transition-transform" />
+                          <ChevronRight className="size-4 text-muted-foreground/40 group-hover:text-foreground group-hover:translate-x-0.5 transition-all" />
+                        </div>
+                        <div className="mt-3">
+                          <span className="text-2xl font-bold font-heading text-foreground block leading-tight">
+                            {caseData.evidenceCount || 8}
+                          </span>
+                          <span className="text-xs text-muted-foreground font-medium block mt-1 truncate">
+                            Evidence Files
+                          </span>
+                        </div>
+                      </Card>
+                    </motion.div>
 
-            {/* Card 2: Suspects Linked */}
-            <Card
-              onClick={() => setActiveTab("suspects")}
-              className="group border border-border/80 bg-card/40 hover:bg-card/70 hover:border-border transition-all p-3.5 sm:p-4 rounded-xl cursor-pointer shadow-2xs flex flex-col justify-between"
-            >
-              <div className="flex items-center justify-between">
-                <Users className="size-5 text-[#0070F3] group-hover:scale-110 transition-transform" />
-                <ChevronRight className="size-4 text-muted-foreground/40 group-hover:text-foreground group-hover:translate-x-0.5 transition-all" />
-              </div>
-              <div className="mt-3">
-                <span className="text-2xl font-bold font-heading text-foreground block leading-tight">
-                  {caseData.suspectsCount || 2}
-                </span>
-                <span className="text-xs text-muted-foreground font-medium block mt-1 truncate">
-                  Suspects Linked
-                </span>
-              </div>
-            </Card>
+                    {/* Card 2: Suspects Linked */}
+                    <motion.div
+                      whileHover={{ y: -2 }}
+                      whileTap={{ scale: 0.98 }}
+                      transition={{ duration: 0.15 }}
+                      className="h-full"
+                    >
+                      <Card
+                        onClick={() => setActiveTab("suspects")}
+                        className="group border border-border/80 bg-card/40 hover:bg-card/70 hover:border-border transition-all p-3.5 sm:p-4 rounded-xl cursor-pointer shadow-2xs flex flex-col justify-between h-full"
+                      >
+                        <div className="flex items-center justify-between">
+                          <Users className="size-5 text-[#665AEF] group-hover:scale-110 transition-transform" />
+                          <ChevronRight className="size-4 text-muted-foreground/40 group-hover:text-foreground group-hover:translate-x-0.5 transition-all" />
+                        </div>
+                        <div className="mt-3">
+                          <span className="text-2xl font-bold font-heading text-foreground block leading-tight">
+                            {caseData.suspectsCount || 2}
+                          </span>
+                          <span className="text-xs text-muted-foreground font-medium block mt-1 truncate">
+                            Suspects Linked
+                          </span>
+                        </div>
+                      </Card>
+                    </motion.div>
 
-            {/* Card 3: Related Records */}
-            <Card className="group border border-border/80 bg-card/40 hover:bg-card/70 hover:border-border transition-all p-3.5 sm:p-4 rounded-xl cursor-pointer shadow-2xs flex flex-col justify-between">
-              <div className="flex items-center justify-between">
-                <Database className="size-5 text-[#0070F3] group-hover:scale-110 transition-transform" />
-                <ChevronRight className="size-4 text-muted-foreground/40 group-hover:text-foreground group-hover:translate-x-0.5 transition-all" />
-              </div>
-              <div className="mt-3">
-                <span className="text-2xl font-bold font-heading text-foreground block leading-tight">
-                  3
-                </span>
-                <span className="text-xs text-muted-foreground font-medium block mt-1 truncate">
-                  Related Records
-                </span>
-              </div>
-            </Card>
+                    {/* Card 3: Related Records */}
+                    <motion.div
+                      whileHover={{ y: -2 }}
+                      whileTap={{ scale: 0.98 }}
+                      transition={{ duration: 0.15 }}
+                      className="h-full"
+                    >
+                      <Card className="group border border-border/80 bg-card/40 hover:bg-card/70 hover:border-border transition-all p-3.5 sm:p-4 rounded-xl cursor-pointer shadow-2xs flex flex-col justify-between h-full">
+                        <div className="flex items-center justify-between">
+                          <Database className="size-5 text-[#665AEF] group-hover:scale-110 transition-transform" />
+                          <ChevronRight className="size-4 text-muted-foreground/40 group-hover:text-foreground group-hover:translate-x-0.5 transition-all" />
+                        </div>
+                        <div className="mt-3">
+                          <span className="text-2xl font-bold font-heading text-foreground block leading-tight">
+                            3
+                          </span>
+                          <span className="text-xs text-muted-foreground font-medium block mt-1 truncate">
+                            Related Records
+                          </span>
+                        </div>
+                      </Card>
+                    </motion.div>
 
-            {/* Card 4: Investigation Notes */}
-            <Card
-              onClick={() => {
-                const el = document.getElementById("case-notes-section");
-                el?.scrollIntoView({ behavior: "smooth" });
-              }}
-              className="group border border-border/80 bg-card/40 hover:bg-card/70 hover:border-border transition-all p-3.5 sm:p-4 rounded-xl cursor-pointer shadow-2xs flex flex-col justify-between"
-            >
-              <div className="flex items-center justify-between">
-                <FileText className="size-5 text-[#0070F3] group-hover:scale-110 transition-transform" />
-                <ChevronRight className="size-4 text-muted-foreground/40 group-hover:text-foreground group-hover:translate-x-0.5 transition-all" />
-              </div>
-              <div className="mt-3">
-                <span className="text-2xl font-bold font-heading text-foreground block leading-tight">
-                  {notes.length}
-                </span>
-                <span className="text-xs text-muted-foreground font-medium block mt-1 truncate">
-                  Investigation Notes
-                </span>
-              </div>
-            </Card>
-          </div>
+                    {/* Card 4: Investigation Notes */}
+                    <motion.div
+                      whileHover={{ y: -2 }}
+                      whileTap={{ scale: 0.98 }}
+                      transition={{ duration: 0.15 }}
+                      className="h-full"
+                    >
+                      <Card
+                        onClick={() => {
+                          const el = document.getElementById("case-notes-section");
+                          el?.scrollIntoView({ behavior: "smooth" });
+                        }}
+                        className="group border border-border/80 bg-card/40 hover:bg-card/70 hover:border-border transition-all p-3.5 sm:p-4 rounded-xl cursor-pointer shadow-2xs flex flex-col justify-between h-full"
+                      >
+                        <div className="flex items-center justify-between">
+                          <FileText className="size-5 text-[#665AEF] group-hover:scale-110 transition-transform" />
+                          <ChevronRight className="size-4 text-muted-foreground/40 group-hover:text-foreground group-hover:translate-x-0.5 transition-all" />
+                        </div>
+                        <div className="mt-3">
+                          <span className="text-2xl font-bold font-heading text-foreground block leading-tight">
+                            {notes.length}
+                          </span>
+                          <span className="text-xs text-muted-foreground font-medium block mt-1 truncate">
+                            Investigation Notes
+                          </span>
+                        </div>
+                      </Card>
+                    </motion.div>
+                  </div>
 
           {/* B. Two Side-by-Side Cards: Case Information & Case Description */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -594,7 +693,7 @@ export function CaseDetailsTabs({ caseData }: CaseDetailsTabsProps) {
           <Card className="border-2 border-border/80 bg-card/40 backdrop-blur-xs rounded-xl shadow-xs">
             <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-3 border-b-2 border-border/60">
               <div className="flex items-center gap-2">
-                <Clock className="size-4 text-[#0070F3] shrink-0" />
+                <Clock className="size-4 text-[#665AEF] shrink-0" />
                 <CardTitle className="text-sm sm:text-base font-bold font-heading text-foreground">
                   Recent Activity
                 </CardTitle>
@@ -603,7 +702,7 @@ export function CaseDetailsTabs({ caseData }: CaseDetailsTabsProps) {
                 <button
                   type="button"
                   onClick={() => setActiveTab("activity")}
-                  className="text-xs text-[#0070F3] hover:underline inline-flex items-center gap-1 cursor-pointer font-medium whitespace-nowrap"
+                  className="text-xs text-[#665AEF] hover:underline inline-flex items-center gap-1 cursor-pointer font-medium whitespace-nowrap"
                 >
                   <span>View All Activity</span>
                   <ArrowRight className="size-3 shrink-0" />
@@ -684,13 +783,13 @@ export function CaseDetailsTabs({ caseData }: CaseDetailsTabsProps) {
           >
             <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-3 border-b-2 border-border/60">
               <div className="flex items-center gap-2">
-                <FileText className="size-4 text-[#0070F3] shrink-0" />
+                <FileText className="size-4 text-[#665AEF] shrink-0" />
                 <CardTitle className="text-sm sm:text-base font-bold font-heading text-foreground">
                   Investigation Notes
                 </CardTitle>
               </div>
               <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto">
-                <span className="text-xs text-[#0070F3] inline-flex items-center gap-1 font-medium cursor-default whitespace-nowrap">
+                <span className="text-xs text-[#665AEF] inline-flex items-center gap-1 font-medium cursor-default whitespace-nowrap">
                   <span>View All Notes</span>
                   <ArrowRight className="size-3 shrink-0" />
                 </span>
@@ -773,251 +872,187 @@ export function CaseDetailsTabs({ caseData }: CaseDetailsTabsProps) {
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
+        </div>
 
-        {/* 2. EVIDENCE TAB PANEL */}
-        <TabsContent value="evidence" className="mt-6 space-y-4 outline-none">
-          <Card className="border border-border/80 bg-card/40 backdrop-blur-xs rounded-xl shadow-xs">
-            <CardHeader className="flex flex-row items-center justify-between pb-4 border-b border-border/40">
-              <div className="flex items-center gap-2.5">
-                <div className="size-8 rounded-lg bg-blue-500/15 border border-blue-500/30 flex items-center justify-center text-blue-400">
-                  <Film className="size-4" />
-                </div>
-                <div>
-                  <CardTitle className="text-base sm:text-lg font-bold font-heading text-foreground">
-                    Forensic Evidence Files ({caseData.evidenceCount || 8})
-                  </CardTitle>
-                </div>
-              </div>
-              <Button
-                size="sm"
-                className="h-8 gap-1.5 rounded-lg bg-[#665AEF] hover:bg-[#5749DF] text-white text-xs font-medium shadow-2xs cursor-pointer"
-                onClick={() => toast.info("Opening secure Tigris upload vault...")}
-              >
-                <Plus className="size-3.5" />
-                <span>Upload Evidence</span>
-              </Button>
-            </CardHeader>
+        {/* Right Column for Overview: Case Status, Key Details, Incident Media & Location */}
+        <div className="space-y-6 xl:col-span-4 2xl:col-span-4 min-w-0">
+          <CaseStatusCard caseData={caseData} />
+          <CaseKeyDetailsCard caseData={caseData} />
+          <CaseIncidentMediaCard caseData={caseData} />
+          <CaseIncidentLocationCard caseData={caseData} />
+        </div>
+      </div>
+    </motion.div>
+  )}
 
-            <CardContent className="pt-4 p-0">
-              <Table>
-                <TableHeader className="bg-card/60">
-                  <TableRow>
-                    <TableHead className="text-xs uppercase text-muted-foreground font-semibold px-4">
-                      File Details
-                    </TableHead>
-                    <TableHead className="text-xs uppercase text-muted-foreground font-semibold">
-                      Type
-                    </TableHead>
-                    <TableHead className="text-xs uppercase text-muted-foreground font-semibold">
-                      Size
-                    </TableHead>
-                    <TableHead className="text-xs uppercase text-muted-foreground font-semibold">
-                      Integrity Hash (SHA-256)
-                    </TableHead>
-                    <TableHead className="text-xs uppercase text-muted-foreground font-semibold text-right pr-4">
-                      Action
-                    </TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody className="divide-y divide-border/40 text-xs sm:text-sm">
-                  {[
-                    {
-                      name: "CCTV_Footage_FrontCam_01.mp4",
-                      type: "Video",
-                      size: "142.5 MB",
-                      hash: "8f3b21...a12c98",
-                      icon: Film,
-                    },
-                    {
-                      name: "CCTV_Footage_NorthBoag_02.mp4",
-                      type: "Video",
-                      size: "98.2 MB",
-                      hash: "4a9e40...f710b2",
-                      icon: Film,
-                    },
-                    {
-                      name: "Counter_Fingerprint_Lift_A.dat",
-                      type: "Biometric",
-                      size: "4.1 MB",
-                      hash: "c20188...b89110",
-                      icon: Fingerprint,
-                    },
-                    {
-                      name: "Store_Till_Receipt_Audit.pdf",
-                      type: "Document",
-                      size: "1.2 MB",
-                      hash: "e74fe1...312009",
-                      icon: FileText,
-                    },
-                    {
-                      name: "Witness_Statement_Cashier.pdf",
-                      type: "Audio/Trans",
-                      size: "3.4 MB",
-                      hash: "78cb9a...00e19a",
-                      icon: FileSpreadsheet,
-                    },
-                  ].map((file) => (
-                    <TableRow key={file.name} className="hover:bg-muted/30">
-                      <TableCell className="font-medium text-foreground px-4 py-3 flex items-center gap-2.5">
-                        <file.icon className="size-4 text-primary shrink-0" />
-                        <span className="truncate max-w-[220px] sm:max-w-xs">
-                          {file.name}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="text-[11px] rounded">
-                          {file.type}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">{file.size}</TableCell>
-                      <TableCell className="font-mono text-xs text-muted-foreground">
-                        {file.hash}
-                      </TableCell>
-                      <TableCell className="text-right pr-4">
-                        <Button
-                          variant="ghost"
-                          size="icon-xs"
-                          className="size-7 rounded text-muted-foreground hover:text-foreground cursor-pointer"
-                          onClick={() => toast.success(`Initiating secure download for ${file.name}`)}
-                        >
-                          <Download className="size-3.5" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </CardContent>
-          </Card>
-        </TabsContent>
+  {/* 2. EVIDENCE TAB PANEL */}
+          {activeTab === "evidence" && (
+            <motion.div
+              key="evidence"
+              role="tabpanel"
+              id="case-tabpanel-evidence"
+              aria-labelledby="case-tab-evidence"
+              variants={tabContentVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              className="outline-none"
+            >
+              <EvidenceTabContent caseNumber={caseData.caseNumber} />
+            </motion.div>
+          )}
 
-        {/* 3. SUSPECTS TAB PANEL */}
-        <TabsContent value="suspects" className="mt-6 space-y-4 outline-none">
-          <Card className="border border-border/80 bg-card/40 backdrop-blur-xs rounded-xl shadow-xs">
-            <CardHeader className="pb-4 border-b border-border/40">
-              <div className="flex items-center gap-2.5">
-                <div className="size-8 rounded-lg bg-purple-500/15 border border-purple-500/30 flex items-center justify-center text-purple-400">
-                  <Users className="size-4" />
-                </div>
-                <CardTitle className="text-base sm:text-lg font-bold font-heading text-foreground">
-                  Linked Suspect Profiles & Sketch Matches ({caseData.suspectsCount || 2})
-                </CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent className="pt-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {[
-                  {
-                    name: "Unknown Suspect (CCTV Subject A)",
-                    alias: "Boag Road Flee",
-                    match: "89% Confidence",
-                    record: "CRIM-2026-091",
-                    status: "WANTED",
-                    description: "Male, 5'10\", slim build, captured in black hoodie leaving store perimeter.",
-                  },
-                  {
-                    name: "Ramesh 'Shadow' Kumar",
-                    alias: "Phantom",
-                    match: "64% Match",
-                    record: "CRIM-2025-442",
-                    status: "ON PAROLE",
-                    description: "Prior offenses include commercial cash register access in Central division.",
-                  },
-                ].map((s) => (
-                  <div
-                    key={s.name}
-                    className="p-4 rounded-xl border border-border/80 bg-card/70 space-y-3 shadow-2xs"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-center gap-3">
-                        <Avatar size="default" className="size-10 border border-border">
-                          <AvatarFallback className="bg-muted text-foreground text-xs font-semibold">
-                            {s.alias.substring(0, 2).toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div>
-                          <h4 className="font-semibold text-foreground text-sm leading-snug">
-                            {s.name}
-                          </h4>
-                          <span className="text-xs text-muted-foreground font-mono">
-                            {s.record}
-                          </span>
+          {/* 3. SUSPECTS TAB PANEL */}
+          {activeTab === "suspects" && (
+            <motion.div
+              key="suspects"
+              role="tabpanel"
+              id="case-tabpanel-suspects"
+              aria-labelledby="case-tab-suspects"
+              variants={tabContentVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              className="space-y-4 outline-none"
+            >
+              <Card className="border border-border/80 bg-card/40 backdrop-blur-xs rounded-xl shadow-xs">
+                <CardHeader className="pb-4 border-b border-border/40">
+                  <div className="flex items-center gap-2.5">
+                    <div className="size-8 rounded-lg bg-purple-500/15 border border-purple-500/30 flex items-center justify-center text-purple-400">
+                      <Users className="size-4" />
+                    </div>
+                    <CardTitle className="text-base sm:text-lg font-bold font-heading text-foreground">
+                      Linked Suspect Profiles & Sketch Matches ({caseData.suspectsCount || 2})
+                    </CardTitle>
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {[
+                      {
+                        name: "Unknown Suspect (CCTV Subject A)",
+                        alias: "Boag Road Flee",
+                        match: "89% Confidence",
+                        record: "CRIM-2026-091",
+                        status: "WANTED",
+                        description: "Male, 5'10\", slim build, captured in black hoodie leaving store perimeter.",
+                      },
+                      {
+                        name: "Ramesh 'Shadow' Kumar",
+                        alias: "Phantom",
+                        match: "64% Match",
+                        record: "CRIM-2025-442",
+                        status: "ON PAROLE",
+                        description: "Prior offenses include commercial cash register access in Central division.",
+                      },
+                    ].map((s) => (
+                      <div
+                        key={s.name}
+                        className="p-4 rounded-xl border border-border/80 bg-card/70 space-y-3 shadow-2xs"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-center gap-3">
+                            <Avatar size="default" className="size-10 border border-border">
+                              <AvatarFallback className="bg-muted text-foreground text-xs font-semibold">
+                                {s.alias.substring(0, 2).toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <h4 className="font-semibold text-foreground text-sm leading-snug">
+                                {s.name}
+                              </h4>
+                              <span className="text-xs text-muted-foreground font-mono">
+                                {s.record}
+                              </span>
+                            </div>
+                          </div>
+                          <Badge
+                            variant="destructive"
+                            className="text-[10px] font-bold tracking-wider"
+                          >
+                            {s.status}
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground leading-relaxed">
+                          {s.description}
+                        </p>
+                        <div className="flex items-center justify-between text-xs pt-2 border-t border-border/40">
+                          <span className="text-muted-foreground">AI Match Score:</span>
+                          <span className="font-semibold text-emerald-400">{s.match}</span>
                         </div>
                       </div>
-                      <Badge
-                        variant="destructive"
-                        className="text-[10px] font-bold tracking-wider"
-                      >
-                        {s.status}
-                      </Badge>
-                    </div>
-                    <p className="text-xs text-muted-foreground leading-relaxed">
-                      {s.description}
-                    </p>
-                    <div className="flex items-center justify-between text-xs pt-2 border-t border-border/40">
-                      <span className="text-muted-foreground">AI Match Score:</span>
-                      <span className="font-semibold text-emerald-400">{s.match}</span>
-                    </div>
+                    ))}
                   </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+                </CardContent>
+              </Card>
+            </motion.div>
+          )}
 
-        {/* 4. ACTIVITY LOG TAB PANEL */}
-        <TabsContent value="activity" className="mt-6 space-y-4 outline-none">
-          <Card className="border border-border/80 bg-card/40 backdrop-blur-xs rounded-xl shadow-xs">
-            <CardHeader className="pb-4 border-b border-border/40">
-              <div className="flex items-center gap-2.5">
-                <div className="size-8 rounded-lg bg-sky-500/15 border border-sky-500/30 flex items-center justify-center text-sky-400">
-                  <History className="size-4" />
-                </div>
-                <CardTitle className="text-base sm:text-lg font-bold font-heading text-foreground">
-                  Chain of Custody & Activity Timeline
-                </CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent className="pt-6">
-              <div className="relative pl-6 space-y-6 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-[2px] before:bg-border/60">
-                {[
-                  {
-                    action: "Added new evidence CCTV_Footage_01.mp4",
-                    actor: assignedUserName,
-                    time: "Oct 5, 2026, 11:32 AM",
-                    icon: Film,
-                  },
-                  {
-                    action: "Updated case status to Under Investigation",
-                    actor: "Priya Nair",
-                    time: "Oct 4, 2026, 08:21 PM",
-                    icon: CheckCircle2,
-                  },
-                  {
-                    action: "Case created in system repository",
-                    actor: "System",
-                    time: "Oct 4, 2026, 07:14 PM",
-                    icon: History,
-                  },
-                ].map((act, index) => (
-                  <div key={index} className="relative flex items-start gap-3">
-                    <div className="absolute -left-6 top-1 size-3 rounded-full border-2 border-card bg-primary ring-4 ring-card" />
-                    <div className="space-y-0.5 text-xs sm:text-sm">
-                      <p className="font-medium text-foreground">{act.action}</p>
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <span>by {act.actor}</span>
-                        <span>•</span>
-                        <span>{act.time}</span>
-                      </div>
+          {/* 4. ACTIVITY LOG TAB PANEL */}
+          {activeTab === "activity" && (
+            <motion.div
+              key="activity"
+              role="tabpanel"
+              id="case-tabpanel-activity"
+              aria-labelledby="case-tab-activity"
+              variants={tabContentVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              className="space-y-4 outline-none"
+            >
+              <Card className="border border-border/80 bg-card/40 backdrop-blur-xs rounded-xl shadow-xs">
+                <CardHeader className="pb-4 border-b border-border/40">
+                  <div className="flex items-center gap-2.5">
+                    <div className="size-8 rounded-lg bg-sky-500/15 border border-sky-500/30 flex items-center justify-center text-sky-400">
+                      <History className="size-4" />
                     </div>
+                    <CardTitle className="text-base sm:text-lg font-bold font-heading text-foreground">
+                      Chain of Custody & Activity Timeline
+                    </CardTitle>
                   </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+                </CardHeader>
+                <CardContent className="pt-6">
+                  <div className="relative pl-6 space-y-6 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-[2px] before:bg-border/60">
+                    {[
+                      {
+                        action: "Added new evidence CCTV_Footage_01.mp4",
+                        actor: assignedUserName,
+                        time: "Oct 5, 2026, 11:32 AM",
+                        icon: Film,
+                      },
+                      {
+                        action: "Updated case status to Under Investigation",
+                        actor: "Priya Nair",
+                        time: "Oct 4, 2026, 08:21 PM",
+                        icon: CheckCircle2,
+                      },
+                      {
+                        action: "Case created in system repository",
+                        actor: "System",
+                        time: "Oct 4, 2026, 07:14 PM",
+                        icon: History,
+                      },
+                    ].map((act, index) => (
+                      <div key={index} className="relative flex items-start gap-3">
+                        <div className="absolute -left-6 top-1 size-3 rounded-full border-2 border-card bg-primary ring-4 ring-card" />
+                        <div className="space-y-0.5 text-xs sm:text-sm">
+                          <p className="font-medium text-foreground">{act.action}</p>
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <span>by {act.actor}</span>
+                            <span>•</span>
+                            <span>{act.time}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
     </div>
   );
 }

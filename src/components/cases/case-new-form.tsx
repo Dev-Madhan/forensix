@@ -50,6 +50,8 @@ import { motion } from "motion/react";
 import { toast } from "sonner";
 import { CaseStatus, CasePriority } from "@prisma/client";
 import { createCase } from "@/features/cases/actions";
+import { uploadEvidence } from "@/features/evidence/actions";
+import { CaseEvidenceUploadSection } from "./case-evidence-upload-section";
 import { resolveCaseLocation, LANDMARK_GAZETTEER } from "@/lib/case-location-resolver";
 
 interface CaseNewFormProps {
@@ -243,6 +245,9 @@ export function CaseNewForm({ initialUser, suggestedCaseNumber }: CaseNewFormPro
   // Tags
   const [tags, setTags] = React.useState<string[]>(["Theft", "Forensics", "Active Case"]);
   const [newTagInput, setNewTagInput] = React.useState("");
+
+  // Staged Evidence Files
+  const [stagedEvidence, setStagedEvidence] = React.useState<File[]>([]);
 
   const handleAddTag = (tagToAdd?: string) => {
     const clean = (tagToAdd || newTagInput).trim();
@@ -505,6 +510,7 @@ export function CaseNewForm({ initialUser, suggestedCaseNumber }: CaseNewFormPro
     setDescription("");
     setDetailedDescription("");
     setTags(["Theft", "Forensics", "Active Case"]);
+    setStagedEvidence([]);
     toast.info("Form reset to clean draft state.");
   };
 
@@ -546,8 +552,35 @@ export function CaseNewForm({ initialUser, suggestedCaseNumber }: CaseNewFormPro
       if (res.error) {
         toast.error(res.error);
       } else {
-        const createdNumber = res.data?.caseNumber || caseNumber;
-        toast.success(`Investigation ${createdNumber} created successfully!`);
+        const createdCase = res.data;
+        const createdNumber = createdCase?.caseNumber || caseNumber;
+        const createdCaseId = createdCase?.id;
+
+        // If evidence files were staged, upload them to Tigris S3 and link to this case
+        if (createdCaseId && stagedEvidence.length > 0) {
+          toast.loading(`Attaching ${stagedEvidence.length} forensic file(s)...`, { id: "upload-evidence" });
+          let uploadedCount = 0;
+          for (const file of stagedEvidence) {
+            try {
+              const formData = new FormData();
+              formData.append("caseId", createdCaseId);
+              formData.append("file", file);
+              const uploadRes = await uploadEvidence(formData);
+              if (uploadRes && !uploadRes.error) uploadedCount++;
+            } catch (err) {
+              console.warn("Evidence upload error:", err);
+            }
+          }
+          toast.dismiss("upload-evidence");
+          if (uploadedCount > 0) {
+            toast.success(`Investigation ${createdNumber} created with ${uploadedCount} evidence file(s)!`);
+          } else {
+            toast.success(`Investigation ${createdNumber} created successfully!`);
+          }
+        } else {
+          toast.success(`Investigation ${createdNumber} created successfully!`);
+        }
+
         // Navigate directly to the newly created case's details page
         router.push(`/case-details/${createdNumber}`);
         router.refresh();
@@ -576,7 +609,7 @@ export function CaseNewForm({ initialUser, suggestedCaseNumber }: CaseNewFormPro
           </div>
           <h1 className="text-xl sm:text-2xl md:text-3xl font-bold font-heading text-foreground tracking-tight flex flex-wrap items-center gap-x-2 gap-y-1 sm:gap-3">
             <span>New Case:</span>
-            <span className="text-[#0070F3] font-heading font-bold">{caseNumber}</span>
+            <span className="text-[#665AEF] font-heading font-bold">{caseNumber}</span>
             <span className="text-emerald-400 text-xs sm:text-sm font-semibold uppercase tracking-wider">
               Draft File
             </span>
@@ -611,7 +644,7 @@ export function CaseNewForm({ initialUser, suggestedCaseNumber }: CaseNewFormPro
             type="submit"
             size="sm"
             disabled={isSubmitting}
-            className="h-10 sm:h-9 gap-1.5 sm:gap-2 rounded-lg bg-[#0070F3] hover:bg-[#0060DF] text-white text-xs sm:text-sm font-medium shadow-sm shadow-[#0070F3]/30 px-3 sm:px-4 cursor-pointer justify-center active:scale-[0.98] touch-manipulation"
+            className="h-10 sm:h-9 gap-1.5 sm:gap-2 rounded-lg bg-[#665AEF] hover:bg-[#5749DF] text-white text-xs sm:text-sm font-medium shadow-sm shadow-[#665AEF]/25 px-3 sm:px-4 cursor-pointer justify-center active:scale-[0.98] touch-manipulation"
           >
             {isSubmitting ? (
               <>
@@ -631,15 +664,15 @@ export function CaseNewForm({ initialUser, suggestedCaseNumber }: CaseNewFormPro
         </div>
       </div>
 
-      {/* Main Grid: 2 Columns */}
+      {/* Main Grid: Bento Grid Architecture */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-5 sm:gap-6 items-start">
-        {/* Left Column (8 cols): Primary Details, Narrative, Location */}
-        <div className="xl:col-span-8 space-y-5 sm:space-y-6 min-w-0">
+        {/* Bento Tile 1 (12 cols / full-width): Core Case Identity & Classification */}
+        <div className="xl:col-span-12 min-w-0">
           {/* Card 1: Core Case Identity & Classification */}
           <Card className="border-2 border-border/80 bg-card/40 backdrop-blur-xs rounded-xl shadow-xs">
             <CardHeader className="flex flex-row items-center justify-between p-4 sm:p-6 pb-3 sm:pb-3.5 border-b-2 border-border/60">
               <div className="flex items-center gap-2.5 min-w-0">
-                <Shield className="size-4 sm:size-4.5 text-[#0070F3] shrink-0 mt-0.5" />
+                <Shield className="size-4 sm:size-4.5 text-[#665AEF] shrink-0 mt-0.5" />
                 <div className="min-w-0">
                   <CardTitle className="text-sm sm:text-base font-bold font-heading text-foreground truncate">
                     Core Classification & Status
@@ -663,7 +696,7 @@ export function CaseNewForm({ initialUser, suggestedCaseNumber }: CaseNewFormPro
                       type="button"
                       onClick={handleRegenerateCaseNumber}
                       title="Regenerate new Case ID"
-                      className="inline-flex items-center gap-1 text-[11px] text-[#0070F3] hover:text-[#0060DF] font-medium cursor-pointer active:scale-95 transition-transform"
+                      className="inline-flex items-center gap-1 text-[11px] text-[#665AEF] hover:text-[#5749DF] font-medium cursor-pointer active:scale-95 transition-transform"
                     >
                       <Sparkles className="size-2.5" /> Auto-Gen
                     </button>
@@ -694,8 +727,8 @@ export function CaseNewForm({ initialUser, suggestedCaseNumber }: CaseNewFormPro
                 </div>
               </div>
 
-              {/* Row 2: Case Type, Status, Priority */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 sm:gap-4">
+              {/* Row 2: Case Type, Status, Priority, Date Reported, Time — all in one 5-col row */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3.5 sm:gap-4">
                 {/* Case Type Dropdown */}
                 <div className="space-y-1.5">
                   <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
@@ -752,7 +785,7 @@ export function CaseNewForm({ initialUser, suggestedCaseNumber }: CaseNewFormPro
                               />
                             )}
                             <span>{type}</span>
-                            {caseType === type && <Check className="size-3.5 text-[#0070F3]" />}
+                            {caseType === type && <Check className="size-3.5 text-[#665AEF]" />}
                           </DropdownMenuItem>
                         ))}
                       </motion.div>
@@ -811,7 +844,7 @@ export function CaseNewForm({ initialUser, suggestedCaseNumber }: CaseNewFormPro
                               />
                             )}
                             <span>{opt.label}</span>
-                            {status === opt.value && <Check className="size-3.5 text-[#0070F3]" />}
+                            {status === opt.value && <Check className="size-3.5 text-[#665AEF]" />}
                           </DropdownMenuItem>
                         ))}
                       </motion.div>
@@ -870,22 +903,167 @@ export function CaseNewForm({ initialUser, suggestedCaseNumber }: CaseNewFormPro
                               />
                             )}
                             <span>{opt.label}</span>
-                            {priority === opt.value && <Check className="size-3.5 text-[#0070F3]" />}
+                            {priority === opt.value && <Check className="size-3.5 text-[#665AEF]" />}
                           </DropdownMenuItem>
                         ))}
                       </motion.div>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
+
+                {/* Date Reported */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="date-reported" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                    <Calendar className="size-3 text-muted-foreground shrink-0" />
+                    <span>Date Reported</span>
+                  </Label>
+                  <Input
+                    id="date-reported"
+                    value={dateReported}
+                    onChange={(e) => setDateReported(e.target.value)}
+                    placeholder="e.g. Oct 5, 2026"
+                    className="h-10 text-base sm:text-sm border-2 border-border/80 bg-background/50 focus-visible:border-ring"
+                  />
+                </div>
+
+                {/* Time of Incident */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="time-incident" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                    <Clock className="size-3 text-muted-foreground shrink-0" />
+                    <span>Time of Incident</span>
+                  </Label>
+                  <Input
+                    id="time-incident"
+                    value={timeOfIncident}
+                    onChange={(e) => setTimeOfIncident(e.target.value)}
+                    placeholder="e.g. 10:30 AM"
+                    className="h-10 text-base sm:text-sm border-2 border-border/80 bg-background/50 focus-visible:border-ring"
+                  />
+                </div>
               </div>
             </CardContent>
           </Card>
+        </div>
 
-          {/* Card 2: Incident Timeline & Crime Scene Location */}
-          <Card className="border-2 border-border/80 bg-card/40 backdrop-blur-xs rounded-xl shadow-xs">
+        {/* Bento Tile 2 (5 cols): Personnel + Audit */}
+        <div className="xl:col-span-5 min-w-0 flex flex-col xl:self-stretch">
+          {/* Card 4+6: Personnel & Assignment + Audit — merged into one card */}
+          <Card className="border-2 border-border/80 bg-card/40 backdrop-blur-xs rounded-xl shadow-xs flex-1 flex flex-col justify-between">
             <CardHeader className="flex flex-row items-center justify-between p-4 sm:p-6 pb-3 sm:pb-3.5 border-b-2 border-border/60">
               <div className="flex items-center gap-2.5 min-w-0">
-                <MapPin className="size-4 sm:size-4.5 text-[#0070F3] shrink-0 mt-0.5" />
+                <User className="size-4 sm:size-4.5 text-[#665AEF] shrink-0 mt-0.5" />
+                <div className="min-w-0">
+                  <CardTitle className="text-sm sm:text-base font-bold font-heading text-foreground truncate">
+                    Personnel & Audit
+                  </CardTitle>
+                  <CardDescription className="text-xs text-muted-foreground line-clamp-1 sm:line-clamp-none">
+                    Investigator assignment & session ledger
+                  </CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+
+            <CardContent className="p-4 sm:p-6 pt-5 sm:pt-6 flex-1 flex flex-col justify-between space-y-6">
+              {/* Personnel fields */}
+              <div className="space-y-4.5 sm:space-y-5">
+                {/* Lead Investigator */}
+                <div className="space-y-2">
+                  <Label htmlFor="assigned-name" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                    <User className="size-3 text-muted-foreground shrink-0" />
+                    <span>Lead Investigator</span>
+                  </Label>
+                  <Input
+                    id="assigned-name"
+                    value={assignedToName}
+                    onChange={(e) => setAssignedToName(e.target.value)}
+                    placeholder="e.g. Madhan Kumar"
+                    className="h-10.5 sm:h-11 text-base sm:text-sm border-2 border-border/80 bg-background/50 focus-visible:border-ring"
+                  />
+                </div>
+
+                {/* Investigator Email */}
+                <div className="space-y-2">
+                  <Label htmlFor="assigned-email" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                    <Mail className="size-3 text-muted-foreground shrink-0" />
+                    <span>Official Email / Contact</span>
+                  </Label>
+                  <Input
+                    id="assigned-email"
+                    type="email"
+                    inputMode="email"
+                    autoComplete="email"
+                    value={assignedToEmail}
+                    onChange={(e) => setAssignedToEmail(e.target.value)}
+                    placeholder="officer@forensix.gov"
+                    className="h-10.5 sm:h-11 text-base sm:text-sm border-2 border-border/80 bg-background/50 focus-visible:border-ring"
+                  />
+                </div>
+
+                {/* Department / Division */}
+                <div className="space-y-2">
+                  <Label htmlFor="assigned-department" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                    <Building className="size-3 text-muted-foreground shrink-0" />
+                    <span>Division / Unit</span>
+                  </Label>
+                  <Input
+                    id="assigned-department"
+                    value={department}
+                    onChange={(e) => setDepartment(e.target.value)}
+                    placeholder="e.g. Digital Forensics Division"
+                    className="h-10.5 sm:h-11 text-base sm:text-sm border-2 border-border/80 bg-background/50 focus-visible:border-ring"
+                  />
+                </div>
+              </div>
+
+              {/* Audit divider */}
+              <div className="border-t-2 border-border/40 pt-5 space-y-3.5">
+                <div className="flex items-center justify-between gap-2 mb-3">
+                  <div className="flex items-center gap-2">
+                    <History className="size-3.5 text-muted-foreground shrink-0" />
+                    <span className="text-xs font-bold font-heading text-muted-foreground uppercase tracking-wider">Audit & Security Ledger</span>
+                  </div>
+                  <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-400 shrink-0">
+                    <CheckCircle2 className="size-3 shrink-0" />
+                    <span>Ledger Initialized</span>
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 gap-2.5">
+                  <div className="flex items-center justify-between gap-3 p-3 rounded-xl border-2 border-border/60 bg-muted/20">
+                    <span className="text-xs text-muted-foreground shrink-0 font-medium">Session User:</span>
+                    <span className="font-sans text-foreground font-semibold text-right truncate text-xs">
+                      {initialUser?.name || "Investigator"}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 p-3 rounded-xl border-2 border-border/60 bg-muted/20">
+                    <span className="text-xs text-muted-foreground shrink-0 font-medium">Registration Status:</span>
+                    <span className="font-sans text-emerald-400 font-semibold text-right truncate text-xs">
+                      Ready to Register
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3 p-3 rounded-xl border-2 border-border/60 bg-muted/20">
+                    <span className="text-xs text-muted-foreground shrink-0 font-medium">Security Clearance:</span>
+                    <span className="font-mono text-muted-foreground font-semibold text-right truncate text-xs flex items-center gap-1">
+                      <Lock className="size-3 text-[#665AEF]" />
+                      <span>Level 3 / DFIR-Secured</span>
+                    </span>
+                  </div>
+                </div>
+                <div className="p-3 rounded-xl border-2 border-border/60 bg-muted/10 flex items-start gap-2.5 text-[11px] leading-relaxed text-muted-foreground/90">
+                  <CheckCircle2 className="size-3.5 text-[#665AEF] shrink-0 mt-0.5" />
+                  <span>Creating this case writes an immutable creation record to the Forensix AuditLog registry with cryptographic session validation.</span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Bento Tile 3 (7 cols): Incident Timeline & Crime Scene Location */}
+        <div className="xl:col-span-7 min-w-0 flex flex-col xl:self-stretch">
+          {/* Card 2: Incident Timeline & Crime Scene Location */}
+          <Card className="border-2 border-border/80 bg-card/40 backdrop-blur-xs rounded-xl shadow-xs flex-1 flex flex-col justify-between">
+            <CardHeader className="flex flex-row items-center justify-between p-4 sm:p-6 pb-3 sm:pb-3.5 border-b-2 border-border/60">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <MapPin className="size-4 sm:size-4.5 text-[#665AEF] shrink-0 mt-0.5" />
                 <div className="min-w-0">
                   <CardTitle className="text-sm sm:text-base font-bold font-heading text-foreground truncate">
                     Incident Timeline & Location
@@ -898,38 +1076,7 @@ export function CaseNewForm({ initialUser, suggestedCaseNumber }: CaseNewFormPro
             </CardHeader>
 
             <CardContent className="p-4 sm:p-6 pt-4 sm:pt-5 space-y-4 sm:space-y-5">
-              {/* Row 1: Date Reported & Time of Incident */}
-              <div className="grid grid-cols-2 gap-2.5 sm:gap-4">
-                <div className="space-y-1.5">
-                  <Label htmlFor="date-reported" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5 truncate">
-                    <Calendar className="size-3 text-muted-foreground shrink-0" />
-                    <span className="truncate">Date Reported</span>
-                  </Label>
-                  <Input
-                    id="date-reported"
-                    value={dateReported}
-                    onChange={(e) => setDateReported(e.target.value)}
-                    placeholder="e.g. Oct 5, 2026"
-                    className="h-10 text-base sm:text-sm border-2 border-border/80 bg-background/50 focus-visible:border-ring"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label htmlFor="time-incident" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5 truncate">
-                    <Clock className="size-3 text-muted-foreground shrink-0" />
-                    <span className="truncate">Time of Incident</span>
-                  </Label>
-                  <Input
-                    id="time-incident"
-                    value={timeOfIncident}
-                    onChange={(e) => setTimeOfIncident(e.target.value)}
-                    placeholder="e.g. 10:30 AM"
-                    className="h-10 text-base sm:text-sm border-2 border-border/80 bg-background/50 focus-visible:border-ring"
-                  />
-                </div>
-              </div>
-
-              {/* Row 2: Region / City & Specific Landmark / Street */}
+              {/* Row 1: Region / City & Specific Landmark / Street */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div className="space-y-1.5">
                   <Label htmlFor="case-location" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
@@ -975,7 +1122,7 @@ export function CaseNewForm({ initialUser, suggestedCaseNumber }: CaseNewFormPro
                       onClick={() => handleSelectPreset(preset)}
                       className="text-[11px] px-2.5 py-1.5 rounded-md border-2 border-border/80 bg-card/60 text-foreground hover:bg-muted/80 hover:border-neutral-600/70 cursor-pointer transition-all inline-flex items-center gap-1.5 shadow-2xs touch-manipulation active:scale-95 shrink-0 sm:shrink"
                     >
-                      <MapPin className="size-3 text-[#0070F3] shrink-0" />
+                      <MapPin className="size-3 text-[#665AEF] shrink-0" />
                       <span className="whitespace-nowrap">{preset.label}</span>
                     </button>
                   ))}
@@ -987,7 +1134,7 @@ export function CaseNewForm({ initialUser, suggestedCaseNumber }: CaseNewFormPro
                 <div className="flex flex-col gap-2.5 pb-2.5 border-b-2 border-border/60">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-1.5 min-w-0">
-                      <MapPin className="size-3.5 text-[#0070F3] shrink-0" />
+                      <MapPin className="size-3.5 text-[#665AEF] shrink-0" />
                       <span className="text-xs sm:text-sm font-semibold text-foreground truncate">
                         Precise Crime Scene Coordinates
                       </span>
@@ -1025,7 +1172,7 @@ export function CaseNewForm({ initialUser, suggestedCaseNumber }: CaseNewFormPro
                       disabled={isDetectingGps}
                       className="h-9.5 sm:h-8 px-2 sm:px-3 gap-1 sm:gap-1.5 rounded-lg border-2 border-border/80 bg-card text-[11px] sm:text-xs font-medium hover:bg-muted/60 cursor-pointer shadow-2xs justify-center whitespace-nowrap active:scale-[0.97] touch-manipulation"
                     >
-                      <Navigation className="size-3 sm:size-3.5 text-[#0070F3] shrink-0" />
+                      <Navigation className="size-3 sm:size-3.5 text-[#665AEF] shrink-0" />
                       <span className="truncate">
                         <span className="sm:hidden">{isDetectingGps ? "Detecting..." : "GPS"}</span>
                         <span className="hidden sm:inline">{isDetectingGps ? "Detecting..." : "Device GPS"}</span>
@@ -1039,7 +1186,7 @@ export function CaseNewForm({ initialUser, suggestedCaseNumber }: CaseNewFormPro
                       onClick={handleOpenMapPicker}
                       className="h-9.5 sm:h-8 px-2 sm:px-3 gap-1 sm:gap-1.5 rounded-lg border-2 border-border/80 bg-card text-[11px] sm:text-xs font-medium hover:bg-muted/60 cursor-pointer shadow-2xs justify-center whitespace-nowrap active:scale-[0.97] touch-manipulation"
                     >
-                      <Compass className="size-3 sm:size-3.5 text-[#0070F3] shrink-0" />
+                      <Compass className="size-3 sm:size-3.5 text-[#665AEF] shrink-0" />
                       <span className="truncate">
                         <span className="sm:hidden">Map</span>
                         <span className="hidden sm:inline">Pick on Map</span>
@@ -1103,139 +1250,15 @@ export function CaseNewForm({ initialUser, suggestedCaseNumber }: CaseNewFormPro
               </div>
             </CardContent>
           </Card>
-
-          {/* Card 3: Narrative & Forensic Description */}
-          <Card className="border-2 border-border/80 bg-card/40 backdrop-blur-xs rounded-xl shadow-xs">
-            <CardHeader className="flex flex-row items-center justify-between p-4 sm:p-6 pb-3 sm:pb-3.5 border-b-2 border-border/60">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <FileText className="size-4 sm:size-4.5 text-[#0070F3] shrink-0 mt-0.5" />
-                <div className="min-w-0">
-                  <CardTitle className="text-sm sm:text-base font-bold font-heading text-foreground truncate">
-                    Forensic Narrative & Investigative Log
-                  </CardTitle>
-                  <CardDescription className="text-xs text-muted-foreground line-clamp-1 sm:line-clamp-none">
-                    Brief synopsis for case feeds and comprehensive crime scene dossier
-                  </CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-
-            <CardContent className="p-4 sm:p-6 pt-4 sm:pt-5 space-y-4 sm:space-y-5">
-              {/* Summary Description */}
-              <div className="space-y-1.5">
-                <Label htmlFor="case-summary" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  Summary Description (Short Synopsis)
-                </Label>
-                <Textarea
-                  id="case-summary"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  rows={3}
-                  placeholder="Concise overview of the incident for case feeds, notifications, and export summaries..."
-                  className="text-base sm:text-sm border-2 border-border/80 bg-background/50 leading-relaxed focus-visible:border-ring"
-                />
-                <p className="text-[11px] text-muted-foreground">
-                  Shown on case cards, search summaries, and export overviews.
-                </p>
-              </div>
-
-              {/* Detailed Forensic Description */}
-              <div className="space-y-1.5">
-                <Label htmlFor="case-detailed" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  Detailed Case Description & Forensic Narrative
-                </Label>
-                <Textarea
-                  id="case-detailed"
-                  value={detailedDescription}
-                  onChange={(e) => setDetailedDescription(e.target.value)}
-                  rows={5}
-                  placeholder="Comprehensive crime scene dynamics, witness testimony cataloging, physical evidence collection details, and forensic observations..."
-                  className="text-base sm:text-sm border-2 border-border/80 bg-background/50 leading-relaxed focus-visible:border-ring"
-                />
-                <p className="text-[11px] text-muted-foreground">
-                  Detailed dossier displayed under the Case Description tab and printed in formal reports.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
         </div>
 
-        {/* Right Column (4 cols): Personnel, Tags, and Audit Meta */}
-        <div className="xl:col-span-4 space-y-5 sm:space-y-6 min-w-0">
-          {/* Card 4: Personnel & Assignment */}
-          <Card className="border-2 border-border/80 bg-card/40 backdrop-blur-xs rounded-xl shadow-xs">
-            <CardHeader className="flex flex-row items-center justify-between p-4 sm:p-6 pb-3 sm:pb-3.5 border-b-2 border-border/60">
-              <div className="flex items-center gap-2.5 min-w-0">
-                <User className="size-4 sm:size-4.5 text-[#0070F3] shrink-0 mt-0.5" />
-                <div className="min-w-0">
-                  <CardTitle className="text-sm sm:text-base font-bold font-heading text-foreground truncate">
-                    Personnel Assignment
-                  </CardTitle>
-                  <CardDescription className="text-xs text-muted-foreground line-clamp-1 sm:line-clamp-none">
-                    Designated investigator & unit handling this file
-                  </CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-
-            <CardContent className="p-4 sm:p-6 pt-4 sm:pt-5">
-              <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-1 gap-3.5 sm:gap-4">
-                {/* Lead Investigator */}
-                <div className="space-y-1.5">
-                  <Label htmlFor="assigned-name" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                    <User className="size-3 text-muted-foreground shrink-0" />
-                    <span>Lead Investigator</span>
-                  </Label>
-                  <Input
-                    id="assigned-name"
-                    value={assignedToName}
-                    onChange={(e) => setAssignedToName(e.target.value)}
-                    placeholder="e.g. Madhan Kumar"
-                    className="h-10 text-base sm:text-sm border-2 border-border/80 bg-background/50 focus-visible:border-ring"
-                  />
-                </div>
-
-                {/* Investigator Email */}
-                <div className="space-y-1.5">
-                  <Label htmlFor="assigned-email" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                    <Mail className="size-3 text-muted-foreground shrink-0" />
-                    <span>Official Email / Contact</span>
-                  </Label>
-                  <Input
-                    id="assigned-email"
-                    type="email"
-                    inputMode="email"
-                    autoComplete="email"
-                    value={assignedToEmail}
-                    onChange={(e) => setAssignedToEmail(e.target.value)}
-                    placeholder="officer@forensix.gov"
-                    className="h-10 text-base sm:text-sm border-2 border-border/80 bg-background/50 focus-visible:border-ring"
-                  />
-                </div>
-
-                {/* Department / Division */}
-                <div className="space-y-1.5">
-                  <Label htmlFor="assigned-department" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                    <Building className="size-3 text-muted-foreground shrink-0" />
-                    <span>Division / Unit</span>
-                  </Label>
-                  <Input
-                    id="assigned-department"
-                    value={department}
-                    onChange={(e) => setDepartment(e.target.value)}
-                    placeholder="e.g. Digital Forensics Division"
-                    className="h-10 text-base sm:text-sm border-2 border-border/80 bg-background/50 focus-visible:border-ring"
-                  />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
+        {/* Bento Tile 4 (12 cols / full-width): Classification Tags Manager */}
+        <div className="xl:col-span-12 min-w-0">
           {/* Card 5: Classification Tags Manager */}
           <Card className="border-2 border-border/80 bg-card/40 backdrop-blur-xs rounded-xl shadow-xs">
             <CardHeader className="flex flex-row items-center justify-between p-4 sm:p-6 pb-3 sm:pb-3.5 border-b-2 border-border/60">
               <div className="flex items-center gap-2.5 min-w-0">
-                <Tag className="size-4 sm:size-4.5 text-[#0070F3] shrink-0 mt-0.5" />
+                <Tag className="size-4 sm:size-4.5 text-[#665AEF] shrink-0 mt-0.5" />
                 <div className="min-w-0">
                   <CardTitle className="text-sm sm:text-base font-bold font-heading text-foreground truncate">
                     Classification Tags
@@ -1247,131 +1270,177 @@ export function CaseNewForm({ initialUser, suggestedCaseNumber }: CaseNewFormPro
               </div>
             </CardHeader>
 
-            <CardContent className="p-4 sm:p-6 pt-4 sm:pt-5 space-y-3.5 sm:space-y-4">
-              {/* Active Tags */}
-              <div className="space-y-2">
-                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  Active Tags ({tags.length})
-                </Label>
-                <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 p-2.5 sm:p-3 rounded-lg border-2 border-border/80 bg-background/40 min-h-14 sm:min-h-16">
-                  {tags.length === 0 ? (
-                    <span className="text-xs text-muted-foreground italic">No tags assigned</span>
-                  ) : (
-                    tags.map((tag) => (
-                      <Badge
-                        key={tag}
-                        variant="secondary"
-                        className="h-7.5 pl-2.5 pr-1.5 border-2 border-border/80 bg-muted/40 hover:bg-muted/70 text-foreground text-xs font-medium rounded-md inline-flex items-center gap-1.5 shadow-2xs"
-                      >
-                        <span className="max-w-[160px] truncate">{tag}</span>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveTag(tag)}
-                          className="size-5 sm:size-4.5 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-foreground/10 cursor-pointer touch-manipulation active:scale-90"
-                          aria-label={`Remove tag ${tag}`}
-                        >
-                          <X className="size-3" />
-                        </button>
-                      </Badge>
-                    ))
-                  )}
-                </div>
-              </div>
+            <CardContent className="p-4 sm:p-6 pt-4 sm:pt-5">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
+                {/* Left column: Active Tags + Add Custom */}
+                <div className="space-y-3.5">
+                  {/* Active Tags */}
+                  <div className="space-y-2">
+                    <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      Active Tags ({tags.length})
+                    </Label>
+                    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 p-2.5 sm:p-3 rounded-lg border-2 border-border/80 bg-background/40 min-h-14 sm:min-h-16">
+                      {tags.length === 0 ? (
+                        <span className="text-xs text-muted-foreground italic">No tags assigned</span>
+                      ) : (
+                        tags.map((tag) => (
+                          <Badge
+                            key={tag}
+                            variant="secondary"
+                            className="h-7.5 pl-2.5 pr-1.5 border-2 border-border/80 bg-muted/40 hover:bg-muted/70 text-foreground text-xs font-medium rounded-md inline-flex items-center gap-1.5 shadow-2xs"
+                          >
+                            <span className="max-w-[160px] truncate">{tag}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveTag(tag)}
+                              className="size-5 sm:size-4.5 rounded flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-foreground/10 cursor-pointer touch-manipulation active:scale-90"
+                              aria-label={`Remove tag ${tag}`}
+                            >
+                              <X className="size-3" />
+                            </button>
+                          </Badge>
+                        ))
+                      )}
+                    </div>
+                  </div>
 
-              {/* Add Custom Tag Input */}
-              <div className="space-y-1.5">
-                <Label htmlFor="custom-tag-input" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  Add Custom Tag
-                </Label>
-                <div className="flex items-center gap-2 max-w-md w-full">
-                  <Input
-                    id="custom-tag-input"
-                    value={newTagInput}
-                    onChange={(e) => setNewTagInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        handleAddTag();
-                      }
-                    }}
-                    placeholder="Enter tag name..."
-                    className="h-10 flex-1 text-base sm:text-sm border-2 border-border/80 bg-background/50 focus-visible:border-ring"
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleAddTag()}
-                    className="h-10 px-3.5 gap-1 rounded-lg border-2 border-border/80 bg-card/60 text-xs font-medium hover:bg-muted/60 cursor-pointer shrink-0 active:scale-95 touch-manipulation"
-                  >
-                    <Plus className="size-3.5" />
-                    <span>Add</span>
-                  </Button>
-                </div>
-              </div>
-
-              {/* Quick Suggestions */}
-              <div className="space-y-1.5 pt-1">
-                <Label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-                  Suggested Tags
-                </Label>
-                <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto sm:flex-wrap pb-1 sm:pb-0 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-                  {SUGGESTED_TAGS.map((sug) => {
-                    const isAdded = tags.includes(sug);
-                    return (
-                      <button
-                        key={sug}
+                  {/* Add Custom Tag Input */}
+                  <div className="space-y-1.5">
+                    <Label htmlFor="custom-tag-input" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      Add Custom Tag
+                    </Label>
+                    <div className="flex items-center gap-2 w-full">
+                      <Input
+                        id="custom-tag-input"
+                        value={newTagInput}
+                        onChange={(e) => setNewTagInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleAddTag();
+                          }
+                        }}
+                        placeholder="Enter tag name..."
+                        className="h-10 flex-1 text-base sm:text-sm border-2 border-border/80 bg-background/50 focus-visible:border-ring"
+                      />
+                      <Button
                         type="button"
-                        onClick={() => !isAdded && handleAddTag(sug)}
-                        disabled={isAdded}
-                        className={`inline-flex items-center gap-1.5 text-[11px] px-2.5 py-1.5 rounded-md border-2 transition-all touch-manipulation active:scale-95 shrink-0 sm:shrink ${
-                          isAdded
-                            ? "border-border/40 bg-muted/20 text-muted-foreground/50 cursor-not-allowed"
-                            : "border-border/80 bg-card/60 text-foreground hover:bg-muted/80 hover:border-neutral-600/70 cursor-pointer"
-                        }`}
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleAddTag()}
+                        className="h-10 px-3.5 gap-1 rounded-lg border-2 border-border/80 bg-card/60 text-xs font-medium hover:bg-muted/60 cursor-pointer shrink-0 active:scale-95 touch-manipulation"
                       >
-                        <span className="opacity-70 font-medium">+</span>
-                        <span className="whitespace-nowrap">{sug}</span>
-                      </button>
-                    );
-                  })}
+                        <Plus className="size-3.5" />
+                        <span>Add</span>
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right column: Suggested Tags */}
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    Suggested Tags
+                  </Label>
+                  <div className="flex flex-wrap items-start gap-1.5 sm:gap-2 pt-1">
+                    {SUGGESTED_TAGS.map((sug) => {
+                      const isAdded = tags.includes(sug);
+                      return (
+                        <button
+                          key={sug}
+                          type="button"
+                          onClick={() => !isAdded && handleAddTag(sug)}
+                          disabled={isAdded}
+                          className={`inline-flex items-center gap-1.5 text-[11px] px-2.5 py-1.5 rounded-md border-2 transition-all touch-manipulation active:scale-95 shrink-0 sm:shrink ${
+                            isAdded
+                              ? "border-border/40 bg-muted/20 text-muted-foreground/50 cursor-not-allowed"
+                              : "border-border/80 bg-card/60 text-foreground hover:bg-muted/80 hover:border-neutral-600/70 cursor-pointer"
+                          }`}
+                        >
+                          <span className="opacity-70 font-medium">+</span>
+                          <span className="whitespace-nowrap">{sug}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             </CardContent>
           </Card>
+        </div>
 
-          {/* Card 6: Audit & System Ledger Note */}
+        {/* Bento Tile 5 (12 cols): Forensic Narrative & Investigative Dossier */}
+        <div className="xl:col-span-12 min-w-0">
+          {/* Card 3: Narrative & Forensic Description */}
           <Card className="border-2 border-border/80 bg-card/40 backdrop-blur-xs rounded-xl shadow-xs">
-            <CardHeader className="flex flex-row items-center justify-between p-4 sm:p-5 pb-3 sm:pb-3.5 border-b-2 border-border/60">
-              <div className="flex items-center gap-2">
-                <History className="size-4 text-muted-foreground shrink-0" />
-                <CardTitle className="text-xs sm:text-sm font-bold font-heading text-foreground">
-                  Audit & Security Ledger
-                </CardTitle>
+            <CardHeader className="flex flex-row items-center justify-between p-4 sm:p-6 pb-3 sm:pb-3.5 border-b-2 border-border/60">
+              <div className="flex items-center gap-2.5 min-w-0">
+                <FileText className="size-4 sm:size-4.5 text-[#665AEF] shrink-0 mt-0.5" />
+                <div className="min-w-0">
+                  <CardTitle className="text-sm sm:text-base font-bold font-heading text-foreground truncate">
+                    Forensic Narrative & Investigative Log
+                  </CardTitle>
+                  <CardDescription className="text-xs text-muted-foreground line-clamp-1 sm:line-clamp-none">
+                    Brief synopsis for case feeds and comprehensive crime scene dossier
+                  </CardDescription>
+                </div>
               </div>
             </CardHeader>
-            <CardContent className="p-4 sm:p-5 pt-3.5 sm:pt-4 space-y-3 text-xs text-muted-foreground font-sans">
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-1 gap-2.5 sm:gap-3">
-                <div className="flex items-center justify-between gap-3 p-2.5 sm:p-3 rounded-lg border-2 border-border/60 bg-muted/20">
-                  <span className="text-xs text-muted-foreground shrink-0 font-medium">Session User:</span>
-                  <span className="font-sans text-foreground font-semibold text-right truncate text-xs sm:text-sm">
-                    {initialUser?.name || "Investigator"}
-                  </span>
+
+            <CardContent className="p-4 sm:p-6 pt-4 sm:pt-5">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+                {/* Summary Description */}
+                <div className="space-y-1.5 flex flex-col justify-between">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="case-summary" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      Summary Description (Short Synopsis)
+                    </Label>
+                    <Textarea
+                      id="case-summary"
+                      value={description}
+                      onChange={(e) => setDescription(e.target.value)}
+                      rows={5}
+                      placeholder="Concise overview of the incident for case feeds, notifications, and export summaries..."
+                      className="text-base sm:text-sm border-2 border-border/80 bg-background/50 leading-relaxed focus-visible:border-ring resize-y"
+                    />
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    Shown on case cards, search summaries, and export overviews.
+                  </p>
                 </div>
-                <div className="flex items-center justify-between gap-3 p-2.5 sm:p-3 rounded-lg border-2 border-border/60 bg-muted/20">
-                  <span className="text-xs text-muted-foreground shrink-0 font-medium">Registration Status:</span>
-                  <span className="font-sans text-emerald-400 font-semibold text-right truncate text-xs sm:text-sm">
-                    Ready to Register
-                  </span>
+
+                {/* Detailed Forensic Description */}
+                <div className="space-y-1.5 flex flex-col justify-between">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="case-detailed" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      Detailed Case Description & Forensic Narrative
+                    </Label>
+                    <Textarea
+                      id="case-detailed"
+                      value={detailedDescription}
+                      onChange={(e) => setDetailedDescription(e.target.value)}
+                      rows={5}
+                      placeholder="Comprehensive crime scene dynamics, witness testimony cataloging, physical evidence collection details, and forensic observations..."
+                      className="text-base sm:text-sm border-2 border-border/80 bg-background/50 leading-relaxed focus-visible:border-ring resize-y"
+                    />
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mt-1">
+                    Detailed dossier displayed under the Case Description tab and printed in formal reports.
+                  </p>
                 </div>
-              </div>
-              <Separator className="my-2 bg-border/40" />
-              <div className="flex items-start gap-2 text-[11px] leading-relaxed text-muted-foreground/80">
-                <CheckCircle2 className="size-3.5 text-[#0070F3] shrink-0 mt-0.5" />
-                <span>Creating this case writes an immutable creation record to the Forensix AuditLog registry with cryptographic session validation.</span>
               </div>
             </CardContent>
           </Card>
+        </div>
+
+        {/* Bento Tile 6 (12 cols): Evidence Files & Forensic Media Upload */}
+        <div className="xl:col-span-12 min-w-0">
+          {/* Card 4: Evidence Files & Forensic Media Upload */}
+          <CaseEvidenceUploadSection
+            stagedFiles={stagedEvidence}
+            onStagedFilesChange={setStagedEvidence}
+            disabled={isSubmitting}
+          />
         </div>
       </div>
 
@@ -1399,7 +1468,7 @@ export function CaseNewForm({ initialUser, suggestedCaseNumber }: CaseNewFormPro
             type="submit"
             size="sm"
             disabled={isSubmitting}
-            className="h-10.5 sm:h-9 gap-1.5 rounded-lg bg-[#0070F3] hover:bg-[#0060DF] text-white text-xs sm:text-sm font-medium shadow-sm shadow-[#0070F3]/30 px-3.5 cursor-pointer justify-center active:scale-[0.98] touch-manipulation"
+            className="h-10.5 sm:h-9 gap-1.5 rounded-lg bg-[#665AEF] hover:bg-[#5749DF] text-white text-xs sm:text-sm font-medium shadow-sm shadow-[#665AEF]/25 px-3.5 cursor-pointer justify-center active:scale-[0.98] touch-manipulation"
           >
             {isSubmitting ? (
               <>
@@ -1444,11 +1513,11 @@ export function CaseNewForm({ initialUser, suggestedCaseNumber }: CaseNewFormPro
                 }}
                 onKeyDown={handleSearchKeyDown}
                 placeholder="Search location, area, street, or landmark..."
-                className="pl-9 pr-16 h-10 sm:h-9 rounded-lg border-2 border-border/80 bg-background/90 text-base sm:text-xs font-sans text-foreground placeholder:text-muted-foreground/60 focus-visible:ring-1 focus-visible:ring-[#0070F3]"
+                className="pl-9 pr-16 h-10 sm:h-9 rounded-lg border-2 border-border/80 bg-background/90 text-base sm:text-xs font-sans text-foreground placeholder:text-muted-foreground/60 focus-visible:ring-1 focus-visible:ring-[#665AEF] focus-visible:border-[#665AEF]"
               />
               <div className="absolute right-2.5 flex items-center gap-1.5">
                 {isSearchingMap && (
-                  <Loader2 className="size-3.5 animate-spin text-[#0070F3]" />
+                  <Loader2 className="size-3.5 animate-spin text-[#665AEF]" />
                 )}
                 {mapSearchQuery && (
                   <button
@@ -1509,16 +1578,16 @@ export function CaseNewForm({ initialUser, suggestedCaseNumber }: CaseNewFormPro
                     onClick={() => handleSelectSearchResult(result)}
                     className="w-full text-left px-2.5 py-2.5 sm:py-2 rounded-lg hover:bg-muted/80 transition-colors flex items-start gap-2.5 cursor-pointer group active:scale-[0.99] touch-manipulation"
                   >
-                    <div className="p-1.5 rounded-md bg-[#0070F3]/10 text-[#0070F3] shrink-0 mt-0.5 group-hover:bg-[#0070F3] group-hover:text-white transition-colors">
+                    <div className="p-1.5 rounded-md bg-[#665AEF]/10 text-[#665AEF] shrink-0 mt-0.5 group-hover:bg-[#665AEF] group-hover:text-white transition-colors">
                       <MapPin className="size-3.5" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5">
-                        <span className="text-xs font-semibold text-foreground truncate group-hover:text-[#0070F3] transition-colors">
+                        <span className="text-xs font-semibold text-foreground truncate group-hover:text-[#665AEF] transition-colors">
                           {result.title}
                         </span>
                         {result.source === "gazetteer" && (
-                          <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-[#0070F3]/15 text-[#0070F3] border-2 border-[#0070F3]/30">
+                          <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-[#665AEF]/15 text-[#a594fd] border-2 border-[#665AEF]/30">
                             Verified
                           </span>
                         )}
@@ -1560,10 +1629,10 @@ export function CaseNewForm({ initialUser, suggestedCaseNumber }: CaseNewFormPro
                 <MarkerContent>
                   <div className="group/pin relative flex flex-col items-center cursor-grab active:cursor-grabbing select-none">
                     <div className="absolute -top-7 px-2 py-0.5 rounded-md bg-neutral-900/90 border-2 border-neutral-700 text-[10px] font-medium text-white shadow-lg pointer-events-none whitespace-nowrap opacity-90 group-hover/pin:opacity-100 transition-opacity flex items-center gap-1">
-                      <MapPin className="size-2.5 text-[#0070F3]" />
+                      <MapPin className="size-2.5 text-[#665AEF]" />
                       <span>Drag Me</span>
                     </div>
-                    <div className="size-8 rounded-full bg-[#0070F3] border-2 border-white shadow-2xl flex items-center justify-center text-white ring-4 ring-[#0070F3]/30">
+                    <div className="size-8 rounded-full bg-[#665AEF] border-2 border-white shadow-2xl flex items-center justify-center text-white ring-4 ring-[#665AEF]/30">
                       <MapPin className="size-4.5" />
                     </div>
                   </div>
@@ -1575,7 +1644,7 @@ export function CaseNewForm({ initialUser, suggestedCaseNumber }: CaseNewFormPro
           {/* Selected Point Status Bar */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 p-2.5 rounded-lg border-2 border-border/80 bg-muted/20 text-xs">
             <div className="flex items-center gap-2 text-muted-foreground flex-wrap">
-              <Compass className="size-4 text-[#0070F3]" />
+              <Compass className="size-4 text-[#665AEF]" />
               <span>Selected Point:</span>
               <span className="font-sans font-bold text-foreground">
                 {mapPinCoords.lat.toFixed(5)}° N, {mapPinCoords.lng.toFixed(5)}° E
@@ -1599,7 +1668,7 @@ export function CaseNewForm({ initialUser, suggestedCaseNumber }: CaseNewFormPro
               type="button"
               size="sm"
               onClick={handleConfirmMapPin}
-              className="h-10 sm:h-8.5 gap-1.5 rounded-lg bg-[#0070F3] hover:bg-[#0060DF] text-white cursor-pointer shadow-sm shadow-[#0070F3]/30 px-3.5 justify-center text-xs sm:text-sm font-medium active:scale-[0.98] touch-manipulation"
+              className="h-10 sm:h-8.5 gap-1.5 rounded-lg bg-[#665AEF] hover:bg-[#5749DF] text-white cursor-pointer shadow-sm shadow-[#665AEF]/25 px-3.5 justify-center text-xs sm:text-sm font-medium active:scale-[0.98] touch-manipulation"
             >
               <CheckCircle2 className="size-3.5" />
               <span>Apply Pin</span>

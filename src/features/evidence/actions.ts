@@ -7,6 +7,7 @@ import { tigris, TIGRIS_BUCKET } from "@/lib/tigris";
 import { PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import crypto from "crypto";
 import { revalidatePath } from "next/cache";
+import { tigrisEvidenceValidator } from "@/lib/evidence-upload-config";
 
 export async function uploadEvidence(formData: FormData) {
   const session = await auth.api.getSession({
@@ -22,6 +23,12 @@ export async function uploadEvidence(formData: FormData) {
 
   if (!caseId || !file) {
     return { error: "Case ID and File are required" };
+  }
+
+  // Enforce Tigris 5GB storage constraints
+  const validationError = tigrisEvidenceValidator(file);
+  if (validationError) {
+    return { error: validationError.message };
   }
 
   try {

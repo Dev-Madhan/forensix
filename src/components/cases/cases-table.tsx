@@ -47,6 +47,8 @@ import {
 import { INITIAL_CASES, type CaseItem } from "@/constants/mock-cases";
 export { INITIAL_CASES, type CaseItem };
 
+const MotionTableBody = motion.create(TableBody);
+
 function CaseRowActions({
   caseItem,
   isSelected,
@@ -270,17 +272,9 @@ export function CasesTable({ initialCases = [] }: CasesTableProps) {
   };
 
   return (
-    <motion.div
-      layout
-      transition={{ layout: { duration: 0.45, ease: [0.16, 1, 0.3, 1] } }}
-      className="grid grid-cols-1 gap-6 xl:grid-cols-12 items-start w-full"
-    >
+    <div className="grid grid-cols-1 gap-6 xl:grid-cols-12 items-start w-full">
       {/* Left Column: Cases Table (Reduced horizontally to col-span-8 to give required spacing for details component) */}
-      <motion.div
-        layout
-        transition={{ layout: { duration: 0.45, ease: [0.16, 1, 0.3, 1] } }}
-        className="xl:col-span-8 2xl:col-span-8 space-y-4 min-w-0"
-      >
+      <div className="xl:col-span-8 2xl:col-span-8 space-y-4 min-w-0">
         {/* 1. Filter Bar matching reference image with border-2 */}
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
           {/* Search Bar */}
@@ -537,86 +531,95 @@ export function CasesTable({ initialCases = [] }: CasesTableProps) {
                 </TableHead>
               </TableRow>
             </TableHeader>
-            <TableBody className="divide-y divide-border/40">
-              {currentCases.map((c) => {
-                const isSelected = selectedIds.has(c.id) || activeCaseId === c.id;
-                return (
-                  <TableRow
-                    key={c.id}
-                    data-state={isSelected ? "selected" : undefined}
-                    className={cn(
-                      "transition-colors hover:bg-muted/30 cursor-pointer",
-                      isSelected && "bg-[#665AEF]/15 hover:bg-[#665AEF]/20"
-                    )}
-                    onClick={() => {
-                      setActiveCaseId(c.id);
-                      toggleSelect(c.id);
-                    }}
-                  >
-                    <TableCell
-                      className="w-9 px-2.5 py-3"
-                      onClick={(e) => e.stopPropagation()}
+            <AnimatePresence mode="wait" initial={false}>
+              <MotionTableBody
+                key={`${typeFilter || "all"}-${statusFilter || "all"}-${currentPage}-${searchTerm}`}
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.18, ease: "easeOut" }}
+                className="divide-y divide-border/40"
+              >
+                {currentCases.map((c) => {
+                  const isSelected = selectedIds.has(c.id) || activeCaseId === c.id;
+                  return (
+                    <TableRow
+                      key={c.id}
+                      data-state={isSelected ? "selected" : undefined}
+                      className={cn(
+                        "transition-colors hover:bg-muted/30 cursor-pointer",
+                        isSelected && "bg-[#665AEF]/15 hover:bg-[#665AEF]/20"
+                      )}
+                      onClick={() => {
+                        setActiveCaseId(c.id);
+                        toggleSelect(c.id);
+                      }}
                     >
-                      <Checkbox
-                        checked={isSelected}
-                        onCheckedChange={() => {
-                          setActiveCaseId(c.id);
-                          toggleSelect(c.id);
-                        }}
-                        aria-label={`Select ${c.caseNumber}`}
-                      />
-                    </TableCell>
-                    <TableCell className="font-heading text-xs font-medium text-foreground px-2.5 py-3 whitespace-nowrap">
-                      <Link
-                        href={`/case-details/${c.caseNumber}`}
-                        className="hover:text-[#a594fd] transition-colors"
+                      <TableCell
+                        className="w-9 px-2.5 py-3"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        {c.caseNumber}
-                      </Link>
-                    </TableCell>
-                    <TableCell className="font-medium text-sm text-foreground px-2.5 py-3 whitespace-nowrap max-w-[130px] 2xl:max-w-[170px] truncate">
-                      {c.title}
-                    </TableCell>
-                    <TableCell className="px-2.5 py-3 whitespace-nowrap">
-                      <span className="inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-medium bg-muted/60 text-muted-foreground border-2 border-border/50 whitespace-nowrap">
-                        {c.type}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground px-2.5 py-3 whitespace-nowrap">
-                      {c.location}
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground px-2.5 py-3 whitespace-nowrap">
-                      {c.date}
-                    </TableCell>
-                    <TableCell className="px-2.5 py-3 whitespace-nowrap">
-                      {renderStatusBadge(c.status)}
-                    </TableCell>
+                        <Checkbox
+                          checked={isSelected}
+                          onCheckedChange={() => {
+                            setActiveCaseId(c.id);
+                            toggleSelect(c.id);
+                          }}
+                          aria-label={`Select ${c.caseNumber}`}
+                        />
+                      </TableCell>
+                      <TableCell className="font-heading text-xs font-medium text-foreground px-2.5 py-3 whitespace-nowrap">
+                        <Link
+                          href={`/case-details/${c.caseNumber}`}
+                          className="hover:text-[#a594fd] transition-colors"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {c.caseNumber}
+                        </Link>
+                      </TableCell>
+                      <TableCell className="font-medium text-sm text-foreground px-2.5 py-3 whitespace-nowrap max-w-[130px] 2xl:max-w-[170px] truncate">
+                        {c.title}
+                      </TableCell>
+                      <TableCell className="px-2.5 py-3 whitespace-nowrap">
+                        <span className="inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-medium bg-muted/60 text-muted-foreground border-2 border-border/50 whitespace-nowrap">
+                          {c.type}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground px-2.5 py-3 whitespace-nowrap">
+                        {c.location}
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground px-2.5 py-3 whitespace-nowrap">
+                        {c.date}
+                      </TableCell>
+                      <TableCell className="px-2.5 py-3 whitespace-nowrap">
+                        {renderStatusBadge(c.status)}
+                      </TableCell>
+                      <TableCell
+                        className="text-right pr-3 py-3 whitespace-nowrap w-12"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <CaseRowActions
+                          caseItem={c}
+                          isSelected={isSelected}
+                          onToggleSelect={() => toggleSelect(c.id)}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+
+                {currentCases.length === 0 && (
+                  <TableRow>
                     <TableCell
-                      className="text-right pr-3 py-3 whitespace-nowrap w-12"
-                      onClick={(e) => e.stopPropagation()}
+                      colSpan={8}
+                      className="py-12 text-center text-sm text-muted-foreground"
                     >
-                      <CaseRowActions
-                        caseItem={c}
-                        isSelected={isSelected}
-                        onToggleSelect={() => toggleSelect(c.id)}
-                      />
+                      No cases match your filters.
                     </TableCell>
                   </TableRow>
-                );
-              })}
-
-              {currentCases.length === 0 && (
-                <TableRow>
-                  <TableCell
-                    colSpan={8}
-                    className="py-12 text-center text-sm text-muted-foreground"
-                  >
-                    No cases match your filters.
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
+                )}
+              </MotionTableBody>
+            </AnimatePresence>
           </Table>
 
           {/* 3. Table Pagination Footer with border-t-2 */}
@@ -670,17 +673,13 @@ export function CasesTable({ initialCases = [] }: CasesTableProps) {
             </div>
           </div>
         </div>
-      </motion.div>
+      </div>
 
       {/* Right Column: Case Details Component (col-span-4) matching screenshot */}
-      <motion.div
-        layout
-        transition={{ layout: { duration: 0.45, ease: [0.16, 1, 0.3, 1] } }}
-        className="xl:col-span-4 2xl:col-span-4 xl:sticky xl:top-6 min-w-0"
-      >
+      <div className="xl:col-span-4 2xl:col-span-4 xl:sticky xl:top-6 min-w-0">
         <CaseDetailsPreview caseItem={activeCase} />
-      </motion.div>
-    </motion.div>
+      </div>
+    </div>
   );
 }
 
@@ -734,20 +733,17 @@ function CaseDetailsPreview({ caseItem }: CaseDetailsPreviewProps) {
   };
 
   return (
-    <motion.div
-      layout
-      transition={{ layout: { duration: 0.45, ease: [0.16, 1, 0.3, 1] } }}
-      className="rounded-xl border-2 border-border bg-card/40 p-4 sm:p-5 flex flex-col gap-4 shadow-xs"
-    >
-      <AnimatePresence mode="wait">
-        <motion.div
-          key={caseItem.id}
-          initial={{ opacity: 0.78, scale: 0.985 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0.78, scale: 0.985 }}
-          transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-          className="flex flex-col gap-4 h-full"
-        >
+    <div className="rounded-xl border-2 border-border bg-card/40 p-4 sm:p-5 shadow-xs overflow-hidden">
+      <div className="relative grid grid-cols-1 grid-rows-1">
+        <AnimatePresence initial={false}>
+          <motion.div
+            key={caseItem.id}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+            className="col-start-1 row-start-1 w-full flex flex-col gap-4"
+          >
           {/* CCTV Camera Feed Carousel matching screenshot */}
           <div className="relative aspect-video w-full rounded-lg overflow-hidden border border-border/60 bg-black/80 shadow-inner group">
             <Image
@@ -760,38 +756,32 @@ function CaseDetailsPreview({ caseItem }: CaseDetailsPreviewProps) {
             />
             {/* Timestamp & Camera ID Overlay */}
             <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5 font-heading font-semibold text-[10px] tracking-wider text-white/90 bg-black/70 backdrop-blur-xs px-2 py-0.5 rounded">
-              <span>{`CAM 0${cctvIndex}`}</span>
-            </div>
-            <div className="absolute top-2.5 right-2.5 flex items-center gap-1.5 font-heading font-medium text-[10px] tracking-wider text-white/90 bg-black/70 backdrop-blur-xs px-2 py-0.5 rounded">
-              <span>{caseItem.date} {caseItem.timestamp || "21:14:32"}</span>
+              <span className="size-1.5 rounded-full bg-rose-500 animate-pulse" />
+              <span>CAM-0{cctvIndex} [REC]</span>
             </div>
 
-            {/* Carousel Prev / Next Arrows */}
+            <div className="absolute bottom-2.5 left-2.5 font-mono text-[10px] text-white/80 bg-black/60 px-1.5 py-0.5 rounded">
+              {caseItem.date} 21:14:0{cctvIndex}
+            </div>
+
+            {/* Navigation arrows for CCTV Carousel */}
             <button
-              type="button"
               onClick={handlePrev}
-              aria-label="Previous CCTV angle"
-              className="absolute left-2 top-1/2 -translate-y-1/2 size-7 rounded-full bg-black/60 hover:bg-black/85 text-white flex items-center justify-center transition-colors cursor-pointer"
+              className="absolute left-2 top-1/2 -translate-y-1/2 size-7 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+              aria-label="Previous camera angle"
             >
               <ChevronLeft className="size-4" />
             </button>
             <button
-              type="button"
               onClick={handleNext}
-              aria-label="Next CCTV angle"
-              className="absolute right-2 top-1/2 -translate-y-1/2 size-7 rounded-full bg-black/60 hover:bg-black/85 text-white flex items-center justify-center transition-colors cursor-pointer"
+              className="absolute right-2 top-1/2 -translate-y-1/2 size-7 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+              aria-label="Next camera angle"
             >
               <ChevronRight className="size-4" />
             </button>
 
-            {/* Bottom-right 1/4 Pagination badge with Inter font */}
-            <div
-              className="absolute bottom-2.5 right-2.5 font-inter font-medium text-[10px] text-white/90 bg-black/75 backdrop-blur-xs px-2 py-0.5 rounded tabular-nums"
-              style={{
-                fontFamily:
-                  'var(--font-inter), "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-              }}
-            >
+            {/* Bottom-right 1/4 Pagination badge */}
+            <div className="absolute bottom-2.5 right-2.5 font-mono text-[10px] text-white/90 bg-black/75 backdrop-blur-xs px-2 py-0.5 rounded tabular-nums">
               {cctvIndex}/{totalCctvAngles}
             </div>
           </div>
@@ -863,6 +853,7 @@ function CaseDetailsPreview({ caseItem }: CaseDetailsPreviewProps) {
           </div>
         </motion.div>
       </AnimatePresence>
-    </motion.div>
-  );
+    </div>
+  </div>
+);
 }

@@ -135,7 +135,7 @@ export function CaseDetailsHeader({ caseData }: CaseDetailsHeaderProps) {
             <DropdownMenuTrigger
               render={
                 <Button
-                  className="h-9 gap-1.5 rounded-lg bg-[#0070F3] hover:bg-[#0060DF] text-white text-xs sm:text-sm font-medium shadow-sm shadow-[#0070F3]/30 px-3.5 cursor-pointer"
+                  className="h-9 gap-1.5 rounded-lg bg-[#665AEF] hover:bg-[#5749DF] text-white text-xs sm:text-sm font-medium shadow-sm shadow-[#665AEF]/25 px-3.5 cursor-pointer"
                 />
               }
             >
