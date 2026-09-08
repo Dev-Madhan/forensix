@@ -721,7 +721,7 @@ export function CaseNewForm({ initialUser, suggestedCaseNumber }: CaseNewFormPro
                       value={caseNumber}
                       onChange={(e) => setCaseNumber(e.target.value)}
                       style={{ fontFamily: 'var(--font-space-grotesk), "Space Grotesk", sans-serif' }}
-                      className="h-10 font-space font-heading font-bold text-base sm:text-sm bg-muted/40 border-2 border-border/60 text-foreground tracking-wide focus-visible:border-ring"
+                      className="h-10 font-heading font-bold text-base sm:text-sm bg-muted/40 border-2 border-border/60 text-foreground tracking-wide focus-visible:border-ring"
                     />
                   </div>
                 </div>
@@ -765,7 +765,7 @@ export function CaseNewForm({ initialUser, suggestedCaseNumber }: CaseNewFormPro
                       align="start"
                       side="bottom"
                       sideOffset={6}
-                      className="w-[var(--anchor-width)] min-w-[180px] max-h-60 overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden p-1 rounded-xl shadow-2xl bg-card/95 backdrop-blur-xl border-2 border-border"
+                      className="w-(--anchor-width) min-w-45 max-h-60 overflow-y-auto scrollbar-none [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden p-1 rounded-xl shadow-2xl bg-card/95 backdrop-blur-xl border-2 border-border"
                       onPointerLeave={() => setHoveredCaseType(null)}
                     >
                       <motion.div
@@ -785,7 +785,7 @@ export function CaseNewForm({ initialUser, suggestedCaseNumber }: CaseNewFormPro
                                 setTags((prev) => [type, ...prev.filter((t) => !CASE_TYPES.includes(t))]);
                               }
                             }}
-                            className="relative z-0 group flex items-center justify-between cursor-pointer px-2.5 py-2.5 sm:py-2 rounded-lg transition-colors focus:text-accent-foreground hover:text-accent-foreground !bg-transparent text-xs sm:text-sm font-medium touch-manipulation"
+                            className="relative z-0 group flex items-center justify-between cursor-pointer px-2.5 py-2.5 sm:py-2 rounded-lg transition-colors focus:text-accent-foreground hover:text-accent-foreground bg-transparent! text-xs sm:text-sm font-medium touch-manipulation"
                           >
                             {hoveredCaseType === type && (
                               <motion.div
@@ -830,7 +830,7 @@ export function CaseNewForm({ initialUser, suggestedCaseNumber }: CaseNewFormPro
                       align="start"
                       side="bottom"
                       sideOffset={6}
-                      className="w-[var(--anchor-width)] min-w-[180px] p-1 rounded-xl shadow-2xl bg-card/95 backdrop-blur-xl border-2 border-border overflow-hidden"
+                      className="w-(--anchor-width) min-w-45 p-1 rounded-xl shadow-2xl bg-card/95 backdrop-blur-xl border-2 border-border overflow-hidden"
                       onPointerLeave={() => setHoveredStatus(null)}
                     >
                       <motion.div
@@ -845,7 +845,7 @@ export function CaseNewForm({ initialUser, suggestedCaseNumber }: CaseNewFormPro
                             key={opt.value}
                             onPointerEnter={() => setHoveredStatus(opt.value)}
                             onClick={() => setStatus(opt.value)}
-                            className="relative z-0 group flex items-center justify-between cursor-pointer px-2.5 py-2.5 sm:py-2 rounded-lg transition-colors focus:text-accent-foreground hover:text-accent-foreground !bg-transparent text-xs sm:text-sm font-medium touch-manipulation"
+                            className="relative z-0 group flex items-center justify-between cursor-pointer px-2.5 py-2.5 sm:py-2 rounded-lg transition-colors focus:text-accent-foreground hover:text-accent-foreground bg-transparent! text-xs sm:text-sm font-medium touch-manipulation"
                           >
                             {hoveredStatus === opt.value && (
                               <motion.div
@@ -889,7 +889,7 @@ export function CaseNewForm({ initialUser, suggestedCaseNumber }: CaseNewFormPro
                       align="start"
                       side="bottom"
                       sideOffset={6}
-                      className="w-[var(--anchor-width)] min-w-[180px] p-1 rounded-xl shadow-2xl bg-card/95 backdrop-blur-xl border-2 border-border overflow-hidden"
+                      className="w-(--anchor-width) min-w-45 p-1 rounded-xl shadow-2xl bg-card/95 backdrop-blur-xl border-2 border-border overflow-hidden"
                       onPointerLeave={() => setHoveredPriority(null)}
                     >
                       <motion.div
@@ -904,7 +904,7 @@ export function CaseNewForm({ initialUser, suggestedCaseNumber }: CaseNewFormPro
                             key={opt.value}
                             onPointerEnter={() => setHoveredPriority(opt.value)}
                             onClick={() => setPriority(opt.value)}
-                            className="relative z-0 group flex items-center justify-between cursor-pointer px-2.5 py-2.5 sm:py-2 rounded-lg transition-colors focus:text-accent-foreground hover:text-accent-foreground !bg-transparent text-xs sm:text-sm font-medium touch-manipulation"
+                            className="relative z-0 group flex items-center justify-between cursor-pointer px-2.5 py-2.5 sm:py-2 rounded-lg transition-colors focus:text-accent-foreground hover:text-accent-foreground bg-transparent! text-xs sm:text-sm font-medium touch-manipulation"
                           >
                             {hoveredPriority === opt.value && (
                               <motion.div
@@ -1186,7 +1186,7 @@ export function CaseNewForm({ initialUser, suggestedCaseNumber }: CaseNewFormPro
                   </span>
                   <span className="text-[11px] text-muted-foreground hidden sm:inline">Click to auto-fill address & coordinates</span>
                 </div>
-                <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto sm:flex-wrap pb-1 sm:pb-0 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto sm:flex-wrap pb-1 sm:pb-0 scrollbar-none [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
                   {LOCATION_PRESETS.map((preset) => (
                     <button
                       key={preset.label}
@@ -1309,7 +1309,7 @@ export function CaseNewForm({ initialUser, suggestedCaseNumber }: CaseNewFormPro
                   </div>
                   <div className="flex items-center justify-end pt-0.5">
                     <span
-                      className="font-inter font-sans text-[10px] tracking-wide text-muted-foreground/80 font-medium whitespace-nowrap"
+                      className="font-sans text-[10px] tracking-wide text-muted-foreground/80 font-medium whitespace-nowrap"
                       style={{
                         fontFamily:
                           'var(--font-inter), "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
@@ -1361,7 +1361,7 @@ export function CaseNewForm({ initialUser, suggestedCaseNumber }: CaseNewFormPro
                             variant="secondary"
                             className="h-7.5 pl-2.5 pr-1.5 border-2 border-border/80 bg-muted/40 hover:bg-muted/70 text-foreground text-xs font-medium rounded-md inline-flex items-center gap-1.5 shadow-2xs"
                           >
-                            <span className="max-w-[160px] truncate">{tag}</span>
+                            <span className="max-w-40 truncate">{tag}</span>
                             <button
                               type="button"
                               onClick={() => handleRemoveTag(tag)}
@@ -1608,7 +1608,7 @@ export function CaseNewForm({ initialUser, suggestedCaseNumber }: CaseNewFormPro
             </div>
 
             {/* Quick Suggestion Pills */}
-            <div className="flex items-center gap-1.5 overflow-x-auto py-1 text-[11px] text-muted-foreground scrollbar-none mt-0.5 whitespace-nowrap [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+            <div className="flex items-center gap-1.5 overflow-x-auto py-1 text-[11px] text-muted-foreground scrollbar-none mt-0.5 whitespace-nowrap [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
               <span className="shrink-0 text-[10px] uppercase font-bold tracking-wider text-muted-foreground/70">
                 Quick Jump:
               </span>
@@ -1638,7 +1638,7 @@ export function CaseNewForm({ initialUser, suggestedCaseNumber }: CaseNewFormPro
 
             {/* Autocomplete Results Dropdown */}
             {showSearchResults && mapSearchResults.length > 0 && (
-              <div className="absolute top-[calc(100%+4px)] left-0 right-0 max-h-52 z-40 overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden rounded-xl border-2 border-border/90 bg-card/95 backdrop-blur-xl shadow-2xl p-1.5 space-y-1">
+              <div className="absolute top-[calc(100%+4px)] left-0 right-0 max-h-52 z-40 overflow-y-auto scrollbar-none [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden rounded-xl border-2 border-border/90 bg-card/95 backdrop-blur-xl shadow-2xl p-1.5 space-y-1">
                 <div className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground border-b-2 border-border/60 flex items-center justify-between">
                   <span>Found Locations ({mapSearchResults.length})</span>
                   <span className="text-[9px] font-normal lowercase text-muted-foreground/80">Click to center & drop pin</span>
@@ -1678,7 +1678,7 @@ export function CaseNewForm({ initialUser, suggestedCaseNumber }: CaseNewFormPro
           </div>
 
           {/* Map Container */}
-          <div className="relative h-60 sm:h-[300px] md:h-[330px] w-full rounded-xl overflow-hidden border-2 border-border/80 shadow-md">
+          <div className="relative h-60 sm:h-75 md:h-82.5 w-full rounded-xl overflow-hidden border-2 border-border/80 shadow-md">
             <Map
               center={[mapPinCoords.lng, mapPinCoords.lat]}
               zoom={14}

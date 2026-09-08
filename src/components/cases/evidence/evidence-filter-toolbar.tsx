@@ -89,7 +89,7 @@ export function EvidenceFilterToolbar({
             align="end"
             side="bottom"
             sideOffset={4}
-            className="w-36 text-xs bg-card/95 backdrop-blur-xl border-2 border-border p-1 shadow-xl z-[100] overflow-hidden"
+            className="w-36 text-xs bg-card/95 backdrop-blur-xl border-2 border-border p-1 shadow-xl z-100 overflow-hidden"
             onPointerLeave={() => setHoveredType(null)}
           >
             <motion.div
@@ -110,7 +110,7 @@ export function EvidenceFilterToolbar({
                   key={item.value}
                   onPointerEnter={() => setHoveredType(item.value)}
                   onClick={() => onTypeFilterChange(item.value)}
-                  className="relative z-0 group flex items-center justify-between px-2.5 py-1.5 rounded-md cursor-pointer text-xs transition-colors hover:!bg-transparent focus:!bg-transparent text-foreground"
+                  className="relative z-0 group flex items-center justify-between px-2.5 py-1.5 rounded-md cursor-pointer text-xs transition-colors hover:bg-transparent! focus:bg-transparent! text-foreground"
                 >
                   {hoveredType === item.value && (
                     <motion.div
@@ -139,7 +139,7 @@ export function EvidenceFilterToolbar({
             align="end"
             side="bottom"
             sideOffset={4}
-            className="w-36 text-xs bg-card/95 backdrop-blur-xl border-2 border-border p-1 shadow-xl z-[100] overflow-hidden"
+            className="w-36 text-xs bg-card/95 backdrop-blur-xl border-2 border-border p-1 shadow-xl z-100 overflow-hidden"
             onPointerLeave={() => setHoveredSource(null)}
           >
             <motion.div
@@ -160,7 +160,7 @@ export function EvidenceFilterToolbar({
                   key={item.value}
                   onPointerEnter={() => setHoveredSource(item.value)}
                   onClick={() => onSourceFilterChange(item.value)}
-                  className="relative z-0 group flex items-center justify-between px-2.5 py-1.5 rounded-md cursor-pointer text-xs transition-colors hover:!bg-transparent focus:!bg-transparent text-foreground"
+                  className="relative z-0 group flex items-center justify-between px-2.5 py-1.5 rounded-md cursor-pointer text-xs transition-colors hover:bg-transparent! focus:bg-transparent! text-foreground"
                 >
                   {hoveredSource === item.value && (
                     <motion.div
@@ -190,7 +190,7 @@ export function EvidenceFilterToolbar({
             align="end"
             side="bottom"
             sideOffset={4}
-            className="w-36 text-xs bg-card/95 backdrop-blur-xl border-2 border-border p-1 shadow-xl z-[100] overflow-hidden"
+            className="w-36 text-xs bg-card/95 backdrop-blur-xl border-2 border-border p-1 shadow-xl z-100 overflow-hidden"
             onPointerLeave={() => setHoveredDate(null)}
           >
             <motion.div
@@ -211,7 +211,7 @@ export function EvidenceFilterToolbar({
                   key={item.value}
                   onPointerEnter={() => setHoveredDate(item.value)}
                   onClick={() => onDateRangeChange(item.value)}
-                  className="relative z-0 group flex items-center justify-between px-2.5 py-1.5 rounded-md cursor-pointer text-xs transition-colors hover:!bg-transparent focus:!bg-transparent text-foreground"
+                  className="relative z-0 group flex items-center justify-between px-2.5 py-1.5 rounded-md cursor-pointer text-xs transition-colors hover:bg-transparent! focus:bg-transparent! text-foreground"
                 >
                   {hoveredDate === item.value && (
                     <motion.div

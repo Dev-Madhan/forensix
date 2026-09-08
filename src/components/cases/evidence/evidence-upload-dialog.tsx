@@ -283,7 +283,7 @@ export function EvidenceUploadDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px] bg-card/95 backdrop-blur-md border-2 border-border/80 text-foreground p-6 gap-0 shadow-2xl">
+      <DialogContent className="sm:max-w-125 bg-card/95 backdrop-blur-md border-2 border-border/80 text-foreground p-6 gap-0 shadow-2xl">
         <DialogHeader className="pb-4 space-y-1 pr-6">
           <DialogTitle className="text-base font-bold font-heading text-foreground tracking-tight">
             Upload Forensic Evidence
@@ -397,7 +397,7 @@ export function EvidenceUploadDialog({
                         <div className="flex items-center gap-2.5 min-w-0">
                           {getEvidenceIcon(file.name, file.type)}
                           <div className="min-w-0">
-                            <p className="font-medium text-foreground truncate max-w-[220px] sm:max-w-[280px]">
+                            <p className="font-medium text-foreground truncate max-w-55 sm:max-w-70">
                               {file.name}
                             </p>
                             <p className="text-[10px] text-muted-foreground">
@@ -470,7 +470,7 @@ export function EvidenceUploadDialog({
                   align="start"
                   side="bottom"
                   sideOffset={4}
-                  className="w-(--anchor-width) min-w-[140px] text-xs bg-card/95 backdrop-blur-xl border-2 border-border p-1 shadow-xl z-[100] overflow-hidden"
+                  className="w-(--anchor-width) min-w-35 text-xs bg-card/95 backdrop-blur-xl border-2 border-border p-1 shadow-xl z-100 overflow-hidden"
                   onPointerLeave={() => setHoveredFileType(null)}
                 >
                   <motion.div
@@ -485,7 +485,7 @@ export function EvidenceUploadDialog({
                         key={type}
                         onPointerEnter={() => setHoveredFileType(type)}
                         onClick={() => setFileType(type)}
-                        className="relative z-0 group flex items-center justify-between px-2.5 py-1.5 rounded-md cursor-pointer text-xs transition-colors hover:!bg-transparent focus:!bg-transparent text-foreground"
+                        className="relative z-0 group flex items-center justify-between px-2.5 py-1.5 rounded-md cursor-pointer text-xs transition-colors hover:bg-transparent! focus:bg-transparent! text-foreground"
                       >
                         {hoveredFileType === type && (
                           <motion.div
@@ -521,7 +521,7 @@ export function EvidenceUploadDialog({
                   align="start"
                   side="bottom"
                   sideOffset={4}
-                  className="w-(--anchor-width) min-w-[140px] text-xs bg-card/95 backdrop-blur-xl border-2 border-border p-1 shadow-xl z-[100] overflow-hidden"
+                  className="w-(--anchor-width) min-w-35 text-xs bg-card/95 backdrop-blur-xl border-2 border-border p-1 shadow-xl z-100 overflow-hidden"
                   onPointerLeave={() => setHoveredSource(null)}
                 >
                   <motion.div
@@ -536,7 +536,7 @@ export function EvidenceUploadDialog({
                         key={src}
                         onPointerEnter={() => setHoveredSource(src)}
                         onClick={() => setSource(src)}
-                        className="relative z-0 group flex items-center justify-between px-2.5 py-1.5 rounded-md cursor-pointer text-xs transition-colors hover:!bg-transparent focus:!bg-transparent text-foreground"
+                        className="relative z-0 group flex items-center justify-between px-2.5 py-1.5 rounded-md cursor-pointer text-xs transition-colors hover:bg-transparent! focus:bg-transparent! text-foreground"
                       >
                         {hoveredSource === src && (
                           <motion.div
@@ -569,7 +569,7 @@ export function EvidenceUploadDialog({
               placeholder="Provide context regarding recovery location, timestamp or relevancy..."
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="min-h-[68px] text-xs bg-background/60 border-2 border-border/80 resize-none rounded-lg px-3 py-2.5 leading-relaxed focus-visible:ring-1 focus-visible:ring-[#665AEF] placeholder:text-muted-foreground/45"
+              className="min-h-17 text-xs bg-background/60 border-2 border-border/80 resize-none rounded-lg px-3 py-2.5 leading-relaxed focus-visible:ring-1 focus-visible:ring-[#665AEF] placeholder:text-muted-foreground/45"
             />
           </div>
 

@@ -100,13 +100,7 @@ export function AvatarDropdown({
             sideOffset={24}
             className="w-56 p-1 rounded-xl shadow-xl bg-card/95 backdrop-blur-xl border-2 border-border overflow-hidden"
           >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.96, y: -8 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.96, y: -8 }}
-              transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-            >
-        <DropdownMenuGroup>
+            <DropdownMenuGroup>
           <DropdownMenuLabel className="px-2 py-1.5 font-normal">
             <div className="flex flex-col space-y-1">
               <p className="text-sm font-semibold leading-none text-foreground tracking-tight">
@@ -130,7 +124,7 @@ export function AvatarDropdown({
           <DropdownMenuItem 
             onPointerEnter={() => setHoveredItem("cases")}
             render={<Link href="/dashboard/cases" />} 
-            className="relative z-0 group flex items-center gap-2 cursor-pointer px-2 py-1.5 rounded-md transition-colors focus:text-accent-foreground hover:text-accent-foreground !bg-transparent"
+            className="relative z-0 group flex items-center gap-2 cursor-pointer px-2 py-1.5 rounded-md transition-colors focus:text-accent-foreground hover:text-accent-foreground bg-transparent!"
           >
             {hoveredItem === "cases" && (
               <motion.div layoutId="dropdown-hover" className="absolute inset-0 z-[-1] rounded-md bg-accent/80" transition={{ type: "spring", bounce: 0.3, duration: 0.4 }} />
@@ -141,7 +135,7 @@ export function AvatarDropdown({
           <DropdownMenuItem 
             onPointerEnter={() => setHoveredItem("criminals")}
             render={<Link href="/dashboard/criminals" />} 
-            className="relative z-0 group flex items-center gap-2 cursor-pointer px-2 py-1.5 rounded-md transition-colors focus:text-accent-foreground hover:text-accent-foreground !bg-transparent"
+            className="relative z-0 group flex items-center gap-2 cursor-pointer px-2 py-1.5 rounded-md transition-colors focus:text-accent-foreground hover:text-accent-foreground bg-transparent!"
           >
             {hoveredItem === "criminals" && (
               <motion.div layoutId="dropdown-hover" className="absolute inset-0 z-[-1] rounded-md bg-accent/80" transition={{ type: "spring", bounce: 0.3, duration: 0.4 }} />
@@ -152,7 +146,7 @@ export function AvatarDropdown({
           <DropdownMenuItem 
             onPointerEnter={() => setHoveredItem("sketch")}
             render={<Link href="/sketch" />} 
-            className="relative z-0 group flex items-center gap-2 cursor-pointer px-2 py-1.5 rounded-md transition-colors focus:text-accent-foreground hover:text-accent-foreground !bg-transparent"
+            className="relative z-0 group flex items-center gap-2 cursor-pointer px-2 py-1.5 rounded-md transition-colors focus:text-accent-foreground hover:text-accent-foreground bg-transparent!"
           >
             {hoveredItem === "sketch" && (
               <motion.div layoutId="dropdown-hover" className="absolute inset-0 z-[-1] rounded-md bg-accent/80" transition={{ type: "spring", bounce: 0.3, duration: 0.4 }} />
@@ -163,7 +157,7 @@ export function AvatarDropdown({
           <DropdownMenuItem 
             onPointerEnter={() => setHoveredItem("dashboard")}
             render={<Link href="/dashboard" />} 
-            className="relative z-0 group flex items-center gap-2 cursor-pointer px-2 py-1.5 rounded-md transition-colors focus:text-accent-foreground hover:text-accent-foreground !bg-transparent"
+            className="relative z-0 group flex items-center gap-2 cursor-pointer px-2 py-1.5 rounded-md transition-colors focus:text-accent-foreground hover:text-accent-foreground bg-transparent!"
           >
             {hoveredItem === "dashboard" && (
               <motion.div layoutId="dropdown-hover" className="absolute inset-0 z-[-1] rounded-md bg-accent/80" transition={{ type: "spring", bounce: 0.3, duration: 0.4 }} />
@@ -179,7 +173,7 @@ export function AvatarDropdown({
           <DropdownMenuItem 
             onPointerEnter={() => setHoveredItem("profile")}
             render={<Link href="/profile" />} 
-            className="relative z-0 group flex items-center gap-2 cursor-pointer px-2 py-1.5 rounded-md transition-colors focus:text-accent-foreground hover:text-accent-foreground !bg-transparent"
+            className="relative z-0 group flex items-center gap-2 cursor-pointer px-2 py-1.5 rounded-md transition-colors focus:text-accent-foreground hover:text-accent-foreground bg-transparent!"
           >
             {hoveredItem === "profile" && (
               <motion.div layoutId="dropdown-hover" className="absolute inset-0 z-[-1] rounded-md bg-accent/80" transition={{ type: "spring", bounce: 0.3, duration: 0.4 }} />
@@ -190,7 +184,7 @@ export function AvatarDropdown({
           <DropdownMenuItem 
             onPointerEnter={() => setHoveredItem("settings")}
             render={<Link href="/settings" />} 
-            className="relative z-0 group flex items-center gap-2 cursor-pointer px-2 py-1.5 rounded-md transition-colors focus:text-accent-foreground hover:text-accent-foreground !bg-transparent"
+            className="relative z-0 group flex items-center gap-2 cursor-pointer px-2 py-1.5 rounded-md transition-colors focus:text-accent-foreground hover:text-accent-foreground bg-transparent!"
           >
             {hoveredItem === "settings" && (
               <motion.div layoutId="dropdown-hover" className="absolute inset-0 z-[-1] rounded-md bg-accent/80" transition={{ type: "spring", bounce: 0.3, duration: 0.4 }} />
@@ -202,7 +196,7 @@ export function AvatarDropdown({
             <DropdownMenuItem 
               onPointerEnter={() => setHoveredItem("audit")}
               render={<Link href="/admin" />} 
-              className="relative z-0 group flex items-center gap-2 cursor-pointer px-2 py-1.5 rounded-md transition-colors focus:text-accent-foreground hover:text-accent-foreground !bg-transparent"
+              className="relative z-0 group flex items-center gap-2 cursor-pointer px-2 py-1.5 rounded-md transition-colors focus:text-accent-foreground hover:text-accent-foreground bg-transparent!"
             >
               {hoveredItem === "audit" && (
                 <motion.div layoutId="dropdown-hover" className="absolute inset-0 z-[-1] rounded-md bg-accent/80" transition={{ type: "spring", bounce: 0.3, duration: 0.4 }} />
@@ -221,7 +215,7 @@ export function AvatarDropdown({
             variant="destructive"
             disabled={isPending}
             onClick={handleLogout}
-            className="relative z-0 group flex items-center gap-2 cursor-pointer px-2 py-1.5 rounded-md text-destructive transition-colors focus:text-destructive hover:text-destructive !bg-transparent"
+            className="relative z-0 group flex items-center gap-2 cursor-pointer px-2 py-1.5 rounded-md text-destructive transition-colors focus:text-destructive hover:text-destructive bg-transparent!"
           >
             {hoveredItem === "logout" && (
               <motion.div layoutId="dropdown-hover" className="absolute inset-0 z-[-1] rounded-md bg-destructive/15" transition={{ type: "spring", bounce: 0.3, duration: 0.4 }} />
@@ -230,7 +224,6 @@ export function AvatarDropdown({
             <span className="font-medium text-sm">{isPending ? "Signing out..." : "Sign out"}</span>
           </DropdownMenuItem>
         </DropdownMenuGroup>
-            </motion.div>
           </DropdownMenuContent>
         )}
       </AnimatePresence>

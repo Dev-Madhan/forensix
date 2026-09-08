@@ -60,6 +60,7 @@ import { CaseKeyDetailsCard } from "@/components/cases/case-key-details-card";
 import { CaseIncidentMediaCard } from "@/components/cases/case-incident-media-card";
 import { CaseIncidentLocationCard } from "@/components/cases/case-incident-location-card";
 import { EvidenceTabContent } from "@/components/cases/evidence/evidence-tab-content";
+import { SuspectsTabContent } from "@/components/cases/suspects/suspects-tab-content";
 
 interface CaseDetailsTabsProps {
   caseData: ResolvedCaseDetail;
@@ -109,23 +110,6 @@ export function CaseDetailsTabs({ caseData }: CaseDetailsTabsProps) {
 
   const [activeTab, setActiveTab] = useState("overview");
 
-  const tabs = React.useMemo(
-    () => [
-      { id: "overview", label: "Overview" },
-      { id: "evidence", label: `Evidence (${caseData.evidenceCount || 8})` },
-      { id: "suspects", label: `Suspects (${caseData.suspectsCount || 2})` },
-      { id: "activity", label: "Activity Log" },
-    ],
-    [caseData.evidenceCount, caseData.suspectsCount]
-  );
-
-  // Interactive tags state
-  const [tags, setTags] = useState<string[]>(
-    caseData.tags || ["Robbery", "Theft", "CCTV", "Armed", "Commercial Area"]
-  );
-  const [newTagInput, setNewTagInput] = useState("");
-  const [isAddingTag, setIsAddingTag] = useState(false);
-
   // Interactive notes state
   const [notes, setNotes] = useState([
     {
@@ -149,6 +133,23 @@ export function CaseDetailsTabs({ caseData }: CaseDetailsTabsProps) {
   ]);
   const [isAddingNote, setIsAddingNote] = useState(false);
   const [newNoteText, setNewNoteText] = useState("");
+
+  const tabs = React.useMemo(
+    () => [
+      { id: "overview", label: "Overview" },
+      { id: "evidence", label: `Evidence (${caseData.evidenceCount || 8})` },
+      { id: "suspects", label: `Suspects (${caseData.suspectsCount || 2})` },
+      { id: "activity", label: "Activity Log" },
+    ],
+    [caseData.evidenceCount, caseData.suspectsCount]
+  );
+
+  // Interactive tags state
+  const [tags, setTags] = useState<string[]>(
+    caseData.tags || ["Robbery", "Theft", "CCTV", "Armed", "Commercial Area"]
+  );
+  const [newTagInput, setNewTagInput] = useState("");
+  const [isAddingTag, setIsAddingTag] = useState(false);
 
   const handleAddTag = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -275,7 +276,7 @@ export function CaseDetailsTabs({ caseData }: CaseDetailsTabsProps) {
                 {isActive && (
                   <motion.div
                     layoutId="case-active-tab-indicator"
-                    className="absolute bottom-0 left-0 right-0 h-[2px] bg-[#665AEF] rounded-full z-10"
+                    className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#665AEF] rounded-full z-10"
                     transition={{
                       type: "spring",
                       stiffness: 400,
@@ -290,7 +291,7 @@ export function CaseDetailsTabs({ caseData }: CaseDetailsTabsProps) {
       </div>
 
       {/* Tab Content Panels with Smooth AnimatePresence */}
-      <div className="w-full min-h-[450px]">
+      <div className="w-full min-h-112.5">
         <AnimatePresence mode="wait" initial={false}>
           {/* 1. OVERVIEW TAB PANEL */}
           {activeTab === "overview" && (
@@ -451,7 +452,7 @@ export function CaseDetailsTabs({ caseData }: CaseDetailsTabsProps) {
                       <FileText className="size-3.5 shrink-0" />
                       <span>Case Title</span>
                     </div>
-                    <span className="font-medium text-foreground truncate max-w-[180px]">
+                    <span className="font-medium text-foreground truncate max-w-45">
                       {caseData.title}
                     </span>
                   </div>
@@ -863,7 +864,7 @@ export function CaseDetailsTabs({ caseData }: CaseDetailsTabsProps) {
                           {note.timestamp}
                         </span>
                       </div>
-                      <p className="text-muted-foreground text-xs sm:text-sm leading-relaxed break-words">
+                      <p className="text-muted-foreground text-xs sm:text-sm leading-relaxed wrap-break-word">
                         {note.content}
                       </p>
                     </div>
@@ -913,78 +914,9 @@ export function CaseDetailsTabs({ caseData }: CaseDetailsTabsProps) {
               initial="initial"
               animate="animate"
               exit="exit"
-              className="space-y-4 outline-none"
+              className="outline-none"
             >
-              <Card className="border border-border/80 bg-card/40 backdrop-blur-xs rounded-xl shadow-xs">
-                <CardHeader className="pb-4 border-b border-border/40">
-                  <div className="flex items-center gap-2.5">
-                    <div className="size-8 rounded-lg bg-purple-500/15 border border-purple-500/30 flex items-center justify-center text-purple-400">
-                      <Users className="size-4" />
-                    </div>
-                    <CardTitle className="text-base sm:text-lg font-bold font-heading text-foreground">
-                      Linked Suspect Profiles & Sketch Matches ({caseData.suspectsCount || 2})
-                    </CardTitle>
-                  </div>
-                </CardHeader>
-                <CardContent className="pt-6">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {[
-                      {
-                        name: "Unknown Suspect (CCTV Subject A)",
-                        alias: "Boag Road Flee",
-                        match: "89% Confidence",
-                        record: "CRIM-2026-091",
-                        status: "WANTED",
-                        description: "Male, 5'10\", slim build, captured in black hoodie leaving store perimeter.",
-                      },
-                      {
-                        name: "Ramesh 'Shadow' Kumar",
-                        alias: "Phantom",
-                        match: "64% Match",
-                        record: "CRIM-2025-442",
-                        status: "ON PAROLE",
-                        description: "Prior offenses include commercial cash register access in Central division.",
-                      },
-                    ].map((s) => (
-                      <div
-                        key={s.name}
-                        className="p-4 rounded-xl border border-border/80 bg-card/70 space-y-3 shadow-2xs"
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="flex items-center gap-3">
-                            <Avatar size="default" className="size-10 border border-border">
-                              <AvatarFallback className="bg-muted text-foreground text-xs font-semibold">
-                                {s.alias.substring(0, 2).toUpperCase()}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div>
-                              <h4 className="font-semibold text-foreground text-sm leading-snug">
-                                {s.name}
-                              </h4>
-                              <span className="text-xs text-muted-foreground font-mono">
-                                {s.record}
-                              </span>
-                            </div>
-                          </div>
-                          <Badge
-                            variant="destructive"
-                            className="text-[10px] font-bold tracking-wider"
-                          >
-                            {s.status}
-                          </Badge>
-                        </div>
-                        <p className="text-xs text-muted-foreground leading-relaxed">
-                          {s.description}
-                        </p>
-                        <div className="flex items-center justify-between text-xs pt-2 border-t border-border/40">
-                          <span className="text-muted-foreground">AI Match Score:</span>
-                          <span className="font-semibold text-emerald-400">{s.match}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
+              <SuspectsTabContent caseNumber={caseData.caseNumber} />
             </motion.div>
           )}
 
@@ -1013,7 +945,7 @@ export function CaseDetailsTabs({ caseData }: CaseDetailsTabsProps) {
                   </div>
                 </CardHeader>
                 <CardContent className="pt-6">
-                  <div className="relative pl-6 space-y-6 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-[2px] before:bg-border/60">
+                  <div className="relative pl-6 space-y-6 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-border/60">
                     {[
                       {
                         action: "Added new evidence CCTV_Footage_01.mp4",

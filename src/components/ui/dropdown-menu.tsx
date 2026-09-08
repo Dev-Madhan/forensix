@@ -2,6 +2,7 @@
 
 import * as React from "react"
 import { Menu as MenuPrimitive } from "@base-ui/react/menu"
+import { motion } from "motion/react"
 import { cn } from "cn"
 import { ChevronRightIcon, CheckIcon } from "lucide-react"
 
@@ -23,6 +24,7 @@ function DropdownMenuContent({
   side = "bottom",
   sideOffset = 6,
   className,
+  children,
   ...props
 }: MenuPrimitive.Popup.Props &
   Pick<
@@ -41,11 +43,21 @@ function DropdownMenuContent({
         <MenuPrimitive.Popup
           data-slot="dropdown-menu-content"
           className={cn(
-            "z-50 max-h-(--available-height) w-(--anchor-width) min-w-32 origin-(--transform-origin) overflow-x-hidden overflow-y-auto rounded-xl bg-card/95 backdrop-blur-xl border-2 border-border p-1 text-popover-foreground shadow-xl duration-150 outline-none no-scrollbar [scrollbar-width:none] [&::-webkit-scrollbar]:hidden data-[side=bottom]:slide-in-from-top-2 data-[side=inline-end]:slide-in-from-left-2 data-[side=inline-start]:slide-in-from-right-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:overflow-hidden data-closed:fade-out-0 data-closed:zoom-out-95",
+            "z-50 max-h-(--available-height) w-(--anchor-width) min-w-32 origin-(--transform-origin) overflow-hidden rounded-xl bg-card/95 backdrop-blur-xl border-2 border-border text-popover-foreground shadow-xl outline-none no-scrollbar scrollbar-none [&::-webkit-scrollbar]:hidden",
             className
           )}
           {...props}
-        />
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.96, y: -8 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.96, y: -8 }}
+            transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+            className="p-1 overflow-x-hidden overflow-y-auto max-h-[calc(var(--available-height)-1rem)]"
+          >
+            {children}
+          </motion.div>
+        </MenuPrimitive.Popup>
       </MenuPrimitive.Positioner>
     </MenuPrimitive.Portal>
   )
@@ -137,7 +149,7 @@ function DropdownMenuSubContent({
   return (
     <DropdownMenuContent
       data-slot="dropdown-menu-sub-content"
-      className={cn("w-auto min-w-[96px]", className)}
+      className={cn("w-auto min-w-24", className)}
       align={align}
       alignOffset={alignOffset}
       side={side}
