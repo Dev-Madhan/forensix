@@ -92,9 +92,9 @@ export function ActivityTable({
     const { Icon, iconColor } = getActionIcon(action);
 
     return (
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5">
         <Icon className={cn("size-3.5 shrink-0", iconColor)} />
-        <span className="font-medium text-foreground text-xs sm:text-sm whitespace-nowrap">
+        <span className="font-medium text-foreground text-xs whitespace-nowrap">
           {action}
         </span>
       </div>
@@ -155,7 +155,7 @@ export function ActivityTable({
   return (
     <div
       className={cn(
-        "rounded-xl border-2 border-border bg-card/40 overflow-hidden shadow-xs flex flex-col",
+        "rounded-xl border-2 border-border bg-card/40 overflow-hidden shadow-xs [&>div]:scrollbar-none [&>div::-webkit-scrollbar]:hidden flex flex-col",
         className
       )}
     >
@@ -221,21 +221,16 @@ export function ActivityTable({
                       {item.action}
                     </span>
                   </div>
-                  <p className="text-xs text-foreground/85 leading-relaxed pl-5 font-sans">
+                  <p className="text-xs text-foreground/85 leading-relaxed pl-5 font-sans wrap-break-word">
                     {item.details}
                   </p>
                 </div>
 
-                {/* Footer Meta: Timestamp + Index */}
-                <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-2 border-t border-border/30">
-                  <div className="flex items-center gap-1.5">
-                    <Clock className="size-3 text-muted-foreground/70 shrink-0" />
-                    <span>{item.formattedDate}</span>
-                    <span>•</span>
-                    <span>{item.formattedTime}</span>
-                  </div>
-                  <span className="font-mono text-[11px] font-semibold text-muted-foreground/60">
-                    #{formattedNum}
+                {/* Footer: # Index + Formatted Timestamp */}
+                <div className="flex items-center justify-between pt-1 text-[11px] text-muted-foreground border-t border-border/30">
+                  <span className="font-mono font-medium">#{formattedNum}</span>
+                  <span className="font-medium">
+                    {item.formattedDate} • {item.formattedTime}
                   </span>
                 </div>
               </div>
@@ -244,38 +239,38 @@ export function ActivityTable({
         )}
       </div>
 
-      {/* 2. Desktop/Tablet Data Table (visible for sm and above) */}
-      <div className="hidden sm:block overflow-x-auto scrollbar-none [&::-webkit-scrollbar]:hidden">
+      {/* 2. Desktop/Tablet Data Table (visible for sm and above) - No horizontal scrollbar, styled matching Evidence Table */}
+      <div className="hidden sm:block [&>div]:overflow-x-auto [&>div]:scrollbar-none [&>div::-webkit-scrollbar]:hidden scrollbar-none [&::-webkit-scrollbar]:hidden">
         <Table>
           <TableHeader className="bg-card/70 border-b-2 border-border/60">
             <TableRow className="hover:bg-transparent">
               {/* 1. # Index */}
-              <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase px-3 py-3 whitespace-nowrap w-12 text-center">
+              <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase px-2 sm:px-2.5 py-3 whitespace-nowrap w-8 text-center">
                 #
               </TableHead>
 
               {/* 2. Time */}
-              <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase px-3 py-3 whitespace-nowrap w-36">
+              <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase px-2 sm:px-2.5 py-3 whitespace-nowrap">
                 Time
               </TableHead>
 
               {/* 3. User */}
-              <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase px-3 py-3 whitespace-nowrap">
+              <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase px-2 sm:px-2.5 py-3 whitespace-nowrap">
                 User
               </TableHead>
 
               {/* 4. Action */}
-              <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase px-3 py-3 whitespace-nowrap">
+              <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase px-2 sm:px-2.5 py-3 whitespace-nowrap">
                 Action
               </TableHead>
 
               {/* 5. Details */}
-              <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase px-3 py-3 min-w-50">
+              <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase px-2.5 sm:px-3 py-3 whitespace-nowrap">
                 Details
               </TableHead>
 
               {/* 6. Category */}
-              <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase px-4 py-3 whitespace-nowrap w-28 text-right">
+              <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase px-3 sm:px-4 py-3 whitespace-nowrap text-right">
                 Category
               </TableHead>
             </TableRow>
@@ -317,14 +312,14 @@ export function ActivityTable({
                       className="transition-colors hover:bg-muted/30 group"
                     >
                       {/* Column 1: # Number */}
-                      <TableCell className="font-mono tabular-nums font-semibold text-xs text-muted-foreground px-3 py-3.5 whitespace-nowrap text-center">
+                      <TableCell className="font-mono tabular-nums font-semibold text-xs text-muted-foreground px-2 sm:px-2.5 py-3.5 whitespace-nowrap text-center w-8">
                         {formattedNum}
                       </TableCell>
 
                       {/* Column 2: Time */}
-                      <TableCell className="px-3 py-3.5 whitespace-nowrap">
+                      <TableCell className="px-2 sm:px-2.5 py-3.5 whitespace-nowrap">
                         <div className="flex flex-col text-xs leading-tight">
-                          <span className="font-medium text-foreground">
+                          <span className="font-medium text-foreground text-xs">
                             {item.formattedDate}
                           </span>
                           <span className="text-[11px] text-muted-foreground mt-0.5">
@@ -334,9 +329,9 @@ export function ActivityTable({
                       </TableCell>
 
                       {/* Column 3: User */}
-                      <TableCell className="px-3 py-3.5 whitespace-nowrap">
-                        <div className="flex items-center gap-2.5">
-                          <Avatar size="sm" className="size-7 border border-border/80 shrink-0">
+                      <TableCell className="px-2 sm:px-2.5 py-3.5 whitespace-nowrap">
+                        <div className="flex items-center gap-2">
+                          <Avatar size="sm" className="size-6 sm:size-7 border border-border/80 shrink-0">
                             {item.user.avatar && (
                               <AvatarImage
                                 src={item.user.avatar}
@@ -347,13 +342,13 @@ export function ActivityTable({
                               {item.user.initials}
                             </AvatarFallback>
                           </Avatar>
-                          <div className="flex flex-col min-w-0">
-                            <div className="flex items-center gap-1.5">
+                          <div className="flex flex-col min-w-0 max-w-24 sm:max-w-28 xl:max-w-32">
+                            <div className="flex items-center gap-1 min-w-0">
                               <span className="font-semibold text-foreground text-xs truncate">
                                 {item.user.name}
                               </span>
                               {item.user.isCurrentUser && (
-                                <span className="text-[9px] px-1 rounded bg-sky-500/20 text-sky-400 font-medium">
+                                <span className="text-[9px] px-1 rounded bg-sky-500/20 text-sky-400 font-medium shrink-0">
                                   You
                                 </span>
                               )}
@@ -366,17 +361,22 @@ export function ActivityTable({
                       </TableCell>
 
                       {/* Column 4: Action */}
-                      <TableCell className="px-3 py-3.5 whitespace-nowrap">
+                      <TableCell className="px-2 sm:px-2.5 py-3.5 whitespace-nowrap">
                         {renderActionBadge(item.action)}
                       </TableCell>
 
                       {/* Column 5: Details */}
-                      <TableCell className="px-3 py-3.5 text-xs text-foreground/90 font-sans leading-relaxed">
-                        {item.details}
+                      <TableCell className="px-2.5 sm:px-3 py-3.5 whitespace-nowrap max-w-44 sm:max-w-60 md:max-w-80 xl:max-w-56 2xl:max-w-96">
+                        <span
+                          className="text-xs text-foreground/90 font-sans block truncate"
+                          title={item.details}
+                        >
+                          {item.details}
+                        </span>
                       </TableCell>
 
                       {/* Column 6: Category Pill */}
-                      <TableCell className="px-4 py-3.5 text-right whitespace-nowrap">
+                      <TableCell className="px-3 sm:px-4 py-3.5 text-right whitespace-nowrap">
                         {renderCategoryBadge(item.category)}
                       </TableCell>
                     </TableRow>
