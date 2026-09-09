@@ -11,8 +11,12 @@ import { SuspectAssociatedEvidenceCard } from "./suspect-associated-evidence-car
 import { SuspectAiInsightsCard } from "./suspect-ai-insights-card";
 import { AddSuspectDialog } from "./add-suspect-dialog";
 import { INITIAL_SUSPECTS } from "./mock-suspects";
+
 import type { SuspectItem, SuspectStatus, SuspectRole } from "./types";
 import { toast } from "sonner";
+import { logCaseActivity } from "@/components/cases/activity";
+
+
 
 interface SuspectsTabContentProps {
   caseNumber?: string;
@@ -164,12 +168,28 @@ export function SuspectsTabContent({ caseNumber }: SuspectsTabContentProps) {
       }
     }
     toast.info(`Suspect ${target?.name || id} removed from this case.`);
+
+    logCaseActivity({
+      caseNumber,
+      action: "Removed Suspect",
+      actionType: "DELETE",
+      category: "Suspect",
+      details: `Removed suspect ${target?.name || id} from case file.`,
+    });
   };
 
   // Add new suspect handler
   const handleAddSuspect = (newSuspect: SuspectItem) => {
     setSuspectsList((prev) => [newSuspect, ...prev]);
     setSelectedSuspectId(newSuspect.id);
+
+    logCaseActivity({
+      caseNumber,
+      action: "Added Suspect",
+      actionType: "SUSPECT",
+      category: "Suspect",
+      details: `Added ${newSuspect.name} as ${newSuspect.status.toLowerCase()}.`,
+    });
   };
 
   return (

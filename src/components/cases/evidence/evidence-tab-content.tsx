@@ -18,6 +18,9 @@ import type {
   EvidenceSource,
 } from "./types";
 import { toast } from "sonner";
+import { logCaseActivity } from "@/components/cases/activity";
+
+
 
 interface EvidenceTabContentProps {
   caseNumber?: string;
@@ -172,6 +175,21 @@ export function EvidenceTabContent({ caseNumber }: EvidenceTabContentProps) {
   const handleAddEvidence = (item: EvidenceItem) => {
     setEvidenceList((prev) => [item, ...prev]);
     setSelectedEvidenceId(item.id);
+
+    // Dispatch real-time activity for this case
+    logCaseActivity({
+      caseNumber,
+      action: "Added Evidence",
+      actionType: "EVIDENCE",
+      category: "Evidence",
+      details: `Added ${item.name} to the case.`,
+      user: {
+        name: item.addedBy.name,
+        role: "Investigator",
+        avatar: item.addedBy.avatar,
+        initials: item.addedBy.initials,
+      },
+    });
   };
 
   const handlePlayMedia = (item: EvidenceItem) => {

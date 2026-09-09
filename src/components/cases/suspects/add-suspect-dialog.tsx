@@ -232,7 +232,7 @@ export function AddSuspectDialog({
                 type="button"
                 onClick={() => setActiveTab("ai-sketch")}
                 className={cn(
-                  "flex items-center justify-center gap-1.5 px-2.5 sm:px-3.5 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer select-none text-center min-h-[34px] min-w-0",
+                  "flex items-center justify-center gap-1.5 px-2.5 sm:px-3.5 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer select-none text-center min-h-8.5 min-w-0",
                   activeTab === "ai-sketch"
                     ? "bg-[#665AEF] text-white shadow-xs"
                     : "text-muted-foreground hover:text-foreground hover:bg-muted/50 font-medium"
@@ -245,7 +245,7 @@ export function AddSuspectDialog({
                 type="button"
                 onClick={() => setActiveTab("manual")}
                 className={cn(
-                  "flex items-center justify-center gap-1.5 px-2.5 sm:px-3.5 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer select-none text-center min-h-[34px] min-w-0",
+                  "flex items-center justify-center gap-1.5 px-2.5 sm:px-3.5 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer select-none text-center min-h-8.5 min-w-0",
                   activeTab === "manual"
                     ? "bg-[#665AEF] text-white shadow-xs"
                     : "text-muted-foreground hover:text-foreground hover:bg-muted/50 font-medium"
@@ -319,7 +319,7 @@ export function AddSuspectDialog({
                               type="button"
                               onClick={() => setSelectedSketchId(sketch.id)}
                               className={cn(
-                                "flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs transition-all cursor-pointer whitespace-nowrap shrink-0 min-h-[32px] select-none active:scale-98",
+                                "flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs transition-all cursor-pointer whitespace-nowrap shrink-0 min-h-8 select-none active:scale-98",
                                 isSelected
                                   ? "bg-[#665AEF] text-white font-semibold shadow-xs"
                                   : "bg-muted/40 text-muted-foreground hover:text-foreground hover:bg-muted/60 font-medium"
@@ -346,7 +346,7 @@ export function AddSuspectDialog({
 
                     {/* Witness Statement */}
                     <div className="border-l-2 border-[#665AEF] pl-2.5 sm:pl-3 py-1 bg-muted/15 rounded-r-md min-w-0">
-                      <p className="text-[11px] italic text-muted-foreground leading-relaxed break-words">
+                      <p className="text-[11px] italic text-muted-foreground leading-relaxed wrap-break-word">
                         &ldquo;{selectedSketch.witnessDescription}&rdquo;
                       </p>
                       <span className="text-[10px] text-muted-foreground/80 font-medium not-italic block mt-0.5 truncate">
@@ -545,7 +545,7 @@ export function AddSuspectDialog({
 
                             {/* AI Investigative Assessment Callout */}
                             <div className="mx-3 sm:mx-4 mb-2.5 sm:mb-3 p-2.5 rounded-lg border-l-2 border-[#665AEF] bg-muted/20 text-xs min-w-0">
-                              <p className="text-[10px] sm:text-[11px] text-muted-foreground leading-relaxed break-words">
+                              <p className="text-[10px] sm:text-[11px] text-muted-foreground leading-relaxed wrap-break-word">
                                 <strong className="text-foreground font-semibold font-heading">
                                   Forensic Intelligence Assessment:{" "}
                                 </strong>
@@ -623,7 +623,7 @@ export function AddSuspectDialog({
                                   <Button
                                     size="sm"
                                     onClick={() => handleLinkCandidate(candidate)}
-                                    className="h-8.5 sm:h-8 px-4 text-xs font-semibold bg-[#665AEF] hover:bg-[#5749df] text-white shadow-xs cursor-pointer gap-1.5 w-full sm:w-auto min-h-[34px]"
+                                    className="h-8.5 sm:h-8 px-4 text-xs font-semibold bg-[#665AEF] hover:bg-[#5749df] text-white shadow-xs cursor-pointer gap-1.5 w-full sm:w-auto min-h-8.5"
                                   >
                                     <UserPlus className="size-3.5" />
                                     Link Suspect to Case

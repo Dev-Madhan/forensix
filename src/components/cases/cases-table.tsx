@@ -90,7 +90,7 @@ function CaseRowActions({
           <DropdownMenuItem
             render={<Link href={`/case-details/${caseItem.caseNumber}`} />}
             onPointerEnter={() => setHoveredAction("details")}
-            className="relative z-0 group flex items-center justify-between cursor-pointer px-2.5 py-1.5 rounded-md transition-colors focus:text-accent-foreground hover:text-accent-foreground !bg-transparent text-xs font-medium"
+            className="relative z-0 group flex items-center justify-between cursor-pointer px-2.5 py-1.5 rounded-md transition-colors focus:text-accent-foreground hover:text-accent-foreground bg-transparent! text-xs font-medium"
           >
             {hoveredAction === "details" && (
               <motion.div
@@ -108,7 +108,7 @@ function CaseRowActions({
           <DropdownMenuItem
             onClick={onToggleSelect}
             onPointerEnter={() => setHoveredAction("select")}
-            className="relative z-0 group flex items-center justify-between cursor-pointer px-2.5 py-1.5 rounded-md transition-colors focus:text-accent-foreground hover:text-accent-foreground !bg-transparent text-xs font-medium"
+            className="relative z-0 group flex items-center justify-between cursor-pointer px-2.5 py-1.5 rounded-md transition-colors focus:text-accent-foreground hover:text-accent-foreground bg-transparent! text-xs font-medium"
           >
             {hoveredAction === "select" && (
               <motion.div
@@ -245,26 +245,26 @@ export function CasesTable({ initialCases = [] }: CasesTableProps) {
     switch (status) {
       case "Under Investigation":
         return (
-          <span className="inline-flex items-center rounded-md border-2 border-[#665AEF]/30 bg-[#665AEF]/15 px-2 py-0.5 text-[11px] font-medium text-[#a594fd] whitespace-nowrap">
+          <span className="inline-flex items-center rounded-md border border-[#665AEF]/30 bg-[#665AEF]/15 px-2 py-0.5 text-[11px] font-medium text-[#a594fd] whitespace-nowrap">
             Under Investigation
           </span>
         );
       case "Open":
         return (
-          <span className="inline-flex items-center rounded-md border-2 border-blue-500/30 bg-blue-500/15 px-2 py-0.5 text-[11px] font-medium text-blue-400 whitespace-nowrap">
+          <span className="inline-flex items-center rounded-md border border-blue-500/30 bg-blue-500/15 px-2 py-0.5 text-[11px] font-medium text-blue-400 whitespace-nowrap">
             Open
           </span>
         );
       case "Solved":
         return (
-          <span className="inline-flex items-center rounded-md border-2 border-emerald-500/30 bg-emerald-500/15 px-2 py-0.5 text-[11px] font-medium text-emerald-400 whitespace-nowrap">
+          <span className="inline-flex items-center rounded-md border border-emerald-500/30 bg-emerald-500/15 px-2 py-0.5 text-[11px] font-medium text-emerald-400 whitespace-nowrap">
             Solved
           </span>
         );
       case "Closed":
       default:
         return (
-          <span className="inline-flex items-center rounded-md border-2 border-border bg-muted/50 px-2 py-0.5 text-[11px] font-medium text-muted-foreground whitespace-nowrap">
+          <span className="inline-flex items-center rounded-md border border-border/80 bg-muted/50 px-2 py-0.5 text-[11px] font-medium text-muted-foreground whitespace-nowrap">
             {status}
           </span>
         );
@@ -302,7 +302,7 @@ export function CasesTable({ initialCases = [] }: CasesTableProps) {
                   render={
                     <Button
                       variant="outline"
-                      className="h-10 min-w-[130px] justify-between rounded-lg border-2 border-border bg-card/60 px-3 text-xs sm:text-sm font-normal hover:bg-muted/60 hover:text-foreground cursor-pointer"
+                      className="h-10 min-w-32.5 justify-between rounded-lg border-2 border-border bg-card/60 px-3 text-xs sm:text-sm font-normal hover:bg-muted/60 hover:text-foreground cursor-pointer"
                     />
                   }
                 >
@@ -339,7 +339,7 @@ export function CasesTable({ initialCases = [] }: CasesTableProps) {
                             setStatusFilter(isAll ? null : status);
                             setCurrentPage(1);
                           }}
-                          className="relative z-0 group flex items-center justify-between cursor-pointer px-2.5 py-1.5 rounded-md transition-colors focus:text-accent-foreground hover:text-accent-foreground !bg-transparent text-xs font-medium"
+                          className="relative z-0 group flex items-center justify-between cursor-pointer px-2.5 py-1.5 rounded-md transition-colors focus:text-accent-foreground hover:text-accent-foreground bg-transparent! text-xs font-medium"
                         >
                           {hoveredStatus === status && (
                             <motion.div
@@ -371,7 +371,7 @@ export function CasesTable({ initialCases = [] }: CasesTableProps) {
                   render={
                     <Button
                       variant="outline"
-                      className="h-10 min-w-[130px] justify-between rounded-lg border-2 border-border bg-card/60 px-3 text-xs sm:text-sm font-normal hover:bg-muted/60 hover:text-foreground cursor-pointer"
+                      className="h-10 min-w-32.5 justify-between rounded-lg border-2 border-border bg-card/60 px-3 text-xs sm:text-sm font-normal hover:bg-muted/60 hover:text-foreground cursor-pointer"
                     />
                   }
                 >
@@ -382,7 +382,7 @@ export function CasesTable({ initialCases = [] }: CasesTableProps) {
                   align="start"
                   side="bottom"
                   sideOffset={6}
-                  className="w-44 max-h-80 overflow-y-auto no-scrollbar [scrollbar-width:none] [&::-webkit-scrollbar]:hidden p-1 rounded-xl shadow-xl bg-card/95 backdrop-blur-xl border-2 border-border"
+                  className="w-44 max-h-80 overflow-y-auto no-scrollbar scrollbar-none [&::-webkit-scrollbar]:hidden p-1 rounded-xl shadow-xl bg-card/95 backdrop-blur-xl border-2 border-border"
                   onPointerLeave={() => setHoveredType(null)}
                 >
                   <motion.div
@@ -413,7 +413,7 @@ export function CasesTable({ initialCases = [] }: CasesTableProps) {
                             setTypeFilter(isAll ? null : t);
                             setCurrentPage(1);
                           }}
-                          className="relative z-0 group flex items-center justify-between cursor-pointer px-2.5 py-1.5 rounded-md transition-colors focus:text-accent-foreground hover:text-accent-foreground !bg-transparent text-xs font-medium"
+                          className="relative z-0 group flex items-center justify-between cursor-pointer px-2.5 py-1.5 rounded-md transition-colors focus:text-accent-foreground hover:text-accent-foreground bg-transparent! text-xs font-medium"
                         >
                           {hoveredType === t && (
                             <motion.div
@@ -445,7 +445,7 @@ export function CasesTable({ initialCases = [] }: CasesTableProps) {
                   render={
                     <Button
                       variant="outline"
-                      className="h-10 min-w-[150px] justify-between rounded-lg border-2 border-border bg-card/60 px-3 text-xs sm:text-sm font-normal hover:bg-muted/60 hover:text-foreground cursor-pointer"
+                      className="h-10 min-w-37.5 justify-between rounded-lg border-2 border-border bg-card/60 px-3 text-xs sm:text-sm font-normal hover:bg-muted/60 hover:text-foreground cursor-pointer"
                     />
                   }
                 >
@@ -497,7 +497,7 @@ export function CasesTable({ initialCases = [] }: CasesTableProps) {
         </div>
 
         {/* 2. Table Container with border-2 */}
-        <div className="rounded-xl border-2 border-border bg-card/40 overflow-hidden shadow-xs [&>div]:overflow-x-auto [&>div]:[scrollbar-width:none] [&>div::-webkit-scrollbar]:hidden">
+        <div className="rounded-xl border-2 border-border bg-card/40 overflow-hidden shadow-xs [&>div]:overflow-x-auto [&>div]:scrollbar-none [&>div::-webkit-scrollbar]:hidden">
           <Table>
             <TableHeader className="bg-card/70 border-b-2 border-border/60">
               <TableRow className="hover:bg-transparent">
@@ -577,7 +577,7 @@ export function CasesTable({ initialCases = [] }: CasesTableProps) {
                           {c.caseNumber}
                         </Link>
                       </TableCell>
-                      <TableCell className="font-medium text-sm text-foreground px-2.5 py-3 whitespace-nowrap max-w-[130px] 2xl:max-w-[170px] truncate">
+                      <TableCell className="font-medium text-sm text-foreground px-2.5 py-3 whitespace-nowrap max-w-32.5 2xl:max-w-42.5 truncate">
                         {c.title}
                       </TableCell>
                       <TableCell className="px-2.5 py-3 whitespace-nowrap">

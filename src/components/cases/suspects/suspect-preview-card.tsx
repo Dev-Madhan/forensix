@@ -154,10 +154,10 @@ export function SuspectPreviewCard({
             <div className="pt-0.5">
               <span
                 className={cn(
-                  "inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium border-2 whitespace-nowrap shadow-2xs",
+                  "inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium border whitespace-nowrap shadow-2xs",
                   isPrimary
-                    ? "border-rose-500/40 bg-rose-500/15 text-rose-400"
-                    : "border-amber-500/40 bg-amber-500/15 text-amber-400"
+                    ? "border-rose-500/30 bg-rose-500/15 text-rose-400"
+                    : "border-amber-500/30 bg-amber-500/15 text-amber-400"
                 )}
               >
                 {suspect.status}

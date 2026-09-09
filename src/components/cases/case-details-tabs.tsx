@@ -61,6 +61,8 @@ import { CaseIncidentMediaCard } from "@/components/cases/case-incident-media-ca
 import { CaseIncidentLocationCard } from "@/components/cases/case-incident-location-card";
 import { EvidenceTabContent } from "@/components/cases/evidence/evidence-tab-content";
 import { SuspectsTabContent } from "@/components/cases/suspects/suspects-tab-content";
+import { ActivityTabContent, logCaseActivity } from "@/components/cases/activity";
+
 
 interface CaseDetailsTabsProps {
   caseData: ResolvedCaseDetail;
@@ -163,11 +165,29 @@ export function CaseDetailsTabs({ caseData }: CaseDetailsTabsProps) {
     setNewTagInput("");
     setIsAddingTag(false);
     toast.success(`Tag "${cleanTag}" added`);
+
+    logCaseActivity({
+      caseId: caseData.id,
+      caseNumber: caseData.caseNumber,
+      action: "Updated Case",
+      actionType: "CASE",
+      category: "Case",
+      details: `Added case tag: "${cleanTag}"`,
+    });
   };
 
   const handleRemoveTag = (tagToRemove: string) => {
     setTags(tags.filter((t) => t !== tagToRemove));
     toast.info(`Tag "${tagToRemove}" removed`);
+
+    logCaseActivity({
+      caseId: caseData.id,
+      caseNumber: caseData.caseNumber,
+      action: "Updated Case",
+      actionType: "CASE",
+      category: "Case",
+      details: `Removed case tag: "${tagToRemove}"`,
+    });
   };
 
   const handleAddNote = (e: React.FormEvent) => {
@@ -192,6 +212,23 @@ export function CaseDetailsTabs({ caseData }: CaseDetailsTabsProps) {
     };
 
     setNotes([newNote, ...notes]);
+
+    // Dispatch real-time activity event for this case
+    logCaseActivity({
+      caseId: caseData.id,
+      caseNumber: caseData.caseNumber,
+      action: "Added Note",
+      actionType: "NOTE",
+      category: "Note",
+      details: newNoteText.trim(),
+      user: {
+        name: assignedUserName,
+        role: "Lead Investigator",
+        avatar: assignedUserAvatar,
+        initials: assignedUserInitials,
+      },
+    });
+
     setNewNoteText("");
     setIsAddingNote(false);
     toast.success("Investigative case note added");
@@ -931,56 +968,12 @@ export function CaseDetailsTabs({ caseData }: CaseDetailsTabsProps) {
               initial="initial"
               animate="animate"
               exit="exit"
-              className="space-y-4 outline-none"
+              className="outline-none"
             >
-              <Card className="border border-border/80 bg-card/40 backdrop-blur-xs rounded-xl shadow-xs">
-                <CardHeader className="pb-4 border-b border-border/40">
-                  <div className="flex items-center gap-2.5">
-                    <div className="size-8 rounded-lg bg-sky-500/15 border border-sky-500/30 flex items-center justify-center text-sky-400">
-                      <History className="size-4" />
-                    </div>
-                    <CardTitle className="text-base sm:text-lg font-bold font-heading text-foreground">
-                      Chain of Custody & Activity Timeline
-                    </CardTitle>
-                  </div>
-                </CardHeader>
-                <CardContent className="pt-6">
-                  <div className="relative pl-6 space-y-6 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-border/60">
-                    {[
-                      {
-                        action: "Added new evidence CCTV_Footage_01.mp4",
-                        actor: assignedUserName,
-                        time: "Oct 5, 2026, 11:32 AM",
-                        icon: Film,
-                      },
-                      {
-                        action: "Updated case status to Under Investigation",
-                        actor: "Priya Nair",
-                        time: "Oct 4, 2026, 08:21 PM",
-                        icon: CheckCircle2,
-                      },
-                      {
-                        action: "Case created in system repository",
-                        actor: "System",
-                        time: "Oct 4, 2026, 07:14 PM",
-                        icon: History,
-                      },
-                    ].map((act, index) => (
-                      <div key={index} className="relative flex items-start gap-3">
-                        <div className="absolute -left-6 top-1 size-3 rounded-full border-2 border-card bg-primary ring-4 ring-card" />
-                        <div className="space-y-0.5 text-xs sm:text-sm">
-                          <p className="font-medium text-foreground">{act.action}</p>
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                            <span>by {act.actor}</span>
-                            <span>•</span>
-                            <span>{act.time}</span>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
+              <ActivityTabContent
+                caseId={caseData.id}
+                caseNumber={caseData.caseNumber}
+              />
             </motion.div>
           )}
         </AnimatePresence>

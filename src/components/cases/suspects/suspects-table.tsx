@@ -77,25 +77,25 @@ export function SuspectsTable({
     switch (status) {
       case "Primary Suspect":
         return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium border-2 border-rose-500/40 bg-rose-500/15 text-rose-400 whitespace-nowrap shadow-2xs">
+          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium border border-rose-500/30 bg-rose-500/15 text-rose-400 whitespace-nowrap shadow-2xs">
             Primary Suspect
           </span>
         );
       case "Person of Interest":
         return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium border-2 border-amber-500/40 bg-amber-500/15 text-amber-400 whitespace-nowrap shadow-2xs">
+          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium border border-amber-500/30 bg-amber-500/15 text-amber-400 whitespace-nowrap shadow-2xs">
             Person of Interest
           </span>
         );
       case "Cleared":
         return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium border-2 border-emerald-500/40 bg-emerald-500/15 text-emerald-400 whitespace-nowrap shadow-2xs">
+          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium border border-emerald-500/30 bg-emerald-500/15 text-emerald-400 whitespace-nowrap shadow-2xs">
             Cleared
           </span>
         );
       default:
         return (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium border-2 border-border bg-muted/50 text-muted-foreground whitespace-nowrap shadow-2xs">
+          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-medium border border-border/80 bg-muted/50 text-muted-foreground whitespace-nowrap shadow-2xs">
             {status}
           </span>
         );

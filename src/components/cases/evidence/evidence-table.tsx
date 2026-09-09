@@ -70,15 +70,15 @@ export function EvidenceTable({
   const getTypeBadgeStyle = (type: string) => {
     switch (type) {
       case "Video":
-        return "border-2 border-blue-500/50 bg-blue-500/15 text-blue-400";
+        return "border border-blue-500/30 bg-blue-500/15 text-blue-400";
       case "Image":
-        return "border-2 border-sky-500/50 bg-sky-500/15 text-sky-400";
+        return "border border-sky-500/30 bg-sky-500/15 text-sky-400";
       case "Document":
-        return "border-2 border-indigo-500/50 bg-indigo-500/15 text-indigo-400";
+        return "border border-indigo-500/30 bg-indigo-500/15 text-indigo-400";
       case "Audio":
-        return "border-2 border-teal-500/50 bg-teal-500/15 text-teal-400";
+        return "border border-teal-500/30 bg-teal-500/15 text-teal-400";
       default:
-        return "border-2 border-border bg-muted/40 text-muted-foreground";
+        return "border border-border/80 bg-muted/40 text-muted-foreground";
     }
   };
 
@@ -86,28 +86,28 @@ export function EvidenceTable({
     switch (status) {
       case "Verified":
         return (
-          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-medium border-2 border-emerald-500/40 bg-emerald-500/15 text-emerald-400 whitespace-nowrap shadow-2xs">
+          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-medium border border-emerald-500/30 bg-emerald-500/15 text-emerald-400 whitespace-nowrap shadow-2xs">
             <span className="size-1.5 rounded-full bg-emerald-400" />
             Verified
           </span>
         );
       case "Under Review":
         return (
-          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-medium border-2 border-amber-500/40 bg-amber-500/15 text-amber-400 whitespace-nowrap shadow-2xs">
+          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-medium border border-amber-500/30 bg-amber-500/15 text-amber-400 whitespace-nowrap shadow-2xs">
             <span className="size-1.5 rounded-full bg-amber-400" />
             Under Review
           </span>
         );
       case "Flagged":
         return (
-          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-medium border-2 border-rose-500/40 bg-rose-500/15 text-rose-400 whitespace-nowrap shadow-2xs">
+          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-medium border border-rose-500/30 bg-rose-500/15 text-rose-400 whitespace-nowrap shadow-2xs">
             <span className="size-1.5 rounded-full bg-rose-400" />
             Flagged
           </span>
         );
       default:
         return (
-          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-medium border-2 border-border bg-muted/50 text-muted-foreground whitespace-nowrap">
+          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-medium border border-border/80 bg-muted/50 text-muted-foreground whitespace-nowrap">
             {status}
           </span>
         );
@@ -123,7 +123,7 @@ export function EvidenceTable({
   return (
     <div
       className={cn(
-        "rounded-xl border-2 border-border bg-card/40 overflow-hidden shadow-xs [&>div]:overflow-x-auto [&>div]:[scrollbar-width:none] [&>div::-webkit-scrollbar]:hidden flex flex-col",
+        "rounded-xl border-2 border-border bg-card/40 overflow-hidden shadow-xs [&>div]:overflow-x-auto [&>div]:scrollbar-none [&>div::-webkit-scrollbar]:hidden flex flex-col",
         className
       )}
     >
@@ -250,7 +250,7 @@ export function EvidenceTable({
                   </TableCell>
 
                   {/* Evidence Name & Description */}
-                  <TableCell className="px-2.5 py-3 whitespace-nowrap max-w-[130px] 2xl:max-w-[170px]">
+                  <TableCell className="px-2.5 py-3 whitespace-nowrap max-w-32.5 2xl:max-w-42.5">
                     <div className="space-y-0.5 min-w-0">
                       <span className="font-semibold text-foreground text-xs sm:text-sm block hover:text-[#665AEF] transition-colors truncate">
                         {item.name}
@@ -292,7 +292,7 @@ export function EvidenceTable({
                           {item.addedBy.initials}
                         </AvatarFallback>
                       </Avatar>
-                      <span className="font-medium text-foreground text-xs truncate max-w-[85px]">
+                      <span className="font-medium text-foreground text-xs truncate max-w-21.25">
                         {item.addedBy.name}
                       </span>
                     </div>

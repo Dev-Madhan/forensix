@@ -65,27 +65,27 @@ export function CaseDetailsHeader({ caseData }: CaseDetailsHeaderProps) {
     const normalized = status.toLowerCase();
     if (normalized.includes("investigation")) {
       return (
-        <span className="inline-flex items-center rounded-md border-2 border-[#7E22CE]/60 bg-[#2D1B4E]/80 px-2.5 py-0.5 text-xs font-semibold text-[#C084FC] tracking-wide">
+        <span className="inline-flex items-center rounded-md border border-[#7E22CE]/40 bg-[#2D1B4E]/80 px-2.5 py-0.5 text-xs font-semibold text-[#C084FC] tracking-wide">
           Under Investigation
         </span>
       );
     }
     if (normalized.includes("open")) {
       return (
-        <span className="inline-flex items-center rounded-md border-2 border-blue-500/50 bg-blue-500/15 px-2.5 py-0.5 text-xs font-semibold text-blue-400 tracking-wide">
+        <span className="inline-flex items-center rounded-md border border-blue-500/40 bg-blue-500/15 px-2.5 py-0.5 text-xs font-semibold text-blue-400 tracking-wide">
           Open
         </span>
       );
     }
     if (normalized.includes("solved") || normalized.includes("closed")) {
       return (
-        <span className="inline-flex items-center rounded-md border-2 border-emerald-500/50 bg-emerald-500/15 px-2.5 py-0.5 text-xs font-semibold text-emerald-400 tracking-wide">
+        <span className="inline-flex items-center rounded-md border border-emerald-500/40 bg-emerald-500/15 px-2.5 py-0.5 text-xs font-semibold text-emerald-400 tracking-wide">
           {status}
         </span>
       );
     }
     return (
-      <span className="inline-flex items-center rounded-md border-2 border-border/80 bg-muted/60 px-2.5 py-0.5 text-xs font-semibold text-muted-foreground tracking-wide">
+      <span className="inline-flex items-center rounded-md border border-border/80 bg-muted/60 px-2.5 py-0.5 text-xs font-semibold text-muted-foreground tracking-wide">
         {status}
       </span>
     );
@@ -204,7 +204,7 @@ export function CaseDetailsHeader({ caseData }: CaseDetailsHeaderProps) {
       </div>
 
       {/* Diffused Horizontal Rule below description */}
-      <div className="h-px w-full bg-gradient-to-r from-transparent via-border/80 to-transparent my-1" />
+      <div className="h-px w-full bg-linear-to-r from-transparent via-border/80 to-transparent my-1" />
 
       {/* 4 Metadata Columns with direct icons - matched to below 8-col section */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 w-full pt-1">

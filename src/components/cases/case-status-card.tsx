@@ -71,14 +71,14 @@ function renderStatusBadge(status: string) {
 
   if (normalized.includes("investigation")) {
     return (
-      <span className="inline-flex items-center rounded-md border-2 border-[#7E22CE]/60 bg-[#2D1B4E]/80 px-2.5 py-0.5 text-xs font-semibold text-[#C084FC] tracking-wide shadow-2xs">
+      <span className="inline-flex items-center rounded-md border border-[#7E22CE]/40 bg-[#2D1B4E]/80 px-2.5 py-0.5 text-xs font-semibold text-[#C084FC] tracking-wide shadow-2xs">
         Under Investigation
       </span>
     );
   }
   if (normalized.includes("open")) {
     return (
-      <span className="inline-flex items-center rounded-md border-2 border-blue-500/50 bg-blue-500/15 px-2.5 py-0.5 text-xs font-semibold text-blue-400 tracking-wide shadow-2xs">
+      <span className="inline-flex items-center rounded-md border border-blue-500/40 bg-blue-500/15 px-2.5 py-0.5 text-xs font-semibold text-blue-400 tracking-wide shadow-2xs">
         Open
       </span>
     );
@@ -89,20 +89,20 @@ function renderStatusBadge(status: string) {
     normalized.includes("resolved")
   ) {
     return (
-      <span className="inline-flex items-center rounded-md border-2 border-emerald-500/50 bg-emerald-500/15 px-2.5 py-0.5 text-xs font-semibold text-emerald-400 tracking-wide shadow-2xs">
+      <span className="inline-flex items-center rounded-md border border-emerald-500/40 bg-emerald-500/15 px-2.5 py-0.5 text-xs font-semibold text-emerald-400 tracking-wide shadow-2xs">
         {status}
       </span>
     );
   }
   if (normalized.includes("hold") || normalized.includes("cold")) {
     return (
-      <span className="inline-flex items-center rounded-md border-2 border-amber-500/50 bg-amber-500/15 px-2.5 py-0.5 text-xs font-semibold text-amber-400 tracking-wide shadow-2xs">
+      <span className="inline-flex items-center rounded-md border border-amber-500/40 bg-amber-500/15 px-2.5 py-0.5 text-xs font-semibold text-amber-400 tracking-wide shadow-2xs">
         {status}
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center rounded-md border-2 border-border/80 bg-muted/60 px-2.5 py-0.5 text-xs font-semibold text-muted-foreground tracking-wide shadow-2xs">
+    <span className="inline-flex items-center rounded-md border border-border/80 bg-muted/60 px-2.5 py-0.5 text-xs font-semibold text-muted-foreground tracking-wide shadow-2xs">
       {status || "Unknown"}
     </span>
   );
@@ -190,7 +190,7 @@ export function CaseStatusCard({ caseData, className }: CaseStatusCardProps) {
               <div key={step.id} className="relative flex flex-col items-center">
                 {/* Connecting Track Line to next node (starts at center of this node, ends at center of next node) */}
                 {index < steps.length - 1 && (
-                  <div className="absolute top-3 left-1/2 w-full h-[2px] -translate-y-1/2 z-0">
+                  <div className="absolute top-3 left-1/2 w-full h-0.5 -translate-y-1/2 z-0">
                     {/* Inactive Track */}
                     <div className="w-full h-full bg-border/70" />
                     {/* Active Progress Line */}
@@ -221,7 +221,7 @@ export function CaseStatusCard({ caseData, className }: CaseStatusCardProps) {
                       <div className="relative flex items-center justify-center size-6">
                         {isCompleted ? (
                           <div className="size-5 rounded-full bg-[#0070F3] text-white flex items-center justify-center ring-4 ring-card shadow-[0_0_10px_rgba(0,112,243,0.4)]">
-                            <Check className="size-3 stroke-[3]" />
+                            <Check className="size-3 stroke-3" />
                           </div>
                         ) : isCurrent ? (
                           <div className="relative flex items-center justify-center size-6">
