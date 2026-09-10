@@ -11,6 +11,7 @@ interface ModalProps {
   title?: React.ReactNode;
   description?: React.ReactNode;
   children: React.ReactNode;
+  footer?: React.ReactNode;
   className?: string;
   contentClassName?: string;
   maxWidth?: string;
@@ -22,6 +23,7 @@ export function Modal({
   title,
   description,
   children,
+  footer,
   className,
   contentClassName,
   maxWidth = "max-w-lg",
@@ -91,12 +93,22 @@ export function Modal({
         {/* Content with hidden scrollbar */}
         <div
           className={cn(
-            "p-4 sm:p-5 overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden",
+            "p-4 sm:p-5 overflow-y-auto flex-1 min-h-0 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden",
             contentClassName
           )}
         >
           {children}
         </div>
+
+        {/* Modal Footer */}
+        {footer && (
+          <div
+            data-modal-footer
+            className="shrink-0 px-4 py-3 sm:px-5 sm:py-3.5 border-t-2 border-border/80 bg-background/95 backdrop-blur-md"
+          >
+            {footer}
+          </div>
+        )}
       </div>
     </div>,
     document.body

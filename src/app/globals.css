@@ -222,3 +222,112 @@
 .font-space {
   font-family: var(--font-space-grotesk), "Space Grotesk", sans-serif !important;
 }
+
+/* Print Summary Media Styles */
+@media print {
+  @page {
+    size: auto;
+    margin: 10mm 12mm;
+  }
+
+  html,
+  body {
+    background-color: #ffffff !important;
+    color: #111827 !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Completely suppress all toasts, notifications, tooltips, and interactive chrome */
+  [data-sonner-toaster],
+  [data-sonner-toast],
+  .toaster,
+  [aria-label*="Notification"],
+  [role="status"],
+  [role="region"][aria-label*="Notification"],
+  div[data-portal]:has([data-sonner-toaster]),
+  header,
+  nav,
+  aside,
+  button,
+  .no-print,
+  [data-slot="sidebar"],
+  [data-slot="sidebar-trigger"] {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+  }
+
+  /* Reset outer portal wrapper so printable sheet spans 100% width cleanly */
+  body > div.fixed.inset-0.z-50,
+  div.fixed.inset-0.z-50 {
+    position: static !important;
+    display: block !important;
+    width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    background: transparent !important;
+  }
+
+  /* Hide modal backdrop overlay */
+  div.fixed.inset-0.bg-black\/70,
+  div[class*="backdrop-blur"],
+  div[class*="bg-black/70"] {
+    display: none !important;
+  }
+
+  /* Reset dialog box */
+  div[role="dialog"] {
+    position: static !important;
+    inset: auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: none !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: transparent !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+  }
+
+  /* Hide modal header bar in print */
+  div[role="dialog"] > div.flex.items-start.justify-between,
+  div[role="dialog"] > div:has(h3) {
+    display: none !important;
+  }
+
+  /* Remove modal scroll container padding */
+  div[role="dialog"] > div {
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+  }
+
+  /* Hide sticky modal footer action bar */
+  .sticky,
+  div[class*="sticky"],
+  div[data-modal-footer] {
+    display: none !important;
+  }
+
+  /* Printable sheet: flush 100% width with sharp borders */
+  #forensix-printable-sheet {
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    margin: 0 !important;
+    padding: 16px 20px !important;
+    background: #ffffff !important;
+    color: #111827 !important;
+    border: 1.5px solid #374151 !important;
+    border-radius: 6px !important;
+    box-shadow: none !important;
+    page-break-inside: avoid;
+  }
+}

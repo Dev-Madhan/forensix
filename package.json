@@ -26,6 +26,7 @@
     "@number-flow/react": "^0.6.2",
     "@playwright/mcp": "^0.0.80",
     "@prisma/client": "^6.19.3",
+    "@react-pdf/renderer": "^4.9.0",
     "@t3-oss/env-nextjs": "^0.13.11",
     "@tanstack/react-table": "^9.2.4",
     "bcryptjs": "^3.0.3",

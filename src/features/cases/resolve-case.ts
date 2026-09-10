@@ -61,7 +61,9 @@ export async function resolveCaseBySlug(slug: string): Promise<ResolvedCaseDetai
           dbCase.description ||
           "Armed robbery at a commercial establishment in T. Nagar. Suspect seen on CCTV fleeing towards North Boag Road.",
         status:
-          dbCase.status === "UNDER_INVESTIGATION"
+          dbCase.status === "ARCHIVED"
+            ? "Archived"
+            : dbCase.status === "UNDER_INVESTIGATION"
             ? "Under Investigation"
             : dbCase.status === "OPEN"
             ? "Open"

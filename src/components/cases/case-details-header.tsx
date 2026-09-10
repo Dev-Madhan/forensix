@@ -14,6 +14,9 @@ import {
   Printer,
   Share2,
   Edit,
+  Loader2,
+  Archive,
+  RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,6 +28,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { ArchiveCaseDialog } from "@/components/cases/ArchiveCaseDialog";
+import { ExportCaseDialog } from "@/components/cases/actions/ExportCaseDialog";
+import { PrintSummaryDialog } from "@/components/cases/actions/PrintSummaryDialog";
+import { ShareCaseDialog } from "@/components/cases/actions/ShareCaseDialog";
 import type { ResolvedCaseDetail } from "@/features/cases/resolve-case";
 import { toast } from "sonner";
 
@@ -33,36 +39,63 @@ interface CaseDetailsHeaderProps {
 }
 
 export function CaseDetailsHeader({ caseData }: CaseDetailsHeaderProps) {
+  const [currentStatus, setCurrentStatus] = useState(caseData.status);
   const [generatingReport, setGeneratingReport] = useState(false);
+  const [isExportOpen, setIsExportOpen] = useState(false);
+  const [isPrintOpen, setIsPrintOpen] = useState(false);
+  const [isShareOpen, setIsShareOpen] = useState(false);
+  const [isArchiveOpen, setIsArchiveOpen] = useState(false);
 
-  const handleGenerateReport = () => {
-    setGeneratingReport(true);
-    toast.info(`Generating investigative report for ${caseData.caseNumber}...`);
-    setTimeout(() => {
+  const isArchived = currentStatus.toLowerCase().includes("archive");
+
+  const handleGenerateReport = async () => {
+    try {
+      setGeneratingReport(true);
+      toast.info(`Compiling records and generating PDF for ${caseData.caseNumber}...`, {
+        duration: 5000,
+      });
+
+      const targetIdentifier = caseData.caseNumber || caseData.id;
+      const response = await fetch(`/api/cases/${encodeURIComponent(targetIdentifier)}/report`);
+
+      if (!response.ok) {
+        const errJson = await response.json().catch(() => ({}));
+        throw new Error(errJson.message || errJson.error || `Server returned ${response.status}`);
+      }
+
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      const safeCaseNumber = (caseData.caseNumber || caseData.id).replace(/[^a-zA-Z0-9_-]/g, "_");
+      anchor.download = `FORENSIX-${safeCaseNumber}-REPORT.pdf`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+
+      toast.success(`Forensic Report for ${caseData.caseNumber} downloaded successfully.`);
+    } catch (err) {
+      console.error("Report generation failed:", err);
+      toast.error(
+        err instanceof Error
+          ? `Report generation failed: ${err.message}`
+          : "Failed to generate report. Please try again."
+      );
+    } finally {
       setGeneratingReport(false);
-      toast.success(`Forensic Report for ${caseData.caseNumber} generated successfully.`);
-    }, 1200);
-  };
-
-  const handleExportJson = () => {
-    const dataStr =
-      "data:text/json;charset=utf-8," +
-      encodeURIComponent(JSON.stringify(caseData, null, 2));
-    const downloadAnchor = document.createElement("a");
-    downloadAnchor.setAttribute("href", dataStr);
-    downloadAnchor.setAttribute("download", `${caseData.caseNumber}-details.json`);
-    document.body.appendChild(downloadAnchor);
-    downloadAnchor.click();
-    downloadAnchor.remove();
-    toast.success("Case metadata exported.");
-  };
-
-  const handlePrint = () => {
-    window.print();
+    }
   };
 
   const renderStatusBadge = (status: string) => {
     const normalized = status.toLowerCase();
+    if (normalized.includes("archive")) {
+      return (
+        <span className="inline-flex items-center rounded-md border border-amber-500/40 bg-amber-500/15 px-2.5 py-0.5 text-xs font-semibold text-amber-400 tracking-wide">
+          Archived
+        </span>
+      );
+    }
     if (normalized.includes("investigation")) {
       return (
         <span className="inline-flex items-center rounded-md border border-[#7E22CE]/40 bg-[#2D1B4E]/80 px-2.5 py-0.5 text-xs font-semibold text-[#C084FC] tracking-wide">
@@ -126,7 +159,11 @@ export function CaseDetailsHeader({ caseData }: CaseDetailsHeaderProps) {
             disabled={generatingReport}
             className="h-9 gap-2 rounded-lg border-2 border-border/80 bg-card/60 text-xs sm:text-sm font-medium hover:bg-muted/60 hover:text-foreground cursor-pointer shadow-xs"
           >
-            <FileText className="size-3.5 text-muted-foreground" />
+            {generatingReport ? (
+              <Loader2 className="size-3.5 text-muted-foreground animate-spin" />
+            ) : (
+              <FileText className="size-3.5 text-muted-foreground" />
+            )}
             <span>{generatingReport ? "Generating..." : "Generate Report"}</span>
           </Button>
 
@@ -148,25 +185,24 @@ export function CaseDetailsHeader({ caseData }: CaseDetailsHeaderProps) {
               className="w-48 p-1.5 rounded-xl border-2 border-border bg-card/95 backdrop-blur-xl shadow-xl"
             >
               <DropdownMenuItem
-                onClick={handleExportJson}
-                className="cursor-pointer gap-2 text-xs py-2 px-2.5 rounded-md hover:bg-muted font-medium"
+                onClick={() => setIsExportOpen(true)}
+                className="cursor-pointer gap-2 text-xs py-2 px-2.5 rounded-md hover:bg-muted font-medium text-foreground"
               >
                 <Download className="size-3.5 text-muted-foreground" />
                 <span>Export Case Data</span>
               </DropdownMenuItem>
+
               <DropdownMenuItem
-                onClick={handlePrint}
-                className="cursor-pointer gap-2 text-xs py-2 px-2.5 rounded-md hover:bg-muted font-medium"
+                onClick={() => setIsPrintOpen(true)}
+                className="cursor-pointer gap-2 text-xs py-2 px-2.5 rounded-md hover:bg-muted font-medium text-foreground"
               >
                 <Printer className="size-3.5 text-muted-foreground" />
                 <span>Print Summary</span>
               </DropdownMenuItem>
+
               <DropdownMenuItem
-                onClick={() => {
-                  navigator.clipboard.writeText(window.location.href);
-                  toast.success("Case URL copied to clipboard");
-                }}
-                className="cursor-pointer gap-2 text-xs py-2 px-2.5 rounded-md hover:bg-muted font-medium"
+                onClick={() => setIsShareOpen(true)}
+                className="cursor-pointer gap-2 text-xs py-2 px-2.5 rounded-md hover:bg-muted font-medium text-foreground"
               >
                 <Share2 className="size-3.5 text-muted-foreground" />
                 <span>Share Case Link</span>
@@ -174,23 +210,65 @@ export function CaseDetailsHeader({ caseData }: CaseDetailsHeaderProps) {
 
               <DropdownMenuSeparator className="my-1 border-border/60" />
 
-              <div className="px-1 py-0.5">
-                <ArchiveCaseDialog
-                  caseId={caseData.id}
-                  caseNumber={caseData.caseNumber}
-                />
-              </div>
+              <DropdownMenuItem
+                onClick={() => setIsArchiveOpen(true)}
+                className={`cursor-pointer gap-2 text-xs py-2 px-2.5 rounded-md font-medium ${
+                  isArchived
+                    ? "text-blue-400 hover:bg-blue-500/10 focus:bg-blue-500/10"
+                    : "text-destructive hover:bg-destructive/10 focus:bg-destructive/10"
+                }`}
+              >
+                {isArchived ? (
+                  <>
+                    <RefreshCw className="size-3.5 text-blue-400" />
+                    <span>Restore Case</span>
+                  </>
+                ) : (
+                  <>
+                    <Archive className="size-3.5 text-destructive" />
+                    <span>Archive Case</span>
+                  </>
+                )}
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
       </div>
+
+      {/* Real-time Modals for More Actions */}
+      <ExportCaseDialog
+        isOpen={isExportOpen}
+        onClose={() => setIsExportOpen(false)}
+        caseData={{ ...caseData, status: currentStatus }}
+      />
+
+      <PrintSummaryDialog
+        isOpen={isPrintOpen}
+        onClose={() => setIsPrintOpen(false)}
+        caseData={{ ...caseData, status: currentStatus }}
+      />
+
+      <ShareCaseDialog
+        isOpen={isShareOpen}
+        onClose={() => setIsShareOpen(false)}
+        caseData={{ ...caseData, status: currentStatus }}
+      />
+
+      <ArchiveCaseDialog
+        isOpen={isArchiveOpen}
+        onClose={() => setIsArchiveOpen(false)}
+        caseId={caseData.id}
+        caseNumber={caseData.caseNumber}
+        isArchived={isArchived}
+        onStatusChange={(newStatus) => setCurrentStatus(newStatus)}
+      />
 
       {/* Case ID and Status Badge */}
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground font-heading">
           {caseData.caseNumber}
         </h1>
-        {renderStatusBadge(caseData.status)}
+        {renderStatusBadge(currentStatus)}
       </div>
 
       {/* Case Title and Description */}
