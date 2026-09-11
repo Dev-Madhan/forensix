@@ -29,7 +29,28 @@ import {
   Search,
   Loader2,
   ChevronDown,
+  Target,
+  Copy,
+  ExternalLink,
+  ShieldCheck,
+  Eye,
+  Video,
+  Camera,
+  Globe,
+  Radio,
+  FileCheck2,
+  PlusCircle,
 } from "lucide-react";
+import {
+  getCanvassPerimeterMetrics,
+  createGeodeticCircleGeoJSON,
+  discoverSurveillanceAssets,
+  discoverMultiSourceAssets,
+  registerCustomCameraAsset,
+  type SurveillanceAsset,
+} from "@/lib/forensic-canvass-engine";
+import { tagSurveillanceFeedAsEvidence } from "@/features/surveillance/actions";
+import { logCaseActivity } from "@/components/cases/activity";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -191,6 +212,111 @@ function MapController({ flyTarget }: { flyTarget: { lat: number; lng: number } 
   return null;
 }
 
+function CanvassPerimeterLayer({
+  centerLat,
+  centerLng,
+  radiusMeters,
+}: {
+  centerLat: number;
+  centerLng: number;
+  radiusMeters: number;
+}) {
+  const { map, isLoaded } = useMap();
+
+  React.useEffect(() => {
+    if (!map || !isLoaded) return;
+
+    const sourceId = "canvass-perimeter-source";
+    const fillLayerId = "canvass-perimeter-fill";
+    const lineLayerId = "canvass-perimeter-line";
+
+    const circleData = createGeodeticCircleGeoJSON(centerLat, centerLng, radiusMeters);
+
+    try {
+      const source = map.getSource(sourceId) as any;
+      if (!source) {
+        map.addSource(sourceId, {
+          type: "geojson",
+          data: circleData,
+        });
+
+        map.addLayer({
+          id: fillLayerId,
+          type: "fill",
+          source: sourceId,
+          paint: {
+            "fill-color": "#665AEF",
+            "fill-opacity": 0.16,
+          },
+        });
+
+        map.addLayer({
+          id: lineLayerId,
+          type: "line",
+          source: sourceId,
+          paint: {
+            "line-color": "#665AEF",
+            "line-width": 2,
+            "line-dasharray": [2, 2],
+          },
+        });
+      } else {
+        source.setData(circleData);
+      }
+    } catch (e) {
+      console.warn("Canvass perimeter layer error:", e);
+    }
+  }, [map, isLoaded, centerLat, centerLng, radiusMeters]);
+
+  return null;
+}
+
+function CanvassCameraMarkers({
+  centerLat,
+  centerLng,
+  radiusMeters,
+  assets,
+}: {
+  centerLat: number;
+  centerLng: number;
+  radiusMeters: number;
+  assets?: SurveillanceAsset[];
+}) {
+  const displayAssets = React.useMemo(() => {
+    if (assets && assets.length > 0) return assets;
+    return discoverSurveillanceAssets(centerLat, centerLng, radiusMeters);
+  }, [centerLat, centerLng, radiusMeters, assets]);
+
+  return (
+    <>
+      {displayAssets.map((asset) => {
+        const markerBg =
+          asset.source === "OSM_LIVE"
+            ? "bg-emerald-500 ring-emerald-500/40"
+            : asset.source === "DB_REGISTRY"
+            ? "bg-blue-500 ring-blue-500/40"
+            : "bg-[#665AEF] ring-[#665AEF]/40";
+
+        return (
+          <MapMarker key={asset.id} longitude={asset.lng} latitude={asset.lat}>
+            <MarkerContent>
+              <div className="group/cctv relative flex flex-col items-center select-none cursor-pointer">
+                <div className={`size-5 rounded-full border-2 border-white shadow-md flex items-center justify-center text-white ring-2 ${markerBg}`}>
+                  <Video className="size-3" />
+                </div>
+                <div className="absolute -top-7 px-1.5 py-0.5 rounded bg-neutral-950/95 border border-neutral-700 text-[9px] font-mono text-white opacity-0 group-hover/cctv:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-lg z-50 flex items-center gap-1">
+                  <span className={`size-1.5 rounded-full ${asset.source === "OSM_LIVE" ? "bg-emerald-400" : asset.source === "DB_REGISTRY" ? "bg-blue-400" : "bg-[#8E85FF]"}`} />
+                  <span>{asset.name} ({asset.distanceMeters}m)</span>
+                </div>
+              </div>
+            </MarkerContent>
+          </MapMarker>
+        );
+      })}
+    </>
+  );
+}
+
 export function CaseEditForm({ caseData }: CaseEditFormProps) {
   const router = useRouter();
   const [isSaving, setIsSaving] = React.useState(false);
@@ -228,6 +354,7 @@ export function CaseEditForm({ caseData }: CaseEditFormProps) {
   const [assignedToName, setAssignedToName] = React.useState(caseData.assignedToName || "Madhan Kumar");
   const [assignedToEmail, setAssignedToEmail] = React.useState(caseData.assignedToEmail || "officer@forensix.gov");
   const [department, setDepartment] = React.useState("Digital Forensics & Incident Response");
+  const [custodyRole, setCustodyRole] = React.useState("Lead Custodian");
 
   // Tags
   const [tags, setTags] = React.useState<string[]>(
@@ -339,6 +466,202 @@ export function CaseEditForm({ caseData }: CaseEditFormProps) {
   const [isSearchingMap, setIsSearchingMap] = React.useState(false);
   const [showSearchResults, setShowSearchResults] = React.useState(false);
   const searchContainerRef = React.useRef<HTMLDivElement>(null);
+
+  // Forensic Canvass & Multi-Source Surveillance State
+  const [canvassRadius, setCanvassRadius] = React.useState("100");
+  const [isCctvModalOpen, setIsCctvModalOpen] = React.useState(false);
+  const [liveAssets, setLiveAssets] = React.useState<SurveillanceAsset[]>([]);
+  const [isLoadingLiveAssets, setIsLoadingLiveAssets] = React.useState(false);
+  const [sourceFilter, setSourceFilter] = React.useState<"ALL" | "OSM_LIVE" | "DB_REGISTRY">("ALL");
+  const [isRegisterModalOpen, setIsRegisterModalOpen] = React.useState(false);
+  const [taggedCameraIds, setTaggedCameraIds] = React.useState<Record<string, { voucherId: string }>>({});
+  const [taggingCameraId, setTaggingCameraId] = React.useState<string | null>(null);
+
+  // New Camera Quick Registration Form State
+  const [newCamName, setNewCamName] = React.useState("");
+  const [newCamType, setNewCamType] = React.useState<"TRAFFIC_ANPR" | "MUNICIPAL_PTZ" | "COMMERCIAL" | "ATM_SECURITY">("COMMERCIAL");
+  const [newCamResolution, setNewCamResolution] = React.useState("4K UHD");
+  const [newCamRetention, setNewCamRetention] = React.useState("30");
+  const [newCamOperator, setNewCamOperator] = React.useState("");
+
+  const canvassMetrics = React.useMemo(() => {
+    const lat = parseFloat(latitude) || resolvedLoc.latitude || 13.04233;
+    const lng = parseFloat(longitude) || resolvedLoc.longitude || 80.23832;
+    const radius = parseInt(canvassRadius, 10) || 100;
+    return getCanvassPerimeterMetrics(lat, lng, radius);
+  }, [latitude, longitude, resolvedLoc, canvassRadius]);
+
+  // Live multi-source query (OSM Overpass + DB Registry + Fallback)
+  React.useEffect(() => {
+    let isMounted = true;
+    const lat = parseFloat(latitude) || resolvedLoc.latitude || 13.04233;
+    const lng = parseFloat(longitude) || resolvedLoc.longitude || 80.23832;
+    const radius = parseInt(canvassRadius, 10) || 100;
+
+    setIsLoadingLiveAssets(true);
+    discoverMultiSourceAssets(lat, lng, radius)
+      .then((res) => {
+        if (isMounted) {
+          setLiveAssets(res.assets);
+          setIsLoadingLiveAssets(false);
+        }
+      })
+      .catch((err) => {
+        console.warn("Multi-source discovery error:", err);
+        if (isMounted) setIsLoadingLiveAssets(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [latitude, longitude, resolvedLoc, canvassRadius]);
+
+  const activeSurveillanceAssets = React.useMemo(() => {
+    const pool = liveAssets.length > 0 ? liveAssets : canvassMetrics.detectedCameras;
+    if (sourceFilter === "OSM_LIVE") {
+      return pool.filter((c) => c.source === "OSM_LIVE");
+    }
+    if (sourceFilter === "DB_REGISTRY") {
+      return pool.filter((c) => c.source === "DB_REGISTRY");
+    }
+    return pool;
+  }, [liveAssets, canvassMetrics.detectedCameras, sourceFilter]);
+
+  const cleanCaseNum = (caseData.caseNumber || caseData.id || "default").replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+  const [taggedFeedsList, setTaggedFeedsList] = React.useState<Array<any>>([]);
+
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const stored = localStorage.getItem(`forensix_tagged_cctv_${cleanCaseNum}`);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) {
+          setTaggedFeedsList(parsed);
+          const idMap: Record<string, { voucherId: string }> = {};
+          parsed.forEach((item: any) => {
+            if (item.id) idMap[item.id] = { voucherId: item.voucherId };
+            if (item.cameraName) idMap[item.cameraName] = { voucherId: item.voucherId };
+          });
+          setTaggedCameraIds((prev) => ({ ...idMap, ...prev }));
+        }
+      }
+    } catch (e) {
+      console.warn("Failed to load tagged feeds:", e);
+    }
+  }, [cleanCaseNum]);
+
+  const handleTagFeed = async (cam: SurveillanceAsset) => {
+    setTaggingCameraId(cam.id);
+    try {
+      const res = await tagSurveillanceFeedAsEvidence({
+        caseId: caseData.id,
+        caseNumber: caseData.caseNumber,
+        camera: cam,
+      });
+      if (res.success && res.voucherId) {
+        setTaggedCameraIds((prev) => ({
+          ...prev,
+          [cam.id]: { voucherId: res.voucherId! },
+        }));
+
+        const newTaggedItem = {
+          id: cam.id,
+          voucherId: res.voucherId,
+          cameraName: cam.name,
+          lat: cam.lat,
+          lng: cam.lng,
+          distanceMeters: cam.distanceMeters,
+          bearing: cam.bearing,
+          retentionDays: cam.retentionDays,
+          resolution: cam.resolution,
+          sourceLabel: cam.sourceLabel,
+          officerName: assignedToName,
+          dateAdded: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+          timeAdded: new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" }),
+          timestamp: new Date().toISOString(),
+        };
+
+        setTaggedFeedsList((prev) => [newTaggedItem, ...prev.filter((x) => x.voucherId !== res.voucherId)]);
+
+        if (typeof window !== "undefined") {
+          const key = `forensix_tagged_cctv_${cleanCaseNum}`;
+          const existing = JSON.parse(localStorage.getItem(key) || "[]");
+          localStorage.setItem(key, JSON.stringify([newTaggedItem, ...existing.filter((x: any) => x.voucherId !== res.voucherId)]));
+        }
+
+        logCaseActivity({
+          caseId: caseData.id,
+          caseNumber: caseData.caseNumber,
+          action: "Subpoena Hold Issued",
+          details: `Formal evidence preservation hold ${res.voucherId} issued for ${cam.name} (${cam.distanceMeters}m ${cam.bearing}).`,
+          category: "Evidence",
+          actionType: "EVIDENCE",
+        });
+
+        toast.success(`Evidence Subpoena Voucher ${res.voucherId} recorded for "${cam.name}"! Added to Evidence & Activity Ledger.`);
+      } else {
+        toast.error(res.error || "Failed to log feed into evidence");
+      }
+    } catch (e) {
+      toast.error("Error creating evidence subpoena record");
+    } finally {
+      setTaggingCameraId(null);
+    }
+  };
+
+  const handleRegisterNewCamera = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCamName.trim()) {
+      toast.error("Please enter a camera identifier or name");
+      return;
+    }
+    const lat = parseFloat(latitude) || resolvedLoc.latitude || 13.04233;
+    const lng = parseFloat(longitude) || resolvedLoc.longitude || 80.23832;
+
+    const registered = registerCustomCameraAsset({
+      id: `REG-DFIR-${Date.now().toString().slice(-4)}`,
+      name: newCamName.trim(),
+      type: newCamType,
+      categoryLabel:
+        newCamType === "TRAFFIC_ANPR"
+          ? "Traffic / ANPR"
+          : newCamType === "MUNICIPAL_PTZ"
+          ? "Municipal 4K PTZ"
+          : newCamType === "ATM_SECURITY"
+          ? "ATM Security"
+          : "Commercial Storefront",
+      lat,
+      lng,
+      status: "ONLINE",
+      statusLabel: "Registered Active Node",
+      resolution: newCamResolution,
+      retentionDays: parseInt(newCamRetention, 10) || 30,
+      source: "DB_REGISTRY",
+      sourceLabel: "Local Registry Asset",
+      operator: newCamOperator.trim() || assignedToName,
+    });
+
+    setLiveAssets((prev) => [registered, ...prev]);
+    toast.success(`Camera "${newCamName}" saved to Forensix Asset Registry!`);
+    setIsRegisterModalOpen(false);
+    setNewCamName("");
+    setNewCamOperator("");
+  };
+
+  const handleCopyCoordinates = () => {
+    const lat = latitude || "13.04233";
+    const lng = longitude || "80.23832";
+    const text = `${lat}, ${lng}`;
+    navigator.clipboard.writeText(text);
+    toast.success(`Copied coordinates to clipboard: ${text}`);
+  };
+
+  const handleOpenGoogleMaps = () => {
+    const lat = latitude || "13.04233";
+    const lng = longitude || "80.23832";
+    window.open(`https://www.google.com/maps/search/?api=1&query=${lat},${lng}`, "_blank", "noopener,noreferrer");
+  };
 
   // Close search results dropdown on outside click
   React.useEffect(() => {
@@ -955,7 +1278,7 @@ export function CaseEditForm({ caseData }: CaseEditFormProps) {
                 </div>
 
                 {/* Time of Incident */}
-                <div className="space-y-1.5">
+                <div className="space-y-1.5 col-span-2 sm:col-span-1 xl:col-span-1">
                   <Label htmlFor="time-incident" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
                     <Clock className="size-3 text-muted-foreground shrink-0" />
                     <span>Time of Incident</span>
@@ -976,7 +1299,7 @@ export function CaseEditForm({ caseData }: CaseEditFormProps) {
         {/* Bento Tile 2 (5 cols): Personnel + Audit — merged card */}
         <div className="xl:col-span-5 min-w-0 flex flex-col xl:self-stretch">
           {/* Card 4+6: Personnel & Assignment + Audit — merged into one card */}
-          <Card className="border-2 border-border/80 bg-card/40 backdrop-blur-xs rounded-xl shadow-xs flex-1 flex flex-col justify-between">
+          <Card className="border-2 border-border/80 bg-card/40 backdrop-blur-xs rounded-xl shadow-xs flex-1 flex flex-col">
             <CardHeader className="flex flex-row items-center justify-between p-4 sm:p-6 pb-3 sm:pb-3.5 border-b-2 border-border/60">
               <div className="flex items-center gap-2.5 min-w-0">
                 <User className="size-4 sm:size-4.5 text-[#665AEF] shrink-0 mt-0.5" />
@@ -991,11 +1314,11 @@ export function CaseEditForm({ caseData }: CaseEditFormProps) {
               </div>
             </CardHeader>
 
-            <CardContent className="p-4 sm:p-6 pt-5 sm:pt-6 flex-1 flex flex-col justify-between space-y-6">
+            <CardContent className="p-4 sm:p-6 pt-4 sm:pt-5 flex-1 flex flex-col space-y-4 sm:space-y-4.5">
               {/* Personnel fields */}
-              <div className="space-y-4.5 sm:space-y-5">
+              <div className="space-y-3 sm:space-y-3.5">
                 {/* Lead Investigator */}
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   <Label htmlFor="assigned-name" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
                     <User className="size-3 text-muted-foreground shrink-0" />
                     <span>Lead Investigator</span>
@@ -1005,12 +1328,12 @@ export function CaseEditForm({ caseData }: CaseEditFormProps) {
                     value={assignedToName}
                     onChange={(e) => setAssignedToName(e.target.value)}
                     placeholder="e.g. Madhan Kumar"
-                    className="h-10.5 sm:h-11 text-xs sm:text-sm border-2 border-border/80 bg-background/50 focus-visible:border-ring"
+                    className="h-10 text-xs sm:text-sm border-2 border-border/80 bg-background/50 focus-visible:border-ring"
                   />
                 </div>
 
                 {/* Investigator Email */}
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   <Label htmlFor="assigned-email" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
                     <Mail className="size-3 text-muted-foreground shrink-0" />
                     <span>Official Email / Contact</span>
@@ -1021,12 +1344,12 @@ export function CaseEditForm({ caseData }: CaseEditFormProps) {
                     value={assignedToEmail}
                     onChange={(e) => setAssignedToEmail(e.target.value)}
                     placeholder="officer@forensix.gov"
-                    className="h-10.5 sm:h-11 text-xs sm:text-sm border-2 border-border/80 bg-background/50 focus-visible:border-ring"
+                    className="h-10 text-xs sm:text-sm border-2 border-border/80 bg-background/50 focus-visible:border-ring"
                   />
                 </div>
 
                 {/* Department / Division */}
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   <Label htmlFor="assigned-department" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
                     <Building className="size-3 text-muted-foreground shrink-0" />
                     <span>Division / Unit</span>
@@ -1036,37 +1359,98 @@ export function CaseEditForm({ caseData }: CaseEditFormProps) {
                     value={department}
                     onChange={(e) => setDepartment(e.target.value)}
                     placeholder="e.g. Digital Forensics Division"
-                    className="h-10.5 sm:h-11 text-xs sm:text-sm border-2 border-border/80 bg-background/50 focus-visible:border-ring"
+                    className="h-10 text-xs sm:text-sm border-2 border-border/80 bg-background/50 focus-visible:border-ring"
                   />
                 </div>
               </div>
 
+              {/* Chain of Custody & Operational Authorization */}
+              <div className="p-2.5 sm:p-3 rounded-lg border-2 border-border/70 bg-card/60 space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <ShieldCheck className="size-3 text-[#665AEF] shrink-0" />
+                    <span className="text-[11px] font-semibold text-foreground uppercase tracking-wider truncate">
+                      Chain of Custody Role
+                    </span>
+                  </div>
+                  <span className="font-mono text-[10px] text-emerald-400 font-medium shrink-0">
+                    ISO/IEC 27037
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 xs:grid-cols-4 gap-1 sm:gap-1.5">
+                  {[
+                    { id: "lead", label: "Lead Custodian", desc: "Evidence Handler" },
+                    { id: "examiner", label: "Forensic Examiner", desc: "DFIR Analysis" },
+                    { id: "analyst", label: "Tech Analyst", desc: "Telemetry Triage" },
+                    { id: "reviewer", label: "Peer Auditor", desc: "Verification" },
+                  ].map((r) => (
+                    <button
+                      key={r.id}
+                      type="button"
+                      onClick={() => setCustodyRole(r.label)}
+                      className={`flex flex-col items-center justify-center py-1 sm:py-1.5 px-1 rounded-md border-2 transition-all cursor-pointer touch-manipulation active:scale-95 text-center ${
+                        custodyRole === r.label
+                          ? "border-[#665AEF] bg-[#665AEF]/20 text-foreground font-semibold shadow-2xs"
+                          : "border-border/60 bg-muted/20 text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                      }`}
+                    >
+                      <span className="text-[11px] font-bold leading-tight truncate w-full">{r.label}</span>
+                      <span className="text-[9px] opacity-75 leading-tight truncate w-full">{r.desc}</span>
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex items-center justify-between gap-2 pt-1 border-t border-border/40 text-[11px]">
+                  <div className="flex items-center gap-1 text-muted-foreground truncate">
+                    <span className="text-[10px] uppercase font-mono">Warrant / Badge:</span>
+                    <span className="font-mono text-foreground font-semibold text-[11px]">
+                      DFIR-{caseData.id?.replace(/\D/g, "").slice(-4) || "8842"}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const badgeId = `DFIR-${caseData.id?.replace(/\D/g, "").slice(-4) || "8842"}`;
+                      navigator.clipboard.writeText(badgeId);
+                      toast.success(`Custody badge copied: ${badgeId}`);
+                    }}
+                    className="inline-flex items-center gap-1 text-xs text-[#665AEF] hover:text-[#7f74ff] font-medium transition-colors cursor-pointer py-0.5 px-1 rounded hover:bg-[#665AEF]/10"
+                  >
+                    <Copy className="size-3" />
+                    <span>Copy Badge</span>
+                  </button>
+                </div>
+              </div>
+
               {/* Audit divider */}
-              <div className="border-t-2 border-border/40 pt-5 space-y-3.5">
-                <div className="flex items-center justify-between gap-2 mb-3">
-                  <div className="flex items-center gap-2">
+              <div className="border-t-2 border-border/40 pt-3.5 space-y-2.5">
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <div className="flex items-center gap-1.5">
                     <History className="size-3.5 text-muted-foreground shrink-0" />
-                    <span className="text-xs font-bold font-heading text-muted-foreground uppercase tracking-wider">Audit & Security Ledger</span>
+                    <span className="text-xs font-bold font-heading text-muted-foreground uppercase tracking-wider">
+                      Audit & Security Ledger
+                    </span>
                   </div>
                   <span className="inline-flex items-center gap-1 text-[11px] font-medium text-emerald-400 shrink-0">
                     <CheckCircle2 className="size-3 shrink-0" />
                     <span>Active Record</span>
                   </span>
                 </div>
-                <div className="grid grid-cols-1 gap-2.5">
-                  <div className="flex items-center justify-between gap-3 p-3 rounded-xl border-2 border-border/60 bg-muted/20">
+                <div className="grid grid-cols-1 gap-2">
+                  <div className="flex items-center justify-between gap-3 p-2.5 rounded-lg border-2 border-border/60 bg-muted/20">
                     <span className="text-xs text-muted-foreground shrink-0 font-medium">Last Modified:</span>
                     <span className="font-sans text-foreground font-semibold text-right truncate text-xs">
                       {caseData.lastUpdated || "Oct 5, 2026, 11:32 AM"}
                     </span>
                   </div>
-                  <div className="flex items-center justify-between gap-3 p-3 rounded-xl border-2 border-border/60 bg-muted/20">
-                    <span className="text-xs text-muted-foreground shrink-0 font-medium">Created By:</span>
+                  <div className="flex items-center justify-between gap-3 p-2.5 rounded-lg border-2 border-border/60 bg-muted/20">
+                    <span className="text-xs text-muted-foreground shrink-0 font-medium">Session Officer:</span>
                     <span className="font-sans text-foreground font-semibold text-right truncate text-xs">
-                      {caseData.createdBy || "System"}
+                      {assignedToName} ({custodyRole})
                     </span>
                   </div>
-                  <div className="flex items-center justify-between gap-3 p-3 rounded-xl border-2 border-border/60 bg-muted/20">
+                  <div className="flex items-center justify-between gap-3 p-2.5 rounded-lg border-2 border-border/60 bg-muted/20">
                     <span className="text-xs text-muted-foreground shrink-0 font-medium">Security Clearance:</span>
                     <span className="font-mono text-muted-foreground font-semibold text-right truncate text-xs flex items-center gap-1">
                       <Lock className="size-3 text-[#665AEF]" />
@@ -1074,7 +1458,7 @@ export function CaseEditForm({ caseData }: CaseEditFormProps) {
                     </span>
                   </div>
                 </div>
-                <div className="p-3 rounded-xl border-2 border-border/60 bg-muted/10 flex items-start gap-2.5 text-[11px] leading-relaxed text-muted-foreground/90">
+                <div className="p-2.5 rounded-lg border-2 border-border/60 bg-muted/10 flex items-start gap-2 text-[11px] leading-relaxed text-muted-foreground/90">
                   <CheckCircle2 className="size-3.5 text-[#665AEF] shrink-0 mt-0.5" />
                   <span>All modifications generate an immutable entry in the Forensix AuditLog registry with cryptographic session validation.</span>
                 </div>
@@ -1086,7 +1470,7 @@ export function CaseEditForm({ caseData }: CaseEditFormProps) {
         {/* Bento Tile 3 (7 cols): Incident Timeline & Crime Scene Location */}
         <div className="xl:col-span-7 min-w-0 flex flex-col xl:self-stretch">
           {/* Card 2: Incident Timeline & Crime Scene Location */}
-          <Card className="border-2 border-border/80 bg-card/40 backdrop-blur-xs rounded-xl shadow-xs flex-1 flex flex-col justify-between">
+          <Card className="border-2 border-border/80 bg-card/40 backdrop-blur-xs rounded-xl shadow-xs flex-1 flex flex-col">
             <CardHeader className="flex flex-row items-center justify-between p-4 sm:p-6 pb-3 sm:pb-3.5 border-b-2 border-border/60">
               <div className="flex items-center gap-2.5 min-w-0">
                 <MapPin className="size-4 sm:size-4.5 text-[#665AEF] shrink-0 mt-0.5" />
@@ -1101,7 +1485,7 @@ export function CaseEditForm({ caseData }: CaseEditFormProps) {
               </div>
             </CardHeader>
 
-            <CardContent className="p-4 sm:p-6 pt-4 sm:pt-5 space-y-4 sm:space-y-5">
+            <CardContent className="p-4 sm:p-6 pt-4 sm:pt-5 flex-1 flex flex-col space-y-4 sm:space-y-4.5">
               {/* Row 1: Region / City & Specific Landmark / Street */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 sm:gap-4">
                 <div className="space-y-1.5">
@@ -1119,8 +1503,9 @@ export function CaseEditForm({ caseData }: CaseEditFormProps) {
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label htmlFor="case-landmark" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                    Crime Scene Landmark / Street
+                  <Label htmlFor="case-landmark" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                    <Navigation className="size-3 text-muted-foreground shrink-0" />
+                    <span>Crime Scene Landmark / Street</span>
                   </Label>
                   <Input
                     id="case-landmark"
@@ -1133,144 +1518,323 @@ export function CaseEditForm({ caseData }: CaseEditFormProps) {
               </div>
 
               {/* Quick Location Presets */}
-              <div className="space-y-1.5 pt-0.5">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-                  <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-                    Quick Location Presets
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                      Quick Location Presets
+                    </span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted/60 text-muted-foreground font-medium">
+                      {LOCATION_PRESETS.length}
+                    </span>
+                  </div>
+                  <span className="text-[11px] text-muted-foreground hidden sm:inline">
+                    Click to auto-fill address & coordinates
                   </span>
-                  <span className="text-[11px] text-muted-foreground">Click to auto-fill address & coordinates</span>
                 </div>
                 <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto sm:flex-wrap pb-1 sm:pb-0 scrollbar-none [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-                  {LOCATION_PRESETS.map((preset) => (
-                    <button
-                      key={preset.label}
-                      type="button"
-                      onClick={() => handleSelectPreset(preset)}
-                      className="text-[11px] px-2.5 py-1.5 rounded-md border-2 border-border/80 bg-card/60 text-foreground hover:bg-muted/80 hover:border-neutral-600/70 cursor-pointer transition-all inline-flex items-center gap-1.5 shadow-2xs touch-manipulation shrink-0 sm:shrink active:scale-95"
-                    >
-                      <MapPin className="size-3 text-[#665AEF] shrink-0" />
-                      <span className="whitespace-nowrap">{preset.label}</span>
-                    </button>
-                  ))}
+                  {LOCATION_PRESETS.map((preset) => {
+                    const isSelected =
+                      Boolean(location && preset.city && location.toLowerCase().includes(preset.city.toLowerCase().split(",")[0].trim())) &&
+                      Boolean(landmark && preset.landmark && landmark.toLowerCase().includes(preset.landmark.toLowerCase().split(",")[0].trim()));
+                    return (
+                      <button
+                        key={preset.label}
+                        type="button"
+                        onClick={() => handleSelectPreset(preset)}
+                        className={`text-[11px] px-2.5 py-1.5 rounded-md border-2 transition-all inline-flex items-center gap-1.5 shadow-2xs touch-manipulation shrink-0 sm:shrink active:scale-95 cursor-pointer ${
+                          isSelected
+                            ? "border-[#665AEF] bg-[#665AEF]/15 text-foreground font-semibold ring-1 ring-[#665AEF]/40"
+                            : "border-border/80 bg-card/60 text-foreground hover:bg-muted/80 hover:border-neutral-600/70"
+                        }`}
+                      >
+                        <MapPin className={`size-3 shrink-0 ${isSelected ? "text-[#665AEF]" : "text-muted-foreground"}`} />
+                        <span className="whitespace-nowrap">{preset.label}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
-              {/* Row 3: GPS Coordinates */}
-              <div className="p-3 sm:p-4 rounded-xl border-2 border-border/80 bg-muted/20 space-y-3 sm:space-y-3.5">
-                <div className="flex flex-col gap-2.5 pb-2.5 border-b-2 border-border/60">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <MapPin className="size-3.5 text-[#665AEF] shrink-0" />
-                      <span className="text-xs sm:text-sm font-semibold text-foreground truncate">
-                        Precise Crime Scene Coordinates
+              {/* Lower Section: GPS Coordinates & Telemetry Box */}
+              <div className="p-3.5 sm:p-4 rounded-xl border-2 border-border/80 bg-muted/20 flex-1 flex flex-col space-y-3 sm:space-y-3.5">
+                <div className="space-y-3">
+                  <div className="flex flex-col gap-2.5 pb-2.5 border-b-2 border-border/60">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <MapPin className="size-3.5 text-[#665AEF] shrink-0" />
+                        <span className="text-xs sm:text-sm font-semibold text-foreground truncate">
+                          Precise Crime Scene Coordinates
+                        </span>
+                      </div>
+                      <span className="inline-flex items-center gap-1 text-[11px] sm:text-xs font-medium text-emerald-400 whitespace-nowrap shrink-0">
+                        <CheckCircle2 className="size-3 sm:size-3.5 shrink-0" />
+                        <span>Auto-Synced</span>
                       </span>
                     </div>
-                    <span className="inline-flex items-center gap-1 text-[11px] sm:text-xs font-medium text-emerald-400 whitespace-nowrap shrink-0">
-                      <CheckCircle2 className="size-3 sm:size-3.5 shrink-0" />
-                      <span>Auto-Synced</span>
-                    </span>
+
+                    {/* Alternate Options Action Controls - Equal 3-Column Grid */}
+                    <div className="grid grid-cols-3 gap-1.5 sm:gap-2 w-full">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="xs"
+                        onClick={() => {
+                          syncCoordinates(location, landmark);
+                          toast.success("Coordinates re-synced from jurisdiction & landmark!");
+                        }}
+                        className="h-8.5 sm:h-9 px-2 sm:px-3 gap-1 sm:gap-1.5 rounded-lg border-2 border-border/80 bg-card text-[11px] sm:text-xs font-medium hover:bg-muted/60 cursor-pointer shadow-2xs justify-center whitespace-nowrap active:scale-95 touch-manipulation"
+                      >
+                        <RefreshCw className="size-3 sm:size-3.5 text-muted-foreground shrink-0" />
+                        <span className="truncate">
+                          <span className="sm:hidden">Sync</span>
+                          <span className="hidden sm:inline">Sync Address</span>
+                        </span>
+                      </Button>
+
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="xs"
+                        onClick={handleUseCurrentLocation}
+                        disabled={isDetectingGps}
+                        className="h-8.5 sm:h-9 px-2 sm:px-3 gap-1 sm:gap-1.5 rounded-lg border-2 border-border/80 bg-card text-[11px] sm:text-xs font-medium hover:bg-muted/60 cursor-pointer shadow-2xs justify-center whitespace-nowrap active:scale-95 touch-manipulation"
+                      >
+                        <Navigation className="size-3 sm:size-3.5 text-[#665AEF] shrink-0" />
+                        <span className="truncate">
+                          <span className="sm:hidden">{isDetectingGps ? "Detecting..." : "GPS"}</span>
+                          <span className="hidden sm:inline">{isDetectingGps ? "Detecting..." : "Device GPS"}</span>
+                        </span>
+                      </Button>
+
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="xs"
+                        onClick={handleOpenMapPicker}
+                        className="h-8.5 sm:h-9 px-2 sm:px-3 gap-1 sm:gap-1.5 rounded-lg border-2 border-border/80 bg-card text-[11px] sm:text-xs font-medium hover:bg-muted/60 cursor-pointer shadow-2xs justify-center whitespace-nowrap active:scale-95 touch-manipulation"
+                      >
+                        <Compass className="size-3 sm:size-3.5 text-[#665AEF] shrink-0" />
+                        <span className="truncate">
+                          <span className="sm:hidden">Map</span>
+                          <span className="hidden sm:inline">Pick on Map</span>
+                        </span>
+                      </Button>
+                    </div>
                   </div>
 
-                  {/* Alternate Options Action Controls - Equal 3-Column Grid */}
-                  <div className="grid grid-cols-3 gap-1.5 sm:gap-2 w-full">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="xs"
-                      onClick={() => {
-                        syncCoordinates(location, landmark);
-                        toast.success("Coordinates re-synced from jurisdiction & landmark!");
-                      }}
-                      className="h-8 px-2 sm:px-3 gap-1 sm:gap-1.5 rounded-lg border-2 border-border/80 bg-card text-[11px] sm:text-xs font-medium hover:bg-muted/60 cursor-pointer shadow-2xs justify-center whitespace-nowrap"
-                    >
-                      <RefreshCw className="size-3 sm:size-3.5 text-muted-foreground shrink-0" />
-                      <span className="truncate">
-                        <span className="sm:hidden">Sync</span>
-                        <span className="hidden sm:inline">Sync Address</span>
-                      </span>
-                    </Button>
-
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="xs"
-                      onClick={handleUseCurrentLocation}
-                      disabled={isDetectingGps}
-                      className="h-8 px-2 sm:px-3 gap-1 sm:gap-1.5 rounded-lg border-2 border-border/80 bg-card text-[11px] sm:text-xs font-medium hover:bg-muted/60 cursor-pointer shadow-2xs justify-center whitespace-nowrap"
-                    >
-                      <Navigation className="size-3 sm:size-3.5 text-[#665AEF] shrink-0" />
-                      <span className="truncate">
-                        <span className="sm:hidden">{isDetectingGps ? "Detecting..." : "GPS"}</span>
-                        <span className="hidden sm:inline">{isDetectingGps ? "Detecting..." : "Device GPS"}</span>
-                      </span>
-                    </Button>
-
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="xs"
-                      onClick={handleOpenMapPicker}
-                      className="h-8 px-2 sm:px-3 gap-1 sm:gap-1.5 rounded-lg border-2 border-border/80 bg-card text-[11px] sm:text-xs font-medium hover:bg-muted/60 cursor-pointer shadow-2xs justify-center whitespace-nowrap"
-                    >
-                      <Compass className="size-3 sm:size-3.5 text-[#665AEF] shrink-0" />
-                      <span className="truncate">
-                        <span className="sm:hidden">Map</span>
-                        <span className="hidden sm:inline">Pick on Map</span>
-                      </span>
-                    </Button>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="geo-latitude" className="text-[11px] font-sans text-muted-foreground uppercase flex items-center gap-1">
+                          <span>Latitude (°N)</span>
+                          <Lock className="size-2.5 text-muted-foreground" />
+                        </Label>
+                        <span className="text-[10px] text-muted-foreground">Auto-locked</span>
+                      </div>
+                      <Input
+                        id="geo-latitude"
+                        value={latitude}
+                        disabled
+                        readOnly
+                        className="h-9 font-mono font-medium text-xs border-2 border-border/60 bg-muted/40 text-muted-foreground cursor-not-allowed select-all"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="geo-longitude" className="text-[11px] font-sans text-muted-foreground uppercase flex items-center gap-1">
+                          <span>Longitude (°E)</span>
+                          <Lock className="size-2.5 text-muted-foreground" />
+                        </Label>
+                        <span className="text-[10px] text-muted-foreground">Auto-locked</span>
+                      </div>
+                      <Input
+                        id="geo-longitude"
+                        value={longitude}
+                        disabled
+                        readOnly
+                        className="h-9 font-mono font-medium text-xs border-2 border-border/60 bg-muted/40 text-muted-foreground cursor-not-allowed select-all"
+                      />
+                    </div>
                   </div>
+
+                  {/* Search & CCTV Canvass Radius */}
+                  <div className="p-3 sm:p-3.5 rounded-xl border-2 border-border/70 bg-card/60 space-y-2.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <Target className="size-3.5 text-[#665AEF] shrink-0" />
+                        <span className="text-[11px] sm:text-xs font-semibold text-foreground uppercase tracking-wider truncate">
+                          Search & CCTV Radius
+                        </span>
+                      </div>
+                      <span className="font-mono text-[11px] text-[#665AEF] font-bold shrink-0">
+                        {canvassRadius}m Selected
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-4 gap-2">
+                      {[
+                        { val: "50", label: "50m", desc: "Immediate" },
+                        { val: "100", label: "100m", desc: "Nearby" },
+                        { val: "250", label: "250m", desc: "CCTV Range" },
+                        { val: "500", label: "500m", desc: "Wide Area" },
+                      ].map((r) => {
+                        const isSelected = canvassRadius === r.val;
+                        return (
+                          <button
+                            key={r.val}
+                            type="button"
+                            onClick={() => setCanvassRadius(r.val)}
+                            className={`flex flex-col items-center justify-center py-2 px-1.5 rounded-lg border-2 transition-all cursor-pointer touch-manipulation active:scale-95 text-center ${
+                              isSelected
+                                ? "border-[#665AEF] bg-[#665AEF]/20 text-foreground font-semibold shadow-xs ring-1 ring-[#665AEF]/40"
+                                : "border-border/70 bg-background/50 text-muted-foreground hover:bg-muted/50 hover:text-foreground hover:border-neutral-600/70"
+                            }`}
+                          >
+                            <span className="text-xs sm:text-sm font-bold leading-none tracking-tight text-foreground">
+                              {r.label}
+                            </span>
+                            <span
+                              className={`text-[10px] mt-1 font-medium leading-tight truncate w-full ${
+                                isSelected ? "text-[#9d94ff]" : "text-muted-foreground"
+                              }`}
+                            >
+                              {r.desc}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Live Real-Time Detection Telemetry Bar */}
+                    <div className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg border border-[#665AEF]/30 bg-[#665AEF]/10 text-xs">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                        <span className="font-semibold text-foreground text-[11px] truncate">
+                          {canvassMetrics.totalCameraCount} Cameras Detected
+                        </span>
+                        <span className="text-[10px] text-muted-foreground hidden xs:inline">
+                          ({canvassMetrics.areaSquareMeters.toLocaleString()} m²)
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setIsCctvModalOpen(true)}
+                        className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#665AEF] hover:text-[#8E85FF] transition-colors cursor-pointer shrink-0 bg-[#665AEF]/15 hover:bg-[#665AEF]/25 px-2 py-0.5 rounded-md active:scale-95"
+                      >
+                        <Eye className="size-3" />
+                        <span>Inspect ({canvassMetrics.totalCameraCount})</span>
+                      </button>
+                    </div>
+
+                    <div className="flex items-center justify-between gap-2 pt-2 border-t border-border/40 text-xs">
+                      <button
+                        type="button"
+                        onClick={handleCopyCoordinates}
+                        className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground font-medium transition-colors cursor-pointer py-1 px-2 rounded-md hover:bg-muted/50"
+                      >
+                        <Copy className="size-3.5 text-[#665AEF]" />
+                        <span>Copy GPS</span>
+                      </button>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={handleOpenMapPicker}
+                          className="inline-flex items-center gap-1 text-xs text-[#665AEF] hover:text-[#7f74ff] font-medium transition-colors cursor-pointer py-1 px-2 rounded-md hover:bg-[#665AEF]/10"
+                        >
+                          <Compass className="size-3.5" />
+                          <span>Radar Map</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleOpenGoogleMaps}
+                          className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground font-medium transition-colors cursor-pointer py-1 px-2 rounded-md hover:bg-muted/50"
+                        >
+                          <ExternalLink className="size-3.5" />
+                          <span>Satellite</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Tagged Feeds Subpoena Ledger Card */}
+                  {taggedFeedsList.length > 0 && (
+                    <div className="p-3 sm:p-3.5 rounded-xl border-2 border-emerald-500/30 bg-emerald-500/5 space-y-2.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <FileCheck2 className="size-3.5 text-emerald-400 shrink-0" />
+                          <span className="text-[11px] sm:text-xs font-bold text-foreground uppercase tracking-wider truncate">
+                            Tagged Feeds & Subpoena Holds ({taggedFeedsList.length})
+                          </span>
+                        </div>
+                        <Link
+                          href={`/case-details/${caseData.caseNumber || caseData.id}`}
+                          className="text-[10px] text-[#8E85FF] hover:underline font-semibold"
+                        >
+                          View in Evidence Tab →
+                        </Link>
+                      </div>
+
+                      <div className="space-y-1.5 max-h-44 overflow-y-auto pr-1">
+                        {taggedFeedsList.map((tf, idx) => (
+                          <div
+                            key={tf.voucherId || idx}
+                            className="p-2 rounded-lg border border-border/70 bg-card/80 flex items-center justify-between gap-2 text-xs"
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <div className="p-1.5 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">
+                                <Video className="size-3.5" />
+                              </div>
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="font-semibold text-foreground truncate text-xs">
+                                    {tf.cameraName}
+                                  </span>
+                                  <span className="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                                    {tf.voucherId}
+                                  </span>
+                                </div>
+                                <div className="text-[10px] text-muted-foreground flex items-center gap-2 mt-0.5">
+                                  <span>📍 {tf.distanceMeters}m ({tf.bearing})</span>
+                                  <span>•</span>
+                                  <span>{tf.retentionDays || 30}-day retention</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <Badge variant="outline" className="text-[9px] px-1.5 py-0.5 border-emerald-500/40 text-emerald-400 shrink-0 font-medium">
+                              Active Hold
+                            </Badge>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="geo-latitude" className="text-[11px] font-sans text-muted-foreground uppercase flex items-center gap-1">
-                        <span>Latitude (°N)</span>
-                        <Lock className="size-2.5 text-muted-foreground" />
-                      </Label>
-                      <span className="text-[10px] text-muted-foreground">Auto-locked</span>
+                {/* Geodetic Telemetry Status Strip & Assurance Note */}
+                <div className="space-y-2 pt-1 border-t border-border/40">
+                  <div className="flex items-center justify-between gap-2 px-3 py-1.5 rounded-lg border border-border/60 bg-background/50 text-[11px]">
+                    <div className="flex items-center gap-1.5 text-muted-foreground min-w-0">
+                      <Compass className="size-3 text-[#665AEF] shrink-0" />
+                      <span className="font-mono text-foreground font-medium truncate">
+                        {latitude && longitude ? `${Number(latitude).toFixed(5)}° N, ${Number(longitude).toFixed(5)}° E` : "No Coordinates Locked"}
+                      </span>
                     </div>
-                    <Input
-                      id="geo-latitude"
-                      value={latitude}
-                      disabled
-                      readOnly
-                      className="h-9 font-sans font-medium text-xs border-2 border-border/60 bg-muted/40 text-muted-foreground cursor-not-allowed select-all"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="geo-longitude" className="text-[11px] font-sans text-muted-foreground uppercase flex items-center gap-1">
-                        <span>Longitude (°E)</span>
-                        <Lock className="size-2.5 text-muted-foreground" />
-                      </Label>
-                      <span className="text-[10px] text-muted-foreground">Auto-locked</span>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className="font-mono text-[10px] text-muted-foreground/80 hidden xs:inline">
+                        WGS 84 Datum
+                      </span>
+                      <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400 font-medium">
+                        <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                        <span>Geo-Anchored</span>
+                      </span>
                     </div>
-                    <Input
-                      id="geo-longitude"
-                      value={longitude}
-                      disabled
-                      readOnly
-                      className="h-9 font-sans font-medium text-xs border-2 border-border/60 bg-muted/40 text-muted-foreground cursor-not-allowed select-all"
-                    />
                   </div>
-                </div>
 
-                <div className="flex flex-col gap-1 pt-1 text-[11px] text-muted-foreground">
-                  <div className="flex items-start gap-1.5 leading-relaxed">
+                  <div className="flex items-start gap-1.5 leading-relaxed text-[11px] text-muted-foreground">
                     <Lock className="size-3 text-muted-foreground shrink-0 mt-0.5" />
                     <span>Manual typing disabled. Coordinates auto-update from address, Device GPS, or the interactive Map Picker.</span>
-                  </div>
-                  <div className="flex items-center justify-end pt-0.5">
-                    <span
-                      className="font-sans text-[10px] tracking-wide text-muted-foreground/80 font-medium whitespace-nowrap"
-                      style={{
-                        fontFamily:
-                          'var(--font-inter), "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-                      }}
-                    >
-                      WGS 84 Datum
-                    </span>
                   </div>
                 </div>
               </div>
@@ -1642,6 +2206,17 @@ export function CaseEditForm({ caseData }: CaseEditFormProps) {
               <MapControls position="top-right" showZoom showLocate />
               <MapController flyTarget={mapFlyTarget} />
               <MapClickHandler onClickCoords={(c) => setMapPinCoords(c)} />
+              <CanvassPerimeterLayer
+                centerLat={mapPinCoords.lat}
+                centerLng={mapPinCoords.lng}
+                radiusMeters={parseInt(canvassRadius, 10) || 100}
+              />
+              <CanvassCameraMarkers
+                centerLat={mapPinCoords.lat}
+                centerLng={mapPinCoords.lng}
+                radiusMeters={parseInt(canvassRadius, 10) || 100}
+                assets={activeSurveillanceAssets}
+              />
               <MapMarker
                 longitude={mapPinCoords.lng}
                 latitude={mapPinCoords.lat}
@@ -1667,16 +2242,32 @@ export function CaseEditForm({ caseData }: CaseEditFormProps) {
             </Map>
           </div>
 
-          {/* Selected Point Status Bar */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 p-2.5 rounded-lg border-2 border-border/80 bg-muted/20 text-xs">
+          {/* Selected Point Status Bar with Live Radius Selector */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2.5 rounded-lg border-2 border-border/80 bg-muted/20 text-xs">
             <div className="flex items-center gap-2 text-muted-foreground flex-wrap">
               <Compass className="size-4 text-[#665AEF]" />
-              <span>Selected Point:</span>
+              <span>Center:</span>
               <span className="font-sans font-bold text-foreground">
                 {mapPinCoords.lat.toFixed(5)}° N, {mapPinCoords.lng.toFixed(5)}° E
               </span>
             </div>
-            <span className="text-[11px] text-muted-foreground">Click map or drag pin marker</span>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <span className="text-[10px] uppercase font-semibold text-muted-foreground">Radius:</span>
+              {(["50", "100", "250", "500"] as const).map((r) => (
+                <button
+                  key={r}
+                  type="button"
+                  onClick={() => setCanvassRadius(r)}
+                  className={`px-2 py-0.5 rounded text-[11px] font-bold border transition-colors cursor-pointer ${
+                    canvassRadius === r
+                      ? "border-[#665AEF] bg-[#665AEF] text-white shadow-xs"
+                      : "border-border/60 bg-muted/40 text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {r}m
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Action Buttons */}
@@ -1697,10 +2288,275 @@ export function CaseEditForm({ caseData }: CaseEditFormProps) {
               className="h-8.5 gap-1.5 rounded-lg bg-[#665AEF] hover:bg-[#5749DF] text-white cursor-pointer shadow-sm shadow-[#665AEF]/25 px-3.5 justify-center"
             >
               <CheckCircle2 className="size-3.5" />
-              <span>Apply Pin</span>
+              <span>Apply Pin & Cordon</span>
             </Button>
           </div>
         </div>
+      </Modal>
+
+      {/* Real-Time Multi-Source Surveillance Feeds Modal */}
+      <Modal
+        isOpen={isCctvModalOpen}
+        onClose={() => setIsCctvModalOpen(false)}
+        title="Detected Surveillance Feeds & Sensors"
+        description={`${activeSurveillanceAssets.length} active surveillance assets discovered across OpenStreetMap Live, Police ICCC, and Forensix Registry within ${canvassRadius}m perimeter.`}
+        className="sm:max-w-2xl"
+      >
+        <div className="space-y-3.5 max-h-[70vh] overflow-y-auto pr-1">
+          {/* Summary Banner */}
+          <div className="grid grid-cols-3 gap-2 p-3 rounded-xl border-2 border-border/70 bg-muted/20 text-center">
+            <div>
+              <div className="text-[10px] uppercase font-semibold text-muted-foreground">Radius</div>
+              <div className="text-sm font-bold text-[#665AEF] font-mono">{canvassRadius}m</div>
+            </div>
+            <div>
+              <div className="text-[10px] uppercase font-semibold text-muted-foreground">Coverage Area</div>
+              <div className="text-sm font-bold text-foreground font-mono">{canvassMetrics.areaSquareMeters.toLocaleString()} m²</div>
+            </div>
+            <div>
+              <div className="text-[10px] uppercase font-semibold text-muted-foreground">Est. Sweep Time</div>
+              <div className="text-sm font-bold text-emerald-400 font-mono">~{canvassMetrics.estimatedSweepTimeMinutes} mins</div>
+            </div>
+          </div>
+
+          {/* Multi-Source Controls & Filter Strip */}
+          <div className="flex items-center justify-between gap-2 p-2 rounded-lg border-2 border-border/60 bg-card/60 flex-wrap">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Source:</span>
+              {(["ALL", "OSM_LIVE", "DB_REGISTRY"] as const).map((sf) => (
+                <button
+                  key={sf}
+                  type="button"
+                  onClick={() => setSourceFilter(sf)}
+                  className={`px-2 py-0.5 rounded text-[11px] font-medium border transition-colors cursor-pointer ${
+                    sourceFilter === sf
+                      ? "border-[#665AEF] bg-[#665AEF]/15 text-[#8E85FF] font-semibold"
+                      : "border-border/60 bg-muted/30 text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {sf === "ALL" ? `All Feeds (${liveAssets.length || canvassMetrics.totalCameraCount})` : sf === "OSM_LIVE" ? "OSM Live" : "Registry Assets"}
+                </button>
+              ))}
+            </div>
+
+            <Button
+              type="button"
+              variant="outline"
+              size="xs"
+              onClick={() => setIsRegisterModalOpen(true)}
+              className="h-7 px-2 text-[11px] gap-1 rounded-md border-border/80 hover:border-[#665AEF] text-[#8E85FF] cursor-pointer"
+            >
+              <PlusCircle className="size-3" />
+              <span>Register Camera</span>
+            </Button>
+          </div>
+
+          {/* Camera List */}
+          <div className="space-y-2">
+            {activeSurveillanceAssets.length === 0 ? (
+              <div className="p-6 text-center text-muted-foreground text-xs">
+                No surveillance nodes match the active filter within {canvassRadius}m. Try switching to "All Feeds" or expanding the radius.
+              </div>
+            ) : (
+              activeSurveillanceAssets.map((cam) => {
+                const isTagged = Boolean(taggedCameraIds[cam.id]);
+                const isTagging = taggingCameraId === cam.id;
+
+                const sourceBadge =
+                  cam.source === "OSM_LIVE" ? (
+                    <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-emerald-500/40 bg-emerald-500/10 text-emerald-400 font-mono gap-1">
+                      <Globe className="size-2.5" />
+                      <span>OSM Live</span>
+                    </Badge>
+                  ) : cam.source === "DB_REGISTRY" ? (
+                    <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-blue-500/40 bg-blue-500/10 text-blue-400 font-mono gap-1">
+                      <ShieldCheck className="size-2.5" />
+                      <span>Registry Asset</span>
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-[#665AEF]/40 bg-[#665AEF]/10 text-[#a594fd] font-mono gap-1">
+                      <Target className="size-2.5" />
+                      <span>Field Detection</span>
+                    </Badge>
+                  );
+
+                return (
+                  <div
+                    key={cam.id}
+                    className="p-3 rounded-xl border-2 border-border/70 bg-card/60 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 hover:border-border transition-colors"
+                  >
+                    <div className="flex items-start gap-2.5 min-w-0">
+                      <div className={`p-2 rounded-lg shrink-0 mt-0.5 ${cam.source === "OSM_LIVE" ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" : cam.source === "DB_REGISTRY" ? "bg-blue-500/10 text-blue-400 border border-blue-500/20" : "bg-[#665AEF]/10 text-[#8E85FF] border border-[#665AEF]/20"}`}>
+                        <Video className="size-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-xs font-bold text-foreground truncate">{cam.name}</span>
+                          <Badge variant="outline" className="text-[9px] px-1.5 py-0 border-border bg-muted/40 font-mono">
+                            {cam.categoryLabel}
+                          </Badge>
+                          {sourceBadge}
+                          <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400 font-medium">
+                            <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                            <span>{cam.statusLabel}</span>
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-3 text-[11px] text-muted-foreground mt-1 flex-wrap">
+                          <span className="font-medium text-foreground">
+                            📍 {cam.distanceMeters}m ({cam.bearing})
+                          </span>
+                          <span>•</span>
+                          <span>{cam.resolution}</span>
+                          <span>•</span>
+                          <span>{cam.retentionDays}-day retention</span>
+                          {cam.operator && (
+                            <>
+                              <span>•</span>
+                              <span className="truncate max-w-[120px]">{cam.operator}</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="xs"
+                        onClick={() => {
+                          const coords = `${cam.lat}, ${cam.lng}`;
+                          navigator.clipboard.writeText(coords);
+                          toast.success(`Copied camera coordinates: ${coords}`);
+                        }}
+                        className="h-7.5 px-2 text-[11px] gap-1 rounded-md border-border/80 cursor-pointer"
+                      >
+                        <Copy className="size-3 text-[#665AEF]" />
+                        <span>GPS</span>
+                      </Button>
+
+                      {isTagged ? (
+                        <div className="h-7.5 px-2.5 rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[11px] font-medium inline-flex items-center gap-1 font-mono">
+                          <CheckCircle2 className="size-3 text-emerald-400" />
+                          <span>Logged ({taggedCameraIds[cam.id].voucherId.slice(-4)})</span>
+                        </div>
+                      ) : (
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          size="xs"
+                          disabled={isTagging}
+                          onClick={() => handleTagFeed(cam)}
+                          className="h-7.5 px-2 text-[11px] gap-1 rounded-md bg-[#665AEF]/15 text-[#8E85FF] hover:bg-[#665AEF]/25 cursor-pointer font-medium"
+                        >
+                          {isTagging ? (
+                            <Loader2 className="size-3 animate-spin text-[#665AEF]" />
+                          ) : (
+                            <Camera className="size-3" />
+                          )}
+                          <span>{isTagging ? "Logging..." : "Tag Feed"}</span>
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          <div className="flex items-center justify-end pt-2 border-t-2 border-border/60">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setIsCctvModalOpen(false)}
+              className="h-8.5 rounded-lg border-2 border-border/80 cursor-pointer"
+            >
+              Close
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Manual Camera Registration Modal */}
+      <Modal
+        isOpen={isRegisterModalOpen}
+        onClose={() => setIsRegisterModalOpen(false)}
+        title="Register Physical Camera to Database"
+        description="Record a newly identified private or municipal camera spotted during crime scene canvassing."
+        className="sm:max-w-md"
+      >
+        <form onSubmit={handleRegisterNewCamera} className="space-y-3 pt-1">
+          <div className="space-y-1.5">
+            <Label htmlFor="reg-cam-name" className="text-xs font-semibold text-muted-foreground uppercase">Camera Identifier / Name</Label>
+            <Input
+              id="reg-cam-name"
+              value={newCamName}
+              onChange={(e) => setNewCamName(e.target.value)}
+              placeholder="e.g. Jewelers Corner Storefront Dome"
+              className="h-9 text-xs border-2 border-border/80 bg-background/50"
+              required
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-2.5">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-muted-foreground uppercase">Camera Type</Label>
+              <select
+                value={newCamType}
+                onChange={(e) => setNewCamType(e.target.value as any)}
+                className="h-9 w-full rounded-md border-2 border-border/80 bg-background text-xs px-2 text-foreground"
+              >
+                <option value="COMMERCIAL">Commercial CCTV</option>
+                <option value="TRAFFIC_ANPR">Traffic / ANPR</option>
+                <option value="MUNICIPAL_PTZ">Municipal 4K PTZ</option>
+                <option value="ATM_SECURITY">ATM / Bank Feed</option>
+              </select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-semibold text-muted-foreground uppercase">Retention Days</Label>
+              <Input
+                type="number"
+                min="1"
+                max="365"
+                value={newCamRetention}
+                onChange={(e) => setNewCamRetention(e.target.value)}
+                className="h-9 text-xs border-2 border-border/80 bg-background/50"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="reg-cam-op" className="text-xs font-semibold text-muted-foreground uppercase">Owner / Contact Phone</Label>
+            <Input
+              id="reg-cam-op"
+              value={newCamOperator}
+              onChange={(e) => setNewCamOperator(e.target.value)}
+              placeholder="e.g. Store Manager (555-0192)"
+              className="h-9 text-xs border-2 border-border/80 bg-background/50"
+            />
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-2 border-t-2 border-border/60">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setIsRegisterModalOpen(false)}
+              className="h-8.5 rounded-lg border-2 border-border/80 cursor-pointer"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              size="sm"
+              className="h-8.5 rounded-lg bg-[#665AEF] hover:bg-[#5749DF] text-white cursor-pointer px-3.5"
+            >
+              Save Camera Asset
+            </Button>
+          </div>
+        </form>
       </Modal>
     </form>
   );

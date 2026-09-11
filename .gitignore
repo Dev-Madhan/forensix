@@ -94,7 +94,9 @@ models/
 
 # AI Service outputs & heavy dataset collections
 outputs/
-**/outputs/
+# Research datasets
+ai-service/datasets/raw/
+ai-service/datasets/processed/
 **/datasets/FS2K/
 ai-service/datasets/**/*.jpg
 ai-service/datasets/**/*.jpeg

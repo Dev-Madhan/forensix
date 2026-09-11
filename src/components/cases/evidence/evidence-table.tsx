@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   Table,
@@ -22,6 +22,14 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
   MoreHorizontal,
   ChevronLeft,
   ChevronRight,
@@ -29,6 +37,7 @@ import {
   Download,
   Copy,
   Trash2,
+  AlertTriangle,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -46,6 +55,8 @@ interface EvidenceTableProps {
   totalPages: number;
   onPageChange: (p: number) => void;
   totalCount: number;
+  pageSize?: number;
+  onDeleteEvidence?: (item: EvidenceItem) => void;
   className?: string;
 }
 
@@ -62,23 +73,34 @@ export function EvidenceTable({
   totalPages,
   onPageChange,
   totalCount,
+  pageSize = 8,
+  onDeleteEvidence,
   className,
 }: EvidenceTableProps) {
+  const [deleteTarget, setDeleteTarget] = useState<EvidenceItem | null>(null);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+
+  const promptDelete = (item: EvidenceItem, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setDeleteTarget(item);
+    setIsDeleteDialogOpen(true);
+  };
+
   const isAllSelected =
     items.length > 0 && items.every((i) => selectedRowIds.has(i.id));
 
   const getTypeBadgeStyle = (type: string) => {
     switch (type) {
       case "Video":
-        return "border border-blue-500/30 bg-blue-500/15 text-blue-400";
+        return "border-2 border-blue-500/40 bg-blue-500/15 text-blue-400";
       case "Image":
-        return "border border-sky-500/30 bg-sky-500/15 text-sky-400";
+        return "border-2 border-sky-500/40 bg-sky-500/15 text-sky-400";
       case "Document":
-        return "border border-indigo-500/30 bg-indigo-500/15 text-indigo-400";
+        return "border-2 border-indigo-500/40 bg-indigo-500/15 text-indigo-400";
       case "Audio":
-        return "border border-teal-500/30 bg-teal-500/15 text-teal-400";
+        return "border-2 border-teal-500/40 bg-teal-500/15 text-teal-400";
       default:
-        return "border border-border/80 bg-muted/40 text-muted-foreground";
+        return "border-2 border-border/80 bg-muted/40 text-muted-foreground";
     }
   };
 
@@ -86,28 +108,28 @@ export function EvidenceTable({
     switch (status) {
       case "Verified":
         return (
-          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-medium border border-emerald-500/30 bg-emerald-500/15 text-emerald-400 whitespace-nowrap shadow-2xs">
+          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] text-[11px] font-medium border-2 border-emerald-500/40 bg-emerald-500/15 text-emerald-400 whitespace-nowrap shadow-2xs">
             <span className="size-1.5 rounded-full bg-emerald-400" />
             Verified
           </span>
         );
       case "Under Review":
         return (
-          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-medium border border-amber-500/30 bg-amber-500/15 text-amber-400 whitespace-nowrap shadow-2xs">
+          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] text-[11px] font-medium border-2 border-amber-500/40 bg-amber-500/15 text-amber-400 whitespace-nowrap shadow-2xs">
             <span className="size-1.5 rounded-full bg-amber-400" />
             Under Review
           </span>
         );
       case "Flagged":
         return (
-          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-medium border border-rose-500/30 bg-rose-500/15 text-rose-400 whitespace-nowrap shadow-2xs">
+          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] text-[11px] font-medium border-2 border-rose-500/40 bg-rose-500/15 text-rose-400 whitespace-nowrap shadow-2xs">
             <span className="size-1.5 rounded-full bg-rose-400" />
             Flagged
           </span>
         );
       default:
         return (
-          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[11px] font-medium border border-border/80 bg-muted/50 text-muted-foreground whitespace-nowrap">
+          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] text-[11px] font-medium border-2 border-border/80 bg-muted/50 text-muted-foreground whitespace-nowrap">
             {status}
           </span>
         );
@@ -123,7 +145,7 @@ export function EvidenceTable({
   return (
     <div
       className={cn(
-        "rounded-xl border-2 border-border bg-card/40 overflow-hidden shadow-xs [&>div]:overflow-x-auto [&>div]:scrollbar-none [&>div::-webkit-scrollbar]:hidden flex flex-col",
+        "rounded-xl border-2 border-border bg-card/40 overflow-hidden shadow-xs flex flex-col w-full [&>div]:overflow-x-hidden",
         className
       )}
     >
@@ -131,7 +153,7 @@ export function EvidenceTable({
         <TableHeader className="bg-card/70 border-b-2 border-border/60">
           <TableRow className="hover:bg-transparent">
             {/* Checkbox column */}
-            <TableHead className="w-9 px-2.5 py-3">
+            <TableHead className="w-8 px-2 py-3">
               <Checkbox
                 checked={isAllSelected}
                 onCheckedChange={onToggleSelectAll}
@@ -140,47 +162,47 @@ export function EvidenceTable({
             </TableHead>
 
             {/* Number column */}
-            <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase px-2 py-3 whitespace-nowrap w-8">
+            <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase px-1.5 py-3 whitespace-nowrap w-8 text-center">
               #
             </TableHead>
 
             {/* Preview column */}
-            <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase px-2 py-3 whitespace-nowrap w-12">
+            <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase px-1.5 py-3 whitespace-nowrap w-11 text-center">
               Preview
             </TableHead>
 
             {/* Evidence Name column */}
-            <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase px-2.5 py-3 whitespace-nowrap">
+            <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase px-2 py-3 whitespace-nowrap">
               Evidence Name
             </TableHead>
 
             {/* Type column */}
-            <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase px-2 py-3 whitespace-nowrap">
+            <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase px-1.5 py-3 whitespace-nowrap">
               Type
             </TableHead>
 
             {/* Source column */}
-            <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase px-2 py-3 whitespace-nowrap">
+            <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase px-1.5 py-3 whitespace-nowrap">
               Source
             </TableHead>
 
             {/* Added By column */}
-            <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase px-2 py-3 whitespace-nowrap">
+            <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase px-1.5 py-3 whitespace-nowrap">
               Added By
             </TableHead>
 
             {/* Date Added column */}
-            <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase px-2 py-3 whitespace-nowrap">
+            <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase px-1.5 py-3 whitespace-nowrap">
               Date Added
             </TableHead>
 
             {/* Status column */}
-            <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase px-2 py-3 whitespace-nowrap">
+            <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase px-1.5 py-3 whitespace-nowrap">
               Status
             </TableHead>
 
             {/* Actions column */}
-            <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase text-right pr-3 py-3 whitespace-nowrap w-12">
+            <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase text-right pr-3 py-3 whitespace-nowrap w-10">
               Actions
             </TableHead>
           </TableRow>
@@ -212,9 +234,12 @@ export function EvidenceTable({
               </TableCell>
             </TableRow>
           ) : (
-            items.map((item) => {
+            items.map((item, index) => {
               const isSelected = item.id === selectedEvidenceId;
               const isChecked = selectedRowIds.has(item.id);
+              const serialNumber = String(
+                (currentPage - 1) * pageSize + index + 1
+              ).padStart(2, "0");
 
               return (
                 <TableRow
@@ -229,7 +254,7 @@ export function EvidenceTable({
                 >
                   {/* Checkbox */}
                   <TableCell
-                    className="w-9 px-2.5 py-3"
+                    className="w-8 px-2 py-2.5"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <Checkbox
@@ -239,33 +264,39 @@ export function EvidenceTable({
                     />
                   </TableCell>
 
-                  {/* Number */}
-                  <TableCell className="font-sans tabular-nums font-medium text-xs text-muted-foreground px-2 py-3 whitespace-nowrap w-8">
-                    {item.id}
+                  {/* Serial Number */}
+                  <TableCell className="font-sans tabular-nums font-medium text-xs text-muted-foreground px-1.5 py-2.5 whitespace-nowrap w-8 text-center">
+                    {serialNumber}
                   </TableCell>
 
                   {/* Preview Thumbnail */}
-                  <TableCell className="px-2 py-2 whitespace-nowrap w-12">
+                  <TableCell className="px-1.5 py-2 whitespace-nowrap w-11">
                     <EvidenceThumbnail item={item} size="md" />
                   </TableCell>
 
                   {/* Evidence Name & Description */}
-                  <TableCell className="px-2.5 py-3 whitespace-nowrap max-w-32.5 2xl:max-w-42.5">
+                  <TableCell className="px-2 py-2.5 min-w-0 max-w-36 lg:max-w-44">
                     <div className="space-y-0.5 min-w-0">
-                      <span className="font-semibold text-foreground text-xs sm:text-sm block hover:text-[#665AEF] transition-colors truncate">
+                      <span
+                        className="font-semibold text-foreground text-xs block hover:text-[#665AEF] transition-colors truncate"
+                        title={item.name}
+                      >
                         {item.name}
                       </span>
-                      <span className="text-[11px] text-muted-foreground block truncate">
+                      <span
+                        className="text-[11px] text-muted-foreground block truncate"
+                        title={item.description}
+                      >
                         {item.description}
                       </span>
                     </div>
                   </TableCell>
 
                   {/* Type Badge */}
-                  <TableCell className="px-2 py-3 whitespace-nowrap">
+                  <TableCell className="px-1.5 py-2.5 whitespace-nowrap">
                     <span
                       className={cn(
-                        "inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-medium border-2 whitespace-nowrap shadow-2xs",
+                        "inline-flex items-center rounded-[4px] px-1.5 py-0.5 text-[10.5px] font-medium border-2 whitespace-nowrap shadow-2xs",
                         getTypeBadgeStyle(item.type)
                       )}
                     >
@@ -274,14 +305,14 @@ export function EvidenceTable({
                   </TableCell>
 
                   {/* Source */}
-                  <TableCell className="text-xs text-muted-foreground px-2 py-3 whitespace-nowrap">
+                  <TableCell className="text-xs text-muted-foreground px-1.5 py-2.5 whitespace-nowrap">
                     {item.source}
                   </TableCell>
 
                   {/* Added By */}
-                  <TableCell className="px-2 py-3 whitespace-nowrap">
+                  <TableCell className="px-1.5 py-2.5 whitespace-nowrap">
                     <div className="flex items-center gap-1.5">
-                      <Avatar className="size-5 border-2 border-border shrink-0">
+                      <Avatar className="size-5 border border-border shrink-0">
                         {item.addedBy.avatar && (
                           <AvatarImage
                             src={item.addedBy.avatar}
@@ -292,32 +323,32 @@ export function EvidenceTable({
                           {item.addedBy.initials}
                         </AvatarFallback>
                       </Avatar>
-                      <span className="font-medium text-foreground text-xs truncate max-w-21.25">
+                      <span className="font-medium text-foreground text-xs truncate max-w-20">
                         {item.addedBy.name}
                       </span>
                     </div>
                   </TableCell>
 
                   {/* Date Added */}
-                  <TableCell className="text-xs text-muted-foreground px-2 py-3 whitespace-nowrap">
+                  <TableCell className="text-xs text-muted-foreground px-1.5 py-2.5 whitespace-nowrap">
                     <div className="space-y-0.5">
-                      <span className="font-medium text-foreground text-xs block">
+                      <span className="font-medium text-foreground text-[11px] block">
                         {item.dateAdded}
                       </span>
-                      <span className="text-[11px] text-muted-foreground block">
+                      <span className="text-[10px] text-muted-foreground block">
                         {item.timeAdded}
                       </span>
                     </div>
                   </TableCell>
 
                   {/* Status */}
-                  <TableCell className="px-2 py-3 whitespace-nowrap">
+                  <TableCell className="px-1.5 py-2.5 whitespace-nowrap">
                     {renderStatusBadge(item.status)}
                   </TableCell>
 
-                  {/* Actions dropdown */}
+                  {/* Actions column */}
                   <TableCell
-                    className="text-right pr-3 py-3 whitespace-nowrap w-12"
+                    className="text-right pr-3 py-2.5 whitespace-nowrap w-10"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <DropdownMenu>
@@ -334,39 +365,37 @@ export function EvidenceTable({
                         <span className="sr-only">Row actions</span>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent
-                        align="end"
-                        side="bottom"
-                        sideOffset={6}
-                        className="w-44 p-1 rounded-xl shadow-xl bg-card/95 backdrop-blur-xl border-2 border-border text-xs"
-                      >
-                        <DropdownMenuItem onClick={() => onSelectEvidence(item)}>
-                          <Eye className="size-3.5 mr-2 text-muted-foreground" />
-                          <span>Preview Details</span>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={(e) => copyHash(item.hash, e)}>
-                          <Copy className="size-3.5 mr-2 text-muted-foreground" />
-                          <span>Copy SHA-256</span>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onClick={() =>
-                            toast.success(`Downloading ${item.name}`)
-                          }
+                          align="end"
+                          side="bottom"
+                          sideOffset={6}
+                          className="w-44 p-1 rounded-xl shadow-xl bg-card/95 backdrop-blur-xl border-2 border-border text-xs"
                         >
-                          <Download className="size-3.5 mr-2 text-muted-foreground" />
-                          <span>Download File</span>
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          className="text-rose-400 focus:text-rose-400"
-                          onClick={() =>
-                            toast.info(`Flagged ${item.name} for chain of custody review`)
-                          }
-                        >
-                          <Trash2 className="size-3.5 mr-2" />
-                          <span>Flag for Review</span>
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                          <DropdownMenuItem onClick={() => onSelectEvidence(item)}>
+                            <Eye className="size-3.5 mr-2 text-muted-foreground" />
+                            <span>Preview Details</span>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={(e) => copyHash(item.hash, e)}>
+                            <Copy className="size-3.5 mr-2 text-muted-foreground" />
+                            <span>Copy SHA-256</span>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() =>
+                              toast.success(`Downloading ${item.name}`)
+                            }
+                          >
+                            <Download className="size-3.5 mr-2 text-muted-foreground" />
+                            <span>Download File</span>
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            className="text-rose-400 focus:text-rose-400 focus:bg-rose-500/10 cursor-pointer"
+                            onClick={(e) => promptDelete(item, e)}
+                          >
+                            <Trash2 className="size-3.5 mr-2 text-rose-400" />
+                            <span>Delete Evidence</span>
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                   </TableCell>
                 </TableRow>
               );
@@ -427,6 +456,81 @@ export function EvidenceTable({
           </Button>
         </div>
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent className="sm:max-w-md bg-card/95 backdrop-blur-xl border-2 border-border/80 text-foreground p-6 gap-0 shadow-2xl rounded-2xl">
+          <DialogHeader className="pb-2 space-y-1.5 pr-6">
+            <DialogTitle className="text-base font-bold font-heading text-foreground tracking-tight">
+              Delete Evidence
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground leading-relaxed">
+              Are you sure want to delete it? This action cannot be reversed.
+            </DialogDescription>
+          </DialogHeader>
+
+          {deleteTarget && (
+            <div className="mt-3 p-3 rounded-md bg-muted/30 border-2 border-border text-xs space-y-1.5">
+              <div className="flex items-center justify-between text-muted-foreground">
+                <span>File Name:</span>
+                <span className="font-semibold text-foreground truncate max-w-48">
+                  {deleteTarget.name}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-muted-foreground">
+                <span>Category:</span>
+                <span className="font-medium text-foreground">
+                  {deleteTarget.type} ({deleteTarget.source})
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-muted-foreground">
+                <span>Evidence ID / Hash:</span>
+                <span className="font-mono text-[11px] text-muted-foreground truncate max-w-48">
+                  {deleteTarget.hash}
+                </span>
+              </div>
+            </div>
+          )}
+
+          <div className="mt-3 text-xs text-rose-400 flex items-start gap-1.5 leading-relaxed">
+            <AlertTriangle className="size-3.5 shrink-0 text-rose-400 mt-0.5" />
+            <span>
+              This file will be permanently removed from this case. Chain-of-custody records will reflect its deletion.
+            </span>
+          </div>
+
+          <DialogFooter className="mt-5 flex flex-row items-center justify-end gap-2.5">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="cursor-pointer text-xs"
+              onClick={() => {
+                setIsDeleteDialogOpen(false);
+                setDeleteTarget(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              size="sm"
+              className="cursor-pointer text-xs bg-rose-600 hover:bg-rose-700 text-white font-medium"
+              onClick={() => {
+                if (deleteTarget) {
+                  onDeleteEvidence?.(deleteTarget);
+                  setIsDeleteDialogOpen(false);
+                  setDeleteTarget(null);
+                }
+              }}
+            >
+              <Trash2 className="size-3.5 mr-1.5" />
+              Delete Evidence
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -1,0 +1,47 @@
+{
+  "project": "Criminal Eye / Forensix AI",
+  "benchmark": "FS2K Cross-Domain Photo-Sketch Evaluation",
+  "timestamp": "2026-09-11T16:22:25.949451+00:00",
+  "pairs_evaluated": 100,
+  "execution_duration_sec": 12.723,
+  "aggregate_metrics": {
+    "mean_psnr_db": 7.18,
+    "mean_ssim": 0.2937,
+    "mean_l1_loss": 0.3697,
+    "mean_edge_gradient_correlation": 0.0229
+  },
+  "per_style_breakdown": {
+    "style1": {
+      "count": 0,
+      "metrics": {
+        "mean_psnr_db": 0.0,
+        "mean_ssim": 0.0,
+        "mean_l1_loss": 0.0,
+        "mean_edge_corr": 0.0
+      }
+    },
+    "style2": {
+      "count": 100,
+      "metrics": {
+        "mean_psnr_db": 7.18,
+        "mean_ssim": 0.2937,
+        "mean_l1_loss": 0.3697,
+        "mean_edge_corr": 0.0229
+      }
+    },
+    "style3": {
+      "count": 0,
+      "metrics": {
+        "mean_psnr_db": 0.0,
+        "mean_ssim": 0.0,
+        "mean_l1_loss": 0.0,
+        "mean_edge_corr": 0.0
+      }
+    }
+  },
+  "benchmark_protocol_notes": [
+    "Evaluated on 512x512 normalized coordinate space matching ControlNet Lineart canvas",
+    "SSIM and edge correlation quantify cross-domain structural preservation between photographs and artist sketches",
+    "Serves as the empirical baseline for evaluating future ControlNet + SD1.5 sketch synthesis models"
+  ]
+}

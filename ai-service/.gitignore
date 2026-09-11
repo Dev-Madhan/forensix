@@ -49,7 +49,9 @@ outputs/
 *.tflite
 *.weights
 
-# Datasets - ignore raw dataset collections/images, keep taxonomy folders and metadata
+# Research datasets
+datasets/raw/
+datasets/processed/
 datasets/FS2K/
 datasets/**/*.jpg
 datasets/**/*.jpeg

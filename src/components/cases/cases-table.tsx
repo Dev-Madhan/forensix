@@ -245,26 +245,26 @@ export function CasesTable({ initialCases = [] }: CasesTableProps) {
     switch (status) {
       case "Under Investigation":
         return (
-          <span className="inline-flex items-center rounded-md border border-[#665AEF]/30 bg-[#665AEF]/15 px-2 py-0.5 text-[11px] font-medium text-[#a594fd] whitespace-nowrap">
+          <span className="inline-flex items-center rounded-[4px] border-2 border-[#665AEF]/40 bg-[#665AEF]/15 px-2 py-0.5 text-[11px] font-medium text-[#a594fd] whitespace-nowrap">
             Under Investigation
           </span>
         );
       case "Open":
         return (
-          <span className="inline-flex items-center rounded-md border border-blue-500/30 bg-blue-500/15 px-2 py-0.5 text-[11px] font-medium text-blue-400 whitespace-nowrap">
+          <span className="inline-flex items-center rounded-[4px] border-2 border-blue-500/40 bg-blue-500/15 px-2 py-0.5 text-[11px] font-medium text-blue-400 whitespace-nowrap">
             Open
           </span>
         );
       case "Solved":
         return (
-          <span className="inline-flex items-center rounded-md border border-emerald-500/30 bg-emerald-500/15 px-2 py-0.5 text-[11px] font-medium text-emerald-400 whitespace-nowrap">
+          <span className="inline-flex items-center rounded-[4px] border-2 border-emerald-500/40 bg-emerald-500/15 px-2 py-0.5 text-[11px] font-medium text-emerald-400 whitespace-nowrap">
             Solved
           </span>
         );
       case "Closed":
       default:
         return (
-          <span className="inline-flex items-center rounded-md border border-border/80 bg-muted/50 px-2 py-0.5 text-[11px] font-medium text-muted-foreground whitespace-nowrap">
+          <span className="inline-flex items-center rounded-[4px] border-2 border-border/80 bg-muted/50 px-2 py-0.5 text-[11px] font-medium text-muted-foreground whitespace-nowrap">
             {status}
           </span>
         );

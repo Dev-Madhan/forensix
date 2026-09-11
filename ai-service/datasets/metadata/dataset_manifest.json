@@ -1,7 +1,7 @@
 {
   "project": "Criminal Eye / Forensix AI",
-  "version": "1.0.0",
-  "generated_at": "2026-09-04T00:00:00Z",
+  "version": "1.1.0",
+  "last_updated": "2026-09-11T21:49:00Z",
   "models": [
     {
       "name": "Qwen3-8B-Q4_K_M",
@@ -42,22 +42,67 @@
   ],
   "datasets": [
     {
+      "name": "CelebAMask-HQ",
+      "version": "1.1",
+      "status": "validated",
+      "source": "https://github.com/switchablenorms/CelebAMask-HQ",
+      "license": "Non-commercial research only",
+      "raw_path": "datasets/raw/CelebAMask-HQ",
+      "processed_path": "datasets/processed/CelebAMask-HQ",
+      "total_images": 30000,
+      "total_masks": 372767,
+      "classes": 19,
+      "purpose": [
+        "facial_component_segmentation",
+        "facial_parsing",
+        "geometry_reference",
+        "component_catalog_development"
+      ],
+      "usage_notes": "30,000 high-resolution face images (1024x1024) and 372,767 component masks (512x512) for forensic feature extraction."
+    },
+    {
       "name": "FS2K",
       "version": "1.0",
+      "status": "validated",
       "source": "https://github.com/DengPingFan/FS2K",
       "license": "Research and non-commercial forensic evaluation",
-      "download_date": "2026-09-04",
-      "checksum": "sha256-fs2k-archive",
+      "raw_path": "datasets/raw/FS2K",
+      "processed_path": "datasets/processed/FS2K",
+      "total_photos": 2104,
+      "total_sketches": 2104,
+      "splits": {
+        "train": 1058,
+        "test": 1046
+      },
+      "styles": [
+        "style1",
+        "style2",
+        "style3"
+      ],
+      "purpose": [
+        "photo_sketch_pairs",
+        "sketch_domain_learning",
+        "cross_domain_evaluation",
+        "controlnet_conditioning"
+      ],
       "usage_notes": "2,104 paired photo/sketch instances for forensic composite benchmarking and LoRA calibration."
     },
     {
       "name": "Criminal Eye Component Dataset",
       "version": "1.0",
+      "status": "active",
       "source": "local-curated",
       "license": "Internal Forensix Project License",
-      "download_date": "2026-09-04",
-      "checksum": "local-tree",
-      "usage_notes": "Taxonomy-aligned facial feature components (eyes, eyebrows, noses, mouths, jaws, face shapes)."
+      "taxonomy_path": "datasets/components",
+      "categories": [
+        "eyebrows",
+        "eyes",
+        "face_shapes",
+        "jaws",
+        "mouths",
+        "noses"
+      ],
+      "usage_notes": "Taxonomy-aligned facial feature components used for modular composite sketch construction."
     }
   ]
 }

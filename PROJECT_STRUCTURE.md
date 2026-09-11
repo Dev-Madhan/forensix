@@ -179,6 +179,16 @@ forensix/
 │   │       └── files.py                    # Secure path resolution, file writing, and cleaning
 │   │
 │   ├── datasets/                           # Forensic attribute catalogs and training splits
+│   │   ├── raw/                            # Original research datasets (git ignored)
+│   │   │   ├── CelebAMask-HQ/              # 30,000 images, 372,776 masks, annotations, README.md
+│   │   │   │   ├── images/                 # 1024x1024 high-resolution face images
+│   │   │   │   └── masks/                  # 15 subfolders (0-14) of 512x512 component masks
+│   │   │   └── FS2K/                       # 2,104 photo/sketch benchmark pairs, annotations, README.md
+│   │   │       ├── photo/                  # photo1, photo2, photo3
+│   │   │       └── sketch/                 # sketch1, sketch2, sketch3
+│   │   ├── processed/                      # Preprocessing pipeline outputs (git ignored)
+│   │   │   ├── CelebAMask-HQ/              # components, geometry, normalized
+│   │   │   └── FS2K/                       # aligned, normalized, metadata
 │   │   ├── components/                     # Categorized composite facial feature templates
 │   │   │   ├── eyebrows/                   # Eyebrow shape references (.gitkeep)
 │   │   │   ├── eyes/                       # Eye geometry (almond, narrow, round)
@@ -186,7 +196,6 @@ forensix/
 │   │   │   ├── jaws/                       # Chin and jawline templates (.gitkeep)
 │   │   │   ├── mouths/                     # Lip and mouth templates (.gitkeep)
 │   │   │   └── noses/                      # Nose structures (broad, narrow, straight)
-│   │   ├── FS2K/                           # Forensic Sketch 2000 dataset integration point
 │   │   └── metadata/                       # Dataset manifest and train/validation splits
 │   │       ├── dataset_manifest.json       # Component taxonomy and metadata dictionary
 │   │       └── splits.json                 # Dataset partition declarations
@@ -615,12 +624,15 @@ Implements the **Adapter Pattern** with abstract base classes (`base.py`), enabl
 - **`mediapipe/face_landmarker.task`**: MediaPipe binary task detecting 468 3D facial landmarks to construct normalized coordinate guidance.
 
 #### Forensic Feature Datasets (`ai-service/datasets`)
+- **`raw/`**: Verified original research datasets (excluded from git):
+  - `CelebAMask-HQ/`: 30,000 high-resolution images and 372,776 component segmentation masks across 15 subfolders for facial parsing.
+  - `FS2K/`: 2,104 paired photographs and sketches across 3 styles for cross-domain synthesis and evaluation.
+- **`processed/`**: Output directories for extraction pipelines (`CelebAMask-HQ/`, `FS2K/`).
 - **`components/`**: Modular repository of feature references categorized by facial attribute:
   - `eyes/` (`almond/`, `narrow/`, `round/`)
   - `noses/` (`broad/`, `narrow/`, `straight/`)
   - `eyebrows/`, `face_shapes/`, `jaws/`, `mouths/`
-- **`metadata/dataset_manifest.json`**: Standardized taxonomy defining forensic attribute vocabularies.
-- **`FS2K/`**: Designated mount point for the Forensic Sketch 2000 evaluation benchmark dataset.
+- **`metadata/`**: Manifests (`dataset_manifest.json`) and benchmark splits (`splits.json`).
 
 #### Test Suite & Automation Scripts
 - **`scripts/`**: PowerShell scripts to initialize local services:

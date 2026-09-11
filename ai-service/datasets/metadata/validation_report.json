@@ -1,0 +1,115 @@
+{
+  "project": "Criminal Eye / Forensix AI",
+  "timestamp": "2026-09-11T16:19:34.219005+00:00",
+  "execution_duration_sec": 0.951,
+  "overall_status": "PASSED",
+  "all_checks_passed": true,
+  "results": {
+    "CelebAMask-HQ": {
+      "dataset": "CelebAMask-HQ",
+      "status": "PASSED",
+      "checks": {
+        "images_dir_exists": true,
+        "masks_dir_exists": true,
+        "mapping_file_exists": true,
+        "attribute_anno_exists": true,
+        "pose_anno_exists": true,
+        "image_count_30000": true,
+        "mask_subdirs_15": true,
+        "mask_count_verified": true,
+        "image_dimension_1024x1024": true,
+        "mask_dimension_512x512": true
+      },
+      "metrics": {
+        "total_images": 30000,
+        "mask_subdirectories": 15,
+        "total_masks": 372767,
+        "detected_component_classes": [
+          "cloth",
+          "ear_r",
+          "eye_g",
+          "hair",
+          "hat",
+          "l_brow",
+          "l_ear",
+          "l_eye",
+          "l_lip",
+          "mouth",
+          "neck",
+          "nose",
+          "r_brow",
+          "r_ear",
+          "r_eye",
+          "skin",
+          "u_lip"
+        ],
+        "sampled_images_checked": 7
+      },
+      "errors": []
+    },
+    "FS2K": {
+      "dataset": "FS2K",
+      "status": "PASSED",
+      "checks": {
+        "photo_dir_exists": true,
+        "sketch_dir_exists": true,
+        "anno_train_exists": true,
+        "anno_test_exists": true,
+        "total_photos_2104": true,
+        "total_sketches_2104": true,
+        "train_split_1058": true,
+        "test_split_1046": true,
+        "total_split_2104": true,
+        "all_pairs_resolved_on_disk": true,
+        "attributes_schema_compliant": true,
+        "samples_readable": true
+      },
+      "metrics": {
+        "photo_counts": {
+          "photo1": 1529,
+          "photo2": 98,
+          "photo3": 477
+        },
+        "total_photos": 2104,
+        "sketch_counts": {
+          "sketch1": 1529,
+          "sketch2": 98,
+          "sketch3": 477
+        },
+        "total_sketches": 2104,
+        "train_items": 1058,
+        "test_items": 1046,
+        "total_annotated_pairs": 2104,
+        "missing_photo_files": 0,
+        "missing_sketch_files": 0,
+        "sample_photo_size": [
+          250,
+          250
+        ],
+        "sample_sketch_size": [
+          250,
+          250
+        ]
+      },
+      "errors": []
+    }
+  },
+  "summary": {
+    "total_face_images": 30000,
+    "total_component_masks": 372767,
+    "total_photo_sketch_pairs": 2104,
+    "official_splits": {
+      "CelebAMask-HQ": {
+        "total": 30000,
+        "train": 24183,
+        "val": 2993,
+        "test": 2824
+      },
+      "FS2K": {
+        "total": 2104,
+        "train": 1058,
+        "test": 1046
+      }
+    }
+  }
+}

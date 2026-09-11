@@ -68,9 +68,9 @@ export function CaseFormSkeleton({ mode = "new" }: CaseFormSkeletonProps) {
                 </div>
               </div>
 
-              {/* Row 2: Case Type, Status, Priority Dropdowns */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 sm:gap-4">
-                {[1, 2, 3].map((i) => (
+              {/* Row 2: Case Type, Status, Priority, Date, Time Dropdowns */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3.5 sm:gap-4">
+                {[1, 2, 3, 4, 5].map((i) => (
                   <div key={i} className="space-y-2">
                     <Skeleton className="h-3 w-20 rounded bg-muted/50" />
                     <Skeleton className="h-10 w-full rounded-lg border-2 border-border/70 bg-background/50" />
@@ -93,19 +93,7 @@ export function CaseFormSkeleton({ mode = "new" }: CaseFormSkeletonProps) {
             </CardHeader>
 
             <CardContent className="p-4 sm:p-6 pt-4 sm:pt-5 space-y-4 sm:space-y-5">
-              {/* Row 1: Date Reported & Time of Incident */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                <div className="space-y-2">
-                  <Skeleton className="h-3 w-24 rounded bg-muted/50" />
-                  <Skeleton className="h-10 w-full rounded-lg border-2 border-border/70 bg-background/50" />
-                </div>
-                <div className="space-y-2">
-                  <Skeleton className="h-3 w-28 rounded bg-muted/50" />
-                  <Skeleton className="h-10 w-full rounded-lg border-2 border-border/70 bg-background/50" />
-                </div>
-              </div>
-
-              {/* Row 2: Region / City & Street Landmark */}
+              {/* Row 1: Region / City & Street Landmark */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div className="space-y-2">
                   <Skeleton className="h-3 w-28 rounded bg-muted/50" />
