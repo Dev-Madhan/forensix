@@ -197,6 +197,7 @@ from fastapi.staticfiles import StaticFiles
 output_path = Path(settings.OUTPUT_DIR)
 output_path.mkdir(parents=True, exist_ok=True)
 app.mount("/outputs", StaticFiles(directory=str(output_path)), name="outputs")
+app.mount("/storage", StaticFiles(directory=str(output_path)), name="storage")
 
 
 # --- Root Endpoint ---

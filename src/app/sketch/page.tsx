@@ -1,17 +1,20 @@
-export default function SketchPage() {
+import { Metadata } from "next";
+import { getStudioInitialData } from "@/features/sketches/actions";
+import { ForensicSketchStudio } from "@/components/sketch/forensic-sketch-studio";
+
+export const metadata: Metadata = {
+  title: "Forensic Sketch Studio | Criminal Eye",
+  description:
+    "Interactive AI forensic composite sketch generation with witness NLP tokenization, ControlNet lineart conditioning, and biometric suspect recognition.",
+};
+export const dynamic = "force-dynamic";
+
+export default async function SketchPage() {
+  const { cases, criminals } = await getStudioInitialData();
+
   return (
-    <div className="flex min-h-[calc(100vh-5rem)] flex-col items-center justify-center p-8 text-center bg-background text-foreground">
-      <div className="max-w-2xl flex flex-col items-center gap-4">
-        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-border bg-surface text-xs font-mono text-muted-foreground">
-          <span>/sketch</span>
-        </div>
-        <h1 className="text-4xl md:text-5xl font-bold tracking-tight font-heading">
-          AI Sketch Generator
-        </h1>
-        <p className="text-muted-foreground text-lg">
-          Generate realistic forensic composites from witness natural language descriptions using diffusion models and facial attribute synthesis.
-        </p>
-      </div>
+    <div className="flex min-h-[calc(100vh-4rem)] flex-col bg-background text-foreground">
+      <ForensicSketchStudio initialCases={cases} initialCriminals={criminals} />
     </div>
   );
 }

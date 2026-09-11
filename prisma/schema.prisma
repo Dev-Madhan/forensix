@@ -126,6 +126,7 @@ model Criminal {
   mugshotUrl         String?
   demographics       Json? // e.g., height, eye color, tattoos
   lastKnownLocation  String?
+  embedding          Unsupported("vector(512)")?
   recognitionResults RecognitionResult[]
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt

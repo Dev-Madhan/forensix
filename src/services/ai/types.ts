@@ -76,4 +76,6 @@ export interface RecognitionSearchRequest {
 export interface RecognitionSearchResponse extends BaseAIResponse {
   case_id: string;
   matches: SuspectMatch[];
+  query_embedding?: number[];
+  vector_engine?: string;
 }

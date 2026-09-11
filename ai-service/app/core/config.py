@@ -37,12 +37,12 @@ class Settings(BaseSettings):
     MAX_DESCRIPTION_LENGTH: int = 5000
     MIN_DESCRIPTION_LENGTH: int = 10
 
-    # Phase 7 AI Providers (Defaults to mock)
-    LLM_PROVIDER: str = "mock"
+    # Phase 7 AI Providers (Configured for local inference engine)
+    LLM_PROVIDER: str = "qwen_local"
     LLM_API_KEY: str | None = None
-    SKETCH_PROVIDER: str = "mock"
+    SKETCH_PROVIDER: str = "diffusion_local"
     SKETCH_MODEL: str | None = None
-    FACE_PROVIDER: str = "mock"
+    FACE_PROVIDER: str = "insightface"
     FACE_MODEL: str | None = None
 
     # Local Model Configurations (RTX 4050 6GB Optimized)

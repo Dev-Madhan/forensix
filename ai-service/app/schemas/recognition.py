@@ -58,5 +58,13 @@ class RecognitionSearchResponse(BaseResponse):
     case_id: str
     matches: List[SuspectMatch] = Field(
         default_factory=list,
-        description="Ranked candidate matches returned by facial recognition search (Phase 7 adapter)",
+        description="Ranked candidate matches returned by facial recognition search (Phase 7 pgvector/InsightFace)",
+    )
+    query_embedding: Optional[List[float]] = Field(
+        default=None,
+        description="512-dimensional facial embedding vector extracted via InsightFace ArcFace",
+    )
+    vector_engine: Optional[str] = Field(
+        default="insightface_pgvector",
+        description="Biometric vector indexing engine (InsightFace ArcFace 512D + Neon pgvector)",
     )

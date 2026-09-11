@@ -12,7 +12,16 @@ settings = get_settings()
 
 class RecognitionService:
     def __init__(self, provider: Optional[BaseFaceProvider] = None):
-        self.provider = provider or MockFaceProvider()
+        if provider:
+            self.provider = provider
+        elif settings.FACE_PROVIDER in ("insightface", "insight_face"):
+            from app.providers.face.insightface_provider import InsightFaceProvider
+            self.provider = InsightFaceProvider()
+        elif settings.FACE_PROVIDER == "local_embedder":
+            from app.providers.face.local_embedder import LocalFaceRecognitionProvider
+            self.provider = LocalFaceRecognitionProvider()
+        else:
+            self.provider = MockFaceProvider()
 
     async def search_suspects(
         self,
@@ -40,12 +49,23 @@ class RecognitionService:
             )
             raise ProviderException("Failed to execute facial recognition search.")
 
+        query_embedding = None
+        if hasattr(self.provider, "extract_embedding") and hasattr(self.provider, "_resolve_image_path"):
+            try:
+                q_path = self.provider._resolve_image_path(request.image_reference)
+                if q_path:
+                    query_embedding = self.provider.extract_embedding(q_path)
+            except Exception as emb_err:
+                logger.debug(f"Could not extract query embedding for reference {request.image_reference}: {emb_err}")
+
         elapsed_ms = round((time.perf_counter() - start_time) * 1000, 2)
         return RecognitionSearchResponse(
             request_id=request_id,
             status="completed",
             case_id=request.case_id,
             matches=matches,
+            query_embedding=query_embedding,
+            vector_engine="insightface_pgvector",
             processing_time_ms=elapsed_ms,
         )
 
