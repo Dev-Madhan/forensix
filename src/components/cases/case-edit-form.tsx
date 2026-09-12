@@ -1378,7 +1378,7 @@ export function CaseEditForm({ caseData }: CaseEditFormProps) {
                   </span>
                 </div>
 
-                <div className="grid grid-cols-2 xs:grid-cols-4 gap-1 sm:gap-1.5">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
                   {[
                     { id: "lead", label: "Lead Custodian", desc: "Evidence Handler" },
                     { id: "examiner", label: "Forensic Examiner", desc: "DFIR Analysis" },
@@ -1672,7 +1672,7 @@ export function CaseEditForm({ caseData }: CaseEditFormProps) {
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-4 gap-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                       {[
                         { val: "50", label: "50m", desc: "Immediate" },
                         { val: "100", label: "100m", desc: "Nearby" },
@@ -1695,7 +1695,7 @@ export function CaseEditForm({ caseData }: CaseEditFormProps) {
                               {r.label}
                             </span>
                             <span
-                              className={`text-[10px] mt-1 font-medium leading-tight truncate w-full ${
+                              className={`text-[10px] mt-1 font-medium leading-tight text-center w-full ${
                                 isSelected ? "text-[#9d94ff]" : "text-muted-foreground"
                               }`}
                             >
@@ -1713,7 +1713,7 @@ export function CaseEditForm({ caseData }: CaseEditFormProps) {
                         <span className="font-semibold text-foreground text-[11px] truncate">
                           {canvassMetrics.totalCameraCount} Cameras Detected
                         </span>
-                        <span className="text-[10px] text-muted-foreground hidden xs:inline">
+                        <span className="text-[10px] text-muted-foreground hidden sm:inline">
                           ({canvassMetrics.areaSquareMeters.toLocaleString()} m²)
                         </span>
                       </div>
@@ -1727,74 +1727,73 @@ export function CaseEditForm({ caseData }: CaseEditFormProps) {
                       </button>
                     </div>
 
-                    <div className="flex items-center justify-between gap-2 pt-2 border-t border-border/40 text-xs">
+                    <div className="grid grid-cols-3 gap-1.5 pt-2 border-t border-border/40 text-xs sm:flex sm:items-center sm:justify-between">
                       <button
                         type="button"
                         onClick={handleCopyCoordinates}
-                        className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground font-medium transition-colors cursor-pointer py-1 px-2 rounded-md hover:bg-muted/50"
+                        className="inline-flex items-center justify-center gap-1 sm:gap-1.5 text-xs text-muted-foreground hover:text-foreground font-medium transition-colors cursor-pointer py-1.5 px-2 rounded-md hover:bg-muted/50 bg-background/40 sm:bg-transparent border border-border/50 sm:border-transparent active:scale-95 touch-manipulation"
                       >
-                        <Copy className="size-3.5 text-[#665AEF]" />
+                        <Copy className="size-3.5 text-[#665AEF] shrink-0" />
                         <span>Copy GPS</span>
                       </button>
-                      <div className="flex items-center gap-1.5">
-                        <button
-                          type="button"
-                          onClick={handleOpenMapPicker}
-                          className="inline-flex items-center gap-1 text-xs text-[#665AEF] hover:text-[#7f74ff] font-medium transition-colors cursor-pointer py-1 px-2 rounded-md hover:bg-[#665AEF]/10"
-                        >
-                          <Compass className="size-3.5" />
-                          <span>Radar Map</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleOpenGoogleMaps}
-                          className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground font-medium transition-colors cursor-pointer py-1 px-2 rounded-md hover:bg-muted/50"
-                        >
-                          <ExternalLink className="size-3.5" />
-                          <span>Satellite</span>
-                        </button>
-                      </div>
+                      <button
+                        type="button"
+                        onClick={handleOpenMapPicker}
+                        className="inline-flex items-center justify-center gap-1 text-xs text-[#665AEF] hover:text-[#7f74ff] font-medium transition-colors cursor-pointer py-1.5 px-2 rounded-md hover:bg-[#665AEF]/10 bg-[#665AEF]/5 sm:bg-transparent border border-[#665AEF]/20 sm:border-transparent active:scale-95 touch-manipulation"
+                      >
+                        <Compass className="size-3.5 shrink-0" />
+                        <span>Radar Map</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleOpenGoogleMaps}
+                        className="inline-flex items-center justify-center gap-1 text-xs text-muted-foreground hover:text-foreground font-medium transition-colors cursor-pointer py-1.5 px-2 rounded-md hover:bg-muted/50 bg-background/40 sm:bg-transparent border border-border/50 sm:border-transparent active:scale-95 touch-manipulation"
+                      >
+                        <ExternalLink className="size-3.5 shrink-0" />
+                        <span>Satellite</span>
+                      </button>
                     </div>
                   </div>
 
                   {/* Tagged Feeds Subpoena Ledger Card */}
                   {taggedFeedsList.length > 0 && (
                     <div className="p-3 sm:p-3.5 rounded-xl border-2 border-emerald-500/30 bg-emerald-500/5 space-y-2.5">
-                      <div className="flex items-center justify-between gap-2">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
                         <div className="flex items-center gap-1.5 min-w-0">
                           <FileCheck2 className="size-3.5 text-emerald-400 shrink-0" />
-                          <span className="text-[11px] sm:text-xs font-bold text-foreground uppercase tracking-wider truncate">
+                          <span className="text-[11px] sm:text-xs font-bold text-foreground uppercase tracking-wider">
                             Tagged Feeds & Subpoena Holds ({taggedFeedsList.length})
                           </span>
                         </div>
                         <Link
                           href={`/case-details/${caseData.caseNumber || caseData.id}`}
-                          className="text-[10px] text-[#8E85FF] hover:underline font-semibold"
+                          className="text-[10.5px] text-[#8E85FF] hover:text-[#a59dfe] hover:underline font-semibold inline-flex items-center gap-0.5 shrink-0 self-start sm:self-auto"
                         >
-                          View in Evidence Tab →
+                          <span>View in Evidence Tab</span>
+                          <span>→</span>
                         </Link>
                       </div>
 
-                      <div className="space-y-1.5 max-h-44 overflow-y-auto pr-1">
+                      <div className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
                         {taggedFeedsList.map((tf, idx) => (
                           <div
                             key={tf.voucherId || idx}
-                            className="p-2 rounded-lg border border-border/70 bg-card/80 flex items-center justify-between gap-2 text-xs"
+                            className="p-2.5 rounded-lg border border-border/70 bg-card/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs"
                           >
-                            <div className="flex items-center gap-2 min-w-0">
-                              <div className="p-1.5 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">
+                            <div className="flex items-start sm:items-center gap-2 min-w-0 flex-1">
+                              <div className="sm:hidden p-1.5 rounded-md bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0 mt-0.5">
                                 <Video className="size-3.5" />
                               </div>
-                              <div className="min-w-0">
-                                <div className="flex items-center gap-1.5">
-                                  <span className="font-semibold text-foreground truncate text-xs">
+                              <div className="min-w-0 flex-1">
+                                <div className="flex flex-wrap items-center gap-1.5">
+                                  <span className="font-semibold text-foreground text-xs wrap-break-word">
                                     {tf.cameraName}
                                   </span>
-                                  <span className="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                                  <span className="font-mono font-bold text-[10px] text-emerald-400 shrink-0">
                                     {tf.voucherId}
                                   </span>
                                 </div>
-                                <div className="text-[10px] text-muted-foreground flex items-center gap-2 mt-0.5">
+                                <div className="text-[10px] text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-0.5 mt-0.5">
                                   <span>📍 {tf.distanceMeters}m ({tf.bearing})</span>
                                   <span>•</span>
                                   <span>{tf.retentionDays || 30}-day retention</span>
@@ -1802,7 +1801,7 @@ export function CaseEditForm({ caseData }: CaseEditFormProps) {
                               </div>
                             </div>
 
-                            <Badge variant="outline" className="text-[9px] px-1.5 py-0.5 border-emerald-500/40 text-emerald-400 shrink-0 font-medium">
+                            <Badge variant="outline" className="text-[9px] px-1.5 py-0.5 border-emerald-500/40 text-emerald-400 shrink-0 font-medium self-start sm:self-center">
                               Active Hold
                             </Badge>
                           </div>
@@ -1814,7 +1813,7 @@ export function CaseEditForm({ caseData }: CaseEditFormProps) {
 
                 {/* Geodetic Telemetry Status Strip & Assurance Note */}
                 <div className="space-y-2 pt-1 border-t border-border/40">
-                  <div className="flex items-center justify-between gap-2 px-3 py-1.5 rounded-lg border border-border/60 bg-background/50 text-[11px]">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 px-3 py-2 rounded-lg border border-border/60 bg-background/50 text-[11px]">
                     <div className="flex items-center gap-1.5 text-muted-foreground min-w-0">
                       <Compass className="size-3 text-[#665AEF] shrink-0" />
                       <span className="font-mono text-foreground font-medium truncate">
@@ -1822,7 +1821,7 @@ export function CaseEditForm({ caseData }: CaseEditFormProps) {
                       </span>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      <span className="font-mono text-[10px] text-muted-foreground/80 hidden xs:inline">
+                      <span className="font-mono text-[10px] text-muted-foreground/80 hidden sm:inline">
                         WGS 84 Datum
                       </span>
                       <span className="inline-flex items-center gap-1 text-[10px] text-emerald-400 font-medium">
@@ -1853,7 +1852,7 @@ export function CaseEditForm({ caseData }: CaseEditFormProps) {
                   <CardTitle className="text-sm sm:text-base font-bold font-heading text-foreground truncate">
                     Classification Tags
                   </CardTitle>
-                  <CardDescription className="text-xs text-muted-foreground line-clamp-1 sm:line-clamp-none">
+                  <CardDescription className="text-xs text-muted-foreground">
                     Categorization chips for filtering and cross-referencing
                   </CardDescription>
                 </div>
@@ -1877,9 +1876,9 @@ export function CaseEditForm({ caseData }: CaseEditFormProps) {
                           <Badge
                             key={tag}
                             variant="secondary"
-                            className="h-7.5 pl-2.5 pr-1.5 border-2 border-border/80 bg-muted/40 hover:bg-muted/70 text-foreground text-xs font-medium rounded-md inline-flex items-center gap-1.5 shadow-2xs"
+                            className="h-7.5 pl-2.5 pr-1.5 border-2 border-border/80 bg-muted/40 hover:bg-muted/70 text-foreground text-xs font-medium rounded-md inline-flex items-center gap-1.5 shadow-2xs max-w-full"
                           >
-                            <span className="max-w-40 truncate">{tag}</span>
+                            <span className="truncate max-w-36 sm:max-w-48">{tag}</span>
                             <button
                               type="button"
                               onClick={() => handleRemoveTag(tag)}
@@ -2035,7 +2034,7 @@ export function CaseEditForm({ caseData }: CaseEditFormProps) {
       </div>
 
       {/* Bottom Sticky Action Bar for Mobile / Long scrolls */}
-      <div className="sticky bottom-3 sm:bottom-4 z-20 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 sm:gap-4 p-3 sm:p-3.5 rounded-xl border-2 border-border/80 bg-card/95 backdrop-blur-xl shadow-2xl">
+      <div className="sticky bottom-0 sm:bottom-4 z-20 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 sm:gap-4 -mx-3 sm:mx-0 p-3 sm:p-3.5 rounded-t-xl sm:rounded-xl border-t-2 sm:border-2 border-border/80 bg-card/95 backdrop-blur-xl shadow-2xl pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:pb-3.5">
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <AlertTriangle className="size-3.5 text-amber-400 shrink-0" />
           <span className="hidden sm:inline">
@@ -2412,7 +2411,7 @@ export function CaseEditForm({ caseData }: CaseEditFormProps) {
                           {cam.operator && (
                             <>
                               <span>•</span>
-                              <span className="truncate max-w-[120px]">{cam.operator}</span>
+                              <span className="truncate max-w-30">{cam.operator}</span>
                             </>
                           )}
                         </div>

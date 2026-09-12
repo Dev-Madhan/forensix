@@ -5,6 +5,7 @@ import { FileText, CheckCircle2, Clock, Flag } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { cn } from "cn";
 import type { EvidenceStatus } from "./types";
+import { RollingNumber } from "@/components/ui/rolling-number";
 
 interface EvidenceStatsCardsProps {
   total: number;
@@ -77,11 +78,12 @@ export function EvidenceStatsCards({
               <Icon className={cn("size-4.5 sm:size-5 shrink-0 transition-transform group-hover:scale-110", card.iconColor)} />
             </div>
 
-            {/* Bottom row: Hero metric count */}
+            {/* Bottom row: Hero metric count with rolling animation */}
             <div className="mt-2.5">
-              <span className="text-2xl sm:text-3xl font-bold font-heading text-foreground tabular-nums block leading-tight">
-                {card.count}
-              </span>
+              <RollingNumber
+                value={card.count}
+                className="text-2xl sm:text-3xl font-bold font-heading text-foreground tabular-nums block leading-tight"
+              />
             </div>
           </Card>
         );

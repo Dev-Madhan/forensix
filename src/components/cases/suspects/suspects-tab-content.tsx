@@ -31,6 +31,37 @@ export function SuspectsTabContent({ caseNumber }: SuspectsTabContentProps) {
     INITIAL_SUSPECTS[0]?.id || "susp-01"
   );
 
+  // Synchronize suspects with localStorage (saved additions and removals)
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+    const cleanCase = (caseNumber || "default").replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+
+    try {
+      const deletedIds = new Set<string>(
+        JSON.parse(localStorage.getItem(`forensix_deleted_suspects_${cleanCase}`) || "[]")
+      );
+      const customSuspects: SuspectItem[] = JSON.parse(
+        localStorage.getItem(`forensix_suspects_${cleanCase}`) || "[]"
+      );
+
+      const combined = [...customSuspects, ...INITIAL_SUSPECTS];
+      const seen = new Set<string>();
+      const deduped: SuspectItem[] = [];
+      for (const s of combined) {
+        if (!deletedIds.has(s.id) && !seen.has(s.id)) {
+          seen.add(s.id);
+          deduped.push(s);
+        }
+      }
+      setSuspectsList(deduped);
+      if (deduped.length > 0 && !deduped.some((s) => s.id === selectedSuspectId)) {
+        setSelectedSuspectId(deduped[0].id);
+      }
+    } catch (e) {
+      console.warn("Failed loading suspects from storage:", e);
+    }
+  }, [caseNumber]);
+
   // 3. Selection checkboxes
   const [selectedRowIds, setSelectedRowIds] = useState<Set<string>>(new Set());
 
@@ -167,6 +198,32 @@ export function SuspectsTabContent({ caseNumber }: SuspectsTabContentProps) {
         setSelectedSuspectId(remaining[0].id);
       }
     }
+
+    if (typeof window !== "undefined") {
+      const cleanCase = (caseNumber || "default").replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+      try {
+        const deletedIds = JSON.parse(
+          localStorage.getItem(`forensix_deleted_suspects_${cleanCase}`) || "[]"
+        );
+        if (!deletedIds.includes(id)) {
+          localStorage.setItem(
+            `forensix_deleted_suspects_${cleanCase}`,
+            JSON.stringify([...deletedIds, id])
+          );
+        }
+        const customSuspects = JSON.parse(
+          localStorage.getItem(`forensix_suspects_${cleanCase}`) || "[]"
+        );
+        localStorage.setItem(
+          `forensix_suspects_${cleanCase}`,
+          JSON.stringify(customSuspects.filter((s: any) => s.id !== id))
+        );
+      } catch (e) {
+        console.warn("Failed updating deleted suspects in storage:", e);
+      }
+      window.dispatchEvent(new CustomEvent("forensix:suspects-updated"));
+    }
+
     toast.info(`Suspect ${target?.name || id} removed from this case.`);
 
     logCaseActivity({
@@ -182,6 +239,31 @@ export function SuspectsTabContent({ caseNumber }: SuspectsTabContentProps) {
   const handleAddSuspect = (newSuspect: SuspectItem) => {
     setSuspectsList((prev) => [newSuspect, ...prev]);
     setSelectedSuspectId(newSuspect.id);
+
+    if (typeof window !== "undefined") {
+      const cleanCase = (caseNumber || "default").replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+      try {
+        const customSuspects = JSON.parse(
+          localStorage.getItem(`forensix_suspects_${cleanCase}`) || "[]"
+        );
+        localStorage.setItem(
+          `forensix_suspects_${cleanCase}`,
+          JSON.stringify([newSuspect, ...customSuspects.filter((s: any) => s.id !== newSuspect.id)])
+        );
+        const deletedIds = JSON.parse(
+          localStorage.getItem(`forensix_deleted_suspects_${cleanCase}`) || "[]"
+        );
+        if (deletedIds.includes(newSuspect.id)) {
+          localStorage.setItem(
+            `forensix_deleted_suspects_${cleanCase}`,
+            JSON.stringify(deletedIds.filter((id: string) => id !== newSuspect.id))
+          );
+        }
+      } catch (e) {
+        console.warn("Failed saving suspect to storage:", e);
+      }
+      window.dispatchEvent(new CustomEvent("forensix:suspects-updated"));
+    }
 
     logCaseActivity({
       caseNumber,

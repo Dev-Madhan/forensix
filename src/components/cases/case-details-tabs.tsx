@@ -50,6 +50,8 @@ import {
   Activity,
   ArrowRight,
   Edit,
+  Trash2,
+  ExternalLink,
 } from "lucide-react";
 import type { ResolvedCaseDetail } from "@/features/cases/resolve-case";
 import { authClient } from "@/lib/auth-client";
@@ -62,6 +64,17 @@ import { CaseIncidentLocationCard } from "@/components/cases/case-incident-locat
 import { EvidenceTabContent } from "@/components/cases/evidence/evidence-tab-content";
 import { SuspectsTabContent } from "@/components/cases/suspects/suspects-tab-content";
 import { ActivityTabContent, logCaseActivity } from "@/components/cases/activity";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { INITIAL_CASES, type CaseItem } from "@/constants/mock-cases";
+import { MOCK_EVIDENCE_ITEMS } from "@/components/cases/evidence/mock-evidence";
+import { INITIAL_SUSPECTS } from "@/components/cases/suspects/mock-suspects";
+import { RollingNumber } from "@/components/ui/rolling-number";
 
 
 interface CaseDetailsTabsProps {
@@ -112,8 +125,111 @@ export function CaseDetailsTabs({ caseData }: CaseDetailsTabsProps) {
 
   const [activeTab, setActiveTab] = useState("overview");
 
-  // Interactive notes state
-  const [notes, setNotes] = useState([
+  const cleanCase = React.useMemo(
+    () => (caseData.caseNumber || "default").replace(/[^a-zA-Z0-9]/g, "").toLowerCase(),
+    [caseData.caseNumber]
+  );
+
+  // 1. Dynamic Live Evidence Calculation
+  const [liveEvidenceCount, setLiveEvidenceCount] = useState<number>(() => {
+    return caseData.evidenceCount || MOCK_EVIDENCE_ITEMS.length;
+  });
+
+  const refreshEvidenceStats = React.useCallback(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const deletedIds = new Set<string>(
+        JSON.parse(localStorage.getItem(`forensix_deleted_evidence_${cleanCase}`) || "[]")
+      );
+      const uploaded = JSON.parse(
+        localStorage.getItem(`forensix_uploaded_evidence_${cleanCase}`) || "[]"
+      );
+      const taggedCctv = JSON.parse(
+        localStorage.getItem(`forensix_tagged_cctv_${cleanCase}`) || "[]"
+      );
+
+      const activeBase = MOCK_EVIDENCE_ITEMS.filter((item) => !deletedIds.has(item.id));
+      const activeUploaded = uploaded.filter((item: any) => !deletedIds.has(item.id));
+      const activeCctv = taggedCctv.filter(
+        (tag: any) => !deletedIds.has(`cctv-${tag.voucherId}`)
+      );
+
+      const combined = [...activeCctv, ...activeUploaded, ...activeBase];
+      const seen = new Set<string>();
+      let count = 0;
+      for (const item of combined) {
+        const id = item.id || `cctv-${item.voucherId}`;
+        if (!seen.has(id)) {
+          seen.add(id);
+          count++;
+        }
+      }
+      setLiveEvidenceCount(count);
+    } catch (e) {
+      console.warn("Error computing dynamic evidence count:", e);
+    }
+  }, [cleanCase]);
+
+  React.useEffect(() => {
+    refreshEvidenceStats();
+    const handleUpdate = () => refreshEvidenceStats();
+    window.addEventListener("forensix:evidence-updated", handleUpdate);
+    window.addEventListener("forensix:case-activity", handleUpdate);
+    window.addEventListener("storage", handleUpdate);
+    return () => {
+      window.removeEventListener("forensix:evidence-updated", handleUpdate);
+      window.removeEventListener("forensix:case-activity", handleUpdate);
+      window.removeEventListener("storage", handleUpdate);
+    };
+  }, [refreshEvidenceStats]);
+
+  // 2. Dynamic Live Suspects Calculation
+  const [liveSuspectsCount, setLiveSuspectsCount] = useState<number>(() => {
+    return caseData.suspectsCount || INITIAL_SUSPECTS.length;
+  });
+
+  const refreshSuspectsStats = React.useCallback(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const deletedIds = new Set<string>(
+        JSON.parse(localStorage.getItem(`forensix_deleted_suspects_${cleanCase}`) || "[]")
+      );
+      const customSuspects = JSON.parse(
+        localStorage.getItem(`forensix_suspects_${cleanCase}`) || "[]"
+      );
+      const activeBase = INITIAL_SUSPECTS.filter((s) => !deletedIds.has(s.id));
+      const activeCustom = customSuspects.filter((s: any) => !deletedIds.has(s.id));
+
+      const combined = [...activeCustom, ...activeBase];
+      const seen = new Set<string>();
+      let count = 0;
+      for (const s of combined) {
+        if (!seen.has(s.id)) {
+          seen.add(s.id);
+          count++;
+        }
+      }
+      setLiveSuspectsCount(count);
+    } catch (e) {
+      console.warn("Error computing dynamic suspects count:", e);
+    }
+  }, [cleanCase]);
+
+  React.useEffect(() => {
+    refreshSuspectsStats();
+    const handleUpdate = () => refreshSuspectsStats();
+    window.addEventListener("forensix:suspects-updated", handleUpdate);
+    window.addEventListener("forensix:case-activity", handleUpdate);
+    window.addEventListener("storage", handleUpdate);
+    return () => {
+      window.removeEventListener("forensix:suspects-updated", handleUpdate);
+      window.removeEventListener("forensix:case-activity", handleUpdate);
+      window.removeEventListener("storage", handleUpdate);
+    };
+  }, [refreshSuspectsStats]);
+
+  // 3. Persistent Interactive Notes State
+  const DEFAULT_NOTES = [
     {
       id: "1",
       author: "Arjun Karthik",
@@ -132,18 +248,36 @@ export function CaseDetailsTabs({ caseData }: CaseDetailsTabsProps) {
       timestamp: "Oct 4, 2026, 09:40 PM",
       content: "CCTV shows suspect wearing a black hoodie and carrying a bag.",
     },
-  ]);
+  ];
+
+  const [notes, setNotes] = useState(DEFAULT_NOTES);
   const [isAddingNote, setIsAddingNote] = useState(false);
   const [newNoteText, setNewNoteText] = useState("");
+
+  // Load saved notes for this case from localStorage
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const stored = localStorage.getItem(`forensix_notes_${cleanCase}`);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setNotes(parsed);
+        }
+      }
+    } catch (e) {
+      console.warn("Failed loading case notes from storage:", e);
+    }
+  }, [cleanCase]);
 
   const tabs = React.useMemo(
     () => [
       { id: "overview", label: "Overview" },
-      { id: "evidence", label: `Evidence (${caseData.evidenceCount || 8})` },
-      { id: "suspects", label: `Suspects (${caseData.suspectsCount || 2})` },
+      { id: "evidence", label: "Evidence" },
+      { id: "suspects", label: "Suspects" },
       { id: "activity", label: "Activity Log" },
     ],
-    [caseData.evidenceCount, caseData.suspectsCount]
+    []
   );
 
   // Interactive tags state
@@ -152,6 +286,121 @@ export function CaseDetailsTabs({ caseData }: CaseDetailsTabsProps) {
   );
   const [newTagInput, setNewTagInput] = useState("");
   const [isAddingTag, setIsAddingTag] = useState(false);
+
+  // 4. Multi-Factor AI Cross-Case Correlation Engine (Related Records)
+  interface CorrelatedCaseRecord {
+    id: string;
+    caseNumber: string;
+    title: string;
+    type: string;
+    location: string;
+    date: string;
+    timestamp?: string;
+    status: string;
+    description?: string;
+    assignedTo?: string;
+    matchScore: number;
+    matchReasons: string[];
+  }
+
+  const [isRelatedModalOpen, setIsRelatedModalOpen] = useState(false);
+
+  // Dynamically analyzes all records across the police repository in real-time
+  const correlatedRecords = React.useMemo<CorrelatedCaseRecord[]>(() => {
+    const cleanCurrentCaseNum = (caseData.caseNumber || "").toLowerCase().trim();
+    const currentType = (caseData.caseType || "").toLowerCase().trim();
+    const currentLocation = (caseData.location || "").toLowerCase().trim();
+    const currentCity = currentLocation.split(",")[0].trim();
+    const activeTags = tags.map((t) => t.toLowerCase().trim());
+
+    // Exclude current case
+    const candidateCases = INITIAL_CASES.filter((c) => {
+      const cNum = (c.caseNumber || "").toLowerCase().trim();
+      return cNum !== cleanCurrentCaseNum && c.id !== caseData.id;
+    });
+
+    const results: CorrelatedCaseRecord[] = [];
+
+    for (const candidate of candidateCases) {
+      let score = 0;
+      const matchReasons: string[] = [];
+
+      const candType = (candidate.type || "").toLowerCase().trim();
+      const candLocation = (candidate.location || "").toLowerCase().trim();
+      const candCity = candLocation.split(",")[0].trim();
+      const candTitle = (candidate.title || "").toLowerCase();
+      const candDesc = (candidate.description || "").toLowerCase();
+
+      // 1. Modus Operandi / Crime Type Category Correlation
+      if (candType === currentType) {
+        score += 35;
+        matchReasons.push(`Direct Category Match: ${candidate.type}`);
+      } else if (
+        (currentType.includes("theft") && candType.includes("robbery")) ||
+        (currentType.includes("robbery") && candType.includes("theft")) ||
+        (currentType.includes("cyber") && candType.includes("fraud")) ||
+        (currentType.includes("fraud") && candType.includes("identity"))
+      ) {
+        score += 25;
+        matchReasons.push(`Correlated MO Category: ${candidate.type}`);
+      }
+
+      // 2. Geographic Jurisdiction & Location Proximity
+      if (currentCity && candLocation.includes(currentCity)) {
+        score += 30;
+        matchReasons.push(`Same City: ${candidate.location.split(",")[0]}`);
+      } else if (
+        (currentLocation.includes("tn") && candLocation.includes("tn")) ||
+        (currentLocation.includes("ka") && candLocation.includes("ka"))
+      ) {
+        score += 15;
+        matchReasons.push(`Regional Jurisdiction (${candidate.location.split(",")[1]?.trim() || "State"})`);
+      }
+
+      // 3. Dynamic Case Tags Analysis (Re-analyzes live when user adds/removes tags!)
+      for (const tag of activeTags) {
+        if (!tag) continue;
+        if (candTitle.includes(tag) || candDesc.includes(tag) || candType.includes(tag)) {
+          score += 15;
+          matchReasons.push(`Correlated Tag: "${tag}"`);
+        }
+      }
+
+      // 4. Incident keywords & DFIR telemetry
+      const keywords = ["cctv", "armed", "commercial", "transit", "vehicle", "surveillance", "biometric", "toll"];
+      for (const kw of keywords) {
+        if (
+          (candDesc.includes(kw) || candTitle.includes(kw)) &&
+          (caseData.description?.toLowerCase().includes(kw) || activeTags.includes(kw))
+        ) {
+          score += 10;
+          if (!matchReasons.some((r) => r.toLowerCase().includes(kw))) {
+            matchReasons.push(`Shared Indicator: ${kw.toUpperCase()}`);
+          }
+        }
+      }
+
+      // 5. Active Investigation Status
+      if (
+        candidate.status === "Under Investigation" &&
+        caseData.status?.toLowerCase().includes("investigation")
+      ) {
+        score += 5;
+      }
+
+      // Keep correlated records matching threshold >= 30%
+      if (score >= 30) {
+        const cappedScore = Math.min(98, score);
+        results.push({
+          ...candidate,
+          matchScore: cappedScore,
+          matchReasons: Array.from(new Set(matchReasons)),
+        });
+      }
+    }
+
+    return results.sort((a, b) => b.matchScore - a.matchScore);
+  }, [caseData, tags]);
 
   const handleAddTag = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -211,7 +460,16 @@ export function CaseDetailsTabs({ caseData }: CaseDetailsTabsProps) {
       content: newNoteText.trim(),
     };
 
-    setNotes([newNote, ...notes]);
+    const updated = [newNote, ...notes];
+    setNotes(updated);
+
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem(`forensix_notes_${cleanCase}`, JSON.stringify(updated));
+      } catch (err) {
+        console.warn("Failed saving case note to storage:", err);
+      }
+    }
 
     // Dispatch real-time activity event for this case
     logCaseActivity({
@@ -232,6 +490,19 @@ export function CaseDetailsTabs({ caseData }: CaseDetailsTabsProps) {
     setNewNoteText("");
     setIsAddingNote(false);
     toast.success("Investigative case note added");
+  };
+
+  const handleDeleteNote = (noteId: string) => {
+    const updated = notes.filter((n) => n.id !== noteId);
+    setNotes(updated);
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem(`forensix_notes_${cleanCase}`, JSON.stringify(updated));
+      } catch (err) {
+        console.warn("Failed deleting case note from storage:", err);
+      }
+    }
+    toast.info("Investigation note removed");
   };
 
   // Status styling for Case Information: use only text color, remove background & border
@@ -363,9 +634,10 @@ export function CaseDetailsTabs({ caseData }: CaseDetailsTabsProps) {
                           <ChevronRight className="size-4 text-muted-foreground/40 group-hover:text-foreground group-hover:translate-x-0.5 transition-all" />
                         </div>
                         <div className="mt-3">
-                          <span className="text-2xl font-bold font-heading text-foreground block leading-tight">
-                            {caseData.evidenceCount || 8}
-                          </span>
+                          <RollingNumber
+                            value={liveEvidenceCount}
+                            className="text-2xl font-bold font-heading text-foreground block leading-tight"
+                          />
                           <span className="text-xs text-muted-foreground font-medium block mt-1 truncate">
                             Evidence Files
                           </span>
@@ -389,9 +661,10 @@ export function CaseDetailsTabs({ caseData }: CaseDetailsTabsProps) {
                           <ChevronRight className="size-4 text-muted-foreground/40 group-hover:text-foreground group-hover:translate-x-0.5 transition-all" />
                         </div>
                         <div className="mt-3">
-                          <span className="text-2xl font-bold font-heading text-foreground block leading-tight">
-                            {caseData.suspectsCount || 2}
-                          </span>
+                          <RollingNumber
+                            value={liveSuspectsCount}
+                            className="text-2xl font-bold font-heading text-foreground block leading-tight"
+                          />
                           <span className="text-xs text-muted-foreground font-medium block mt-1 truncate">
                             Suspects Linked
                           </span>
@@ -406,15 +679,19 @@ export function CaseDetailsTabs({ caseData }: CaseDetailsTabsProps) {
                       transition={{ duration: 0.15 }}
                       className="h-full"
                     >
-                      <Card className="group border border-border/80 bg-card/40 hover:bg-card/70 hover:border-border transition-all p-3.5 sm:p-4 rounded-xl cursor-pointer shadow-2xs flex flex-col justify-between h-full">
+                      <Card
+                        onClick={() => setIsRelatedModalOpen(true)}
+                        className="group border border-border/80 bg-card/40 hover:bg-card/70 hover:border-border transition-all p-3.5 sm:p-4 rounded-xl cursor-pointer shadow-2xs flex flex-col justify-between h-full"
+                      >
                         <div className="flex items-center justify-between">
                           <Database className="size-5 text-[#665AEF] group-hover:scale-110 transition-transform" />
                           <ChevronRight className="size-4 text-muted-foreground/40 group-hover:text-foreground group-hover:translate-x-0.5 transition-all" />
                         </div>
                         <div className="mt-3">
-                          <span className="text-2xl font-bold font-heading text-foreground block leading-tight">
-                            3
-                          </span>
+                          <RollingNumber
+                            value={correlatedRecords.length}
+                            className="text-2xl font-bold font-heading text-foreground block leading-tight"
+                          />
                           <span className="text-xs text-muted-foreground font-medium block mt-1 truncate">
                             Related Records
                           </span>
@@ -433,6 +710,10 @@ export function CaseDetailsTabs({ caseData }: CaseDetailsTabsProps) {
                         onClick={() => {
                           const el = document.getElementById("case-notes-section");
                           el?.scrollIntoView({ behavior: "smooth" });
+                          el?.classList.add("ring-2", "ring-[#665AEF]/70", "transition-all");
+                          setTimeout(() => {
+                            el?.classList.remove("ring-2", "ring-[#665AEF]/70");
+                          }, 1600);
                         }}
                         className="group border border-border/80 bg-card/40 hover:bg-card/70 hover:border-border transition-all p-3.5 sm:p-4 rounded-xl cursor-pointer shadow-2xs flex flex-col justify-between h-full"
                       >
@@ -441,9 +722,10 @@ export function CaseDetailsTabs({ caseData }: CaseDetailsTabsProps) {
                           <ChevronRight className="size-4 text-muted-foreground/40 group-hover:text-foreground group-hover:translate-x-0.5 transition-all" />
                         </div>
                         <div className="mt-3">
-                          <span className="text-2xl font-bold font-heading text-foreground block leading-tight">
-                            {notes.length}
-                          </span>
+                          <RollingNumber
+                            value={notes.length}
+                            className="text-2xl font-bold font-heading text-foreground block leading-tight"
+                          />
                           <span className="text-xs text-muted-foreground font-medium block mt-1 truncate">
                             Investigation Notes
                           </span>
@@ -897,9 +1179,19 @@ export function CaseDetailsTabs({ caseData }: CaseDetailsTabsProps) {
                         <span className="font-semibold text-foreground text-xs sm:text-sm">
                           {note.author}
                         </span>
-                        <span className="text-[11px] sm:text-xs text-muted-foreground shrink-0 font-medium whitespace-nowrap">
-                          {note.timestamp}
-                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[11px] sm:text-xs text-muted-foreground shrink-0 font-medium whitespace-nowrap">
+                            {note.timestamp}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteNote(note.id)}
+                            className="text-muted-foreground/40 hover:text-rose-400 p-0.5 rounded transition-colors cursor-pointer"
+                            title="Delete note"
+                          >
+                            <Trash2 className="size-3" />
+                          </button>
+                        </div>
                       </div>
                       <p className="text-muted-foreground text-xs sm:text-sm leading-relaxed wrap-break-word">
                         {note.content}
@@ -978,6 +1270,125 @@ export function CaseDetailsTabs({ caseData }: CaseDetailsTabsProps) {
           )}
         </AnimatePresence>
       </div>
+
+      {/* Dialog for Correlated Records / Cross-Case Analysis */}
+      <Dialog open={isRelatedModalOpen} onOpenChange={setIsRelatedModalOpen}>
+        <DialogContent className="sm:max-w-2xl bg-card/95 backdrop-blur-md border-2 border-border/80 text-foreground p-5 sm:p-6 gap-0 shadow-2xl">
+          <DialogHeader className="pb-4 space-y-1.5 pr-6 border-b border-border/40">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <DialogTitle className="text-base sm:text-lg font-bold font-heading text-foreground tracking-tight flex items-center gap-2">
+                <Database className="size-4.5 text-[#665AEF]" />
+                <span>Cross-Case Intelligence & Correlated Records</span>
+              </DialogTitle>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-[#665AEF]/10 border border-[#665AEF]/30 text-[#A78BFA]">
+                <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse inline-block" />
+                Live AI Cross-Correlation Active
+              </span>
+            </div>
+            <DialogDescription className="text-xs text-muted-foreground leading-relaxed pt-1">
+              Real-time multi-factor correlation engine analyzing all regional police records against Case #{caseData.caseNumber}, evaluating crime category, jurisdiction proximity, and active case classification tags.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="pt-4 space-y-3.5">
+            {/* Summary Banner */}
+            <div className="flex items-center justify-between gap-3 p-3 rounded-xl border border-border/80 bg-muted/25 text-xs">
+              <div className="space-y-0.5">
+                <span className="font-semibold text-foreground block">
+                  {correlatedRecords.length} Correlated Records Identified
+                </span>
+                <span className="text-[11px] text-muted-foreground">
+                  Target: {caseData.caseNumber} ({caseData.caseType || "Theft"}) • {caseData.location}
+                </span>
+              </div>
+              <div className="text-right shrink-0">
+                <span className="text-[11px] font-medium text-emerald-400 block">
+                  Peak Match: {correlatedRecords[0]?.matchScore || 0}%
+                </span>
+                <span className="text-[10px] text-muted-foreground">
+                  {tags.length} Active Tags Analyzed
+                </span>
+              </div>
+            </div>
+
+            {/* Correlated Records List */}
+            <div className="space-y-2.5 max-h-[50vh] overflow-y-auto pr-1">
+              {correlatedRecords.length === 0 ? (
+                <div className="py-8 text-center text-xs text-muted-foreground">
+                  No correlated cases found meeting the threshold. Try adding additional tags in the Overview tab to widen correlation.
+                </div>
+              ) : (
+                correlatedRecords.map((item) => (
+                  <div
+                    key={item.id}
+                    className="p-3.5 rounded-xl border border-border/80 bg-background/50 hover:bg-muted/30 transition-colors space-y-2"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="space-y-0.5 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-mono text-xs font-semibold text-foreground">
+                            {item.caseNumber}
+                          </span>
+                          <Badge variant="outline" className="text-[10px] py-0 px-1.5 border-border">
+                            {item.type}
+                          </Badge>
+                          <span className="text-[11px] text-muted-foreground truncate">
+                            {item.location}
+                          </span>
+                        </div>
+                        <h4 className="text-xs sm:text-sm font-semibold text-foreground truncate">
+                          {item.title}
+                        </h4>
+                      </div>
+                      <div className="shrink-0 flex items-center gap-2">
+                        <span
+                          className={cn(
+                            "text-[11px] font-bold px-2 py-0.5 rounded-md border whitespace-nowrap",
+                            item.matchScore >= 80
+                              ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400"
+                              : item.matchScore >= 55
+                              ? "border-[#665AEF]/30 bg-[#665AEF]/10 text-[#A78BFA]"
+                              : "border-blue-500/30 bg-blue-500/10 text-blue-400"
+                          )}
+                        >
+                          {item.matchScore}% Match
+                        </span>
+                      </div>
+                    </div>
+
+                    {item.description && (
+                      <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
+                        {item.description}
+                      </p>
+                    )}
+
+                    <div className="flex items-center justify-between gap-2 pt-1 border-t border-border/40 flex-wrap">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {item.matchReasons.map((reason, idx) => (
+                          <span
+                            key={idx}
+                            className="text-[10px] bg-muted/60 text-muted-foreground border border-border/60 px-2 py-0.5 rounded-md font-medium"
+                          >
+                            {reason}
+                          </span>
+                        ))}
+                      </div>
+                      <Link
+                        href={`/case-details/${item.caseNumber}`}
+                        onClick={() => setIsRelatedModalOpen(false)}
+                        className="inline-flex items-center gap-1 text-xs font-medium text-[#665AEF] hover:text-[#5749DF] transition-colors ml-auto cursor-pointer"
+                      >
+                        <span>Inspect Case</span>
+                        <ExternalLink className="size-3" />
+                      </Link>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

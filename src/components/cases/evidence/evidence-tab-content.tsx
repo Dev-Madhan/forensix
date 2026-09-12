@@ -30,21 +30,31 @@ export function EvidenceTabContent({ caseNumber }: EvidenceTabContentProps) {
   // 1. Evidence dataset
   const [evidenceList, setEvidenceList] = useState<EvidenceItem[]>(MOCK_EVIDENCE_ITEMS);
 
-  // Load dynamically tagged CCTV evidence vouchers for this case
+  // Load dynamically tagged CCTV evidence vouchers and user uploaded items for this case,
+  // while filtering out any deleted evidence items
   React.useEffect(() => {
     if (typeof window === "undefined") return;
     const cleanCase = (caseNumber || "default").replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
-    const stored = localStorage.getItem(`forensix_tagged_cctv_${cleanCase}`);
-    if (stored) {
+
+    const deletedIds = new Set<string>(
+      JSON.parse(localStorage.getItem(`forensix_deleted_evidence_${cleanCase}`) || "[]")
+    );
+    const uploadedItems: EvidenceItem[] = JSON.parse(
+      localStorage.getItem(`forensix_uploaded_evidence_${cleanCase}`) || "[]"
+    );
+
+    let cctvEvidence: EvidenceItem[] = [];
+    const storedCctv = localStorage.getItem(`forensix_tagged_cctv_${cleanCase}`);
+    if (storedCctv) {
       try {
-        const parsedTags = JSON.parse(stored);
+        const parsedTags = JSON.parse(storedCctv);
         if (Array.isArray(parsedTags) && parsedTags.length > 0) {
-          const cctvEvidence: EvidenceItem[] = parsedTags.map((tag: any, idx: number) => ({
+          cctvEvidence = parsedTags.map((tag: any, idx: number) => ({
             id: `cctv-${tag.voucherId || idx}`,
             name: `${(tag.cameraName || "CCTV").replace(/[^a-zA-Z0-9_-]/g, "_")}_Voucher.json`,
             description: `Subpoena Hold ${tag.voucherId} - ${tag.cameraName} (${tag.distanceMeters}m ${tag.bearing})`,
-            type: "Video",
-            source: "CCTV",
+            type: "Video" as const,
+            source: "CCTV" as const,
             addedBy: {
               name: tag.officerName || "Lead Investigator",
               avatar: "/images/avatar-investigator.jpg",
@@ -52,7 +62,7 @@ export function EvidenceTabContent({ caseNumber }: EvidenceTabContentProps) {
             },
             dateAdded: tag.dateAdded || "Today",
             timeAdded: tag.timeAdded || "Just now",
-            status: "Verified",
+            status: "Verified" as const,
             fileSize: "1.4 KB",
             hash: (tag.voucherId || "SUBP-8842").toLowerCase(),
             location: `/cases/${caseNumber || "FX-184"}/cctv/`,
@@ -73,18 +83,24 @@ export function EvidenceTabContent({ caseNumber }: EvidenceTabContentProps) {
               ],
             },
           }));
-
-          setEvidenceList((prev) => {
-            const existingIds = new Set(prev.map((p) => p.id));
-            const newItems = cctvEvidence.filter((c) => !existingIds.has(c.id));
-            if (newItems.length === 0) return prev;
-            return [...newItems, ...prev];
-          });
         }
       } catch (err) {
         console.warn("Failed to parse stored CCTV evidence:", err);
       }
     }
+
+    setEvidenceList(() => {
+      const combined = [...cctvEvidence, ...uploadedItems, ...MOCK_EVIDENCE_ITEMS];
+      const seen = new Set<string>();
+      const deduped: EvidenceItem[] = [];
+      for (const item of combined) {
+        if (!deletedIds.has(item.id) && !seen.has(item.id)) {
+          seen.add(item.id);
+          deduped.push(item);
+        }
+      }
+      return deduped;
+    });
   }, [caseNumber]);
 
   // 2. Currently active / selected evidence item for the Right Column Inspector
@@ -233,6 +249,31 @@ export function EvidenceTabContent({ caseNumber }: EvidenceTabContentProps) {
     setEvidenceList((prev) => [item, ...prev]);
     setSelectedEvidenceId(item.id);
 
+    if (typeof window !== "undefined") {
+      const cleanCase = (caseNumber || "default").replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+      try {
+        const stored = JSON.parse(
+          localStorage.getItem(`forensix_uploaded_evidence_${cleanCase}`) || "[]"
+        );
+        localStorage.setItem(
+          `forensix_uploaded_evidence_${cleanCase}`,
+          JSON.stringify([item, ...stored.filter((x: any) => x.id !== item.id)])
+        );
+        const deletedIds = JSON.parse(
+          localStorage.getItem(`forensix_deleted_evidence_${cleanCase}`) || "[]"
+        );
+        if (deletedIds.includes(item.id)) {
+          localStorage.setItem(
+            `forensix_deleted_evidence_${cleanCase}`,
+            JSON.stringify(deletedIds.filter((id: string) => id !== item.id))
+          );
+        }
+      } catch (e) {
+        console.warn("Failed saving uploaded evidence:", e);
+      }
+      window.dispatchEvent(new CustomEvent("forensix:evidence-updated"));
+    }
+
     // Dispatch real-time activity for this case
     logCaseActivity({
       caseNumber,
@@ -253,9 +294,30 @@ export function EvidenceTabContent({ caseNumber }: EvidenceTabContentProps) {
     // 1. Remove from React state
     setEvidenceList((prev) => prev.filter((e) => e.id !== item.id));
 
-    // 2. If it's a tagged CCTV item or stored in localStorage, purge from localStorage
+    // 2. Persist deleted evidence in localStorage
     if (typeof window !== "undefined") {
       const cleanCase = (caseNumber || "default").replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+      try {
+        const deletedIds = JSON.parse(
+          localStorage.getItem(`forensix_deleted_evidence_${cleanCase}`) || "[]"
+        );
+        if (!deletedIds.includes(item.id)) {
+          localStorage.setItem(
+            `forensix_deleted_evidence_${cleanCase}`,
+            JSON.stringify([...deletedIds, item.id])
+          );
+        }
+        const uploaded = JSON.parse(
+          localStorage.getItem(`forensix_uploaded_evidence_${cleanCase}`) || "[]"
+        );
+        localStorage.setItem(
+          `forensix_uploaded_evidence_${cleanCase}`,
+          JSON.stringify(uploaded.filter((u: any) => u.id !== item.id))
+        );
+      } catch (e) {
+        console.warn("Failed updating deleted evidence:", e);
+      }
+
       const stored = localStorage.getItem(`forensix_tagged_cctv_${cleanCase}`);
       if (stored) {
         try {
@@ -274,6 +336,8 @@ export function EvidenceTabContent({ caseNumber }: EvidenceTabContentProps) {
           console.warn("Failed updating localStorage on delete:", e);
         }
       }
+
+      window.dispatchEvent(new CustomEvent("forensix:evidence-updated"));
     }
 
     // 3. Update preview selection if currently selected item was deleted

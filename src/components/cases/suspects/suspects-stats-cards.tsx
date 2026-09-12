@@ -5,6 +5,7 @@ import { Users, Target, UserCheck, CheckCircle2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import type { SuspectStatus } from "./types";
+import { RollingNumber } from "@/components/ui/rolling-number";
 
 interface SuspectsStatsCardsProps {
   total: number;
@@ -82,11 +83,12 @@ export function SuspectsStatsCards({
               />
             </div>
 
-            {/* Bottom row: Hero metric count */}
+            {/* Bottom row: Hero metric count with rolling animation */}
             <div className="mt-3 sm:mt-4">
-              <span className="text-2xl sm:text-3xl font-bold font-heading text-foreground tracking-tight block leading-tight">
-                {card.count}
-              </span>
+              <RollingNumber
+                value={card.count}
+                className="text-2xl sm:text-3xl font-bold font-heading text-foreground tracking-tight block leading-tight"
+              />
             </div>
           </Card>
         );

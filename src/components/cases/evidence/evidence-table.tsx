@@ -108,28 +108,28 @@ export function EvidenceTable({
     switch (status) {
       case "Verified":
         return (
-          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] text-[11px] font-medium border-2 border-emerald-500/40 bg-emerald-500/15 text-emerald-400 whitespace-nowrap shadow-2xs">
+          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-[11px] font-medium border-2 border-emerald-500/40 bg-emerald-500/15 text-emerald-400 whitespace-nowrap shadow-2xs">
             <span className="size-1.5 rounded-full bg-emerald-400" />
             Verified
           </span>
         );
       case "Under Review":
         return (
-          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] text-[11px] font-medium border-2 border-amber-500/40 bg-amber-500/15 text-amber-400 whitespace-nowrap shadow-2xs">
+          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-[11px] font-medium border-2 border-amber-500/40 bg-amber-500/15 text-amber-400 whitespace-nowrap shadow-2xs">
             <span className="size-1.5 rounded-full bg-amber-400" />
             Under Review
           </span>
         );
       case "Flagged":
         return (
-          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] text-[11px] font-medium border-2 border-rose-500/40 bg-rose-500/15 text-rose-400 whitespace-nowrap shadow-2xs">
+          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-[11px] font-medium border-2 border-rose-500/40 bg-rose-500/15 text-rose-400 whitespace-nowrap shadow-2xs">
             <span className="size-1.5 rounded-full bg-rose-400" />
             Flagged
           </span>
         );
       default:
         return (
-          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-[4px] text-[11px] font-medium border-2 border-border/80 bg-muted/50 text-muted-foreground whitespace-nowrap">
+          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-[11px] font-medium border-2 border-border/80 bg-muted/50 text-muted-foreground whitespace-nowrap">
             {status}
           </span>
         );
@@ -145,7 +145,7 @@ export function EvidenceTable({
   return (
     <div
       className={cn(
-        "rounded-xl border-2 border-border bg-card/40 overflow-hidden shadow-xs flex flex-col w-full [&>div]:overflow-x-hidden",
+        "rounded-xl border-2 border-border bg-card/40 overflow-hidden shadow-xs flex flex-col w-full [&>div]:overflow-x-auto [&>div]:scrollbar-none [&>div::-webkit-scrollbar]:hidden [&>div]:[-ms-overflow-style:none]",
         className
       )}
     >
@@ -296,7 +296,7 @@ export function EvidenceTable({
                   <TableCell className="px-1.5 py-2.5 whitespace-nowrap">
                     <span
                       className={cn(
-                        "inline-flex items-center rounded-[4px] px-1.5 py-0.5 text-[10.5px] font-medium border-2 whitespace-nowrap shadow-2xs",
+                        "inline-flex items-center rounded-lg px-1.5 py-0.5 text-[10.5px] font-medium border-2 whitespace-nowrap shadow-2xs",
                         getTypeBadgeStyle(item.type)
                       )}
                     >
