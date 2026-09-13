@@ -19,6 +19,18 @@ export type CameraAngle = "frontal" | "three_quarter" | "profile";
 export type ForensicFilter = "normal" | "darkroom_negative" | "sepia_evidence";
 export type GenerationStatus = "not_generated" | "generating" | "generated";
 
+export interface LLMAnalysisData {
+  feature_summary?: Record<string, string>;
+  morphological_traits?: string[];
+  demographic_heritage?: string;
+  age_markers?: string[];
+  perspective_parameters?: Record<string, unknown>;
+  style_execution?: Record<string, unknown>;
+  confidence_score?: number;
+  reasoning?: string;
+  feature_count?: number;
+}
+
 export interface SketchMetadata {
   caseId?: string;
   witnessId?: string;
@@ -30,6 +42,7 @@ export interface SketchMetadata {
   promptUsed?: string;
   generationTimeMs?: number;
   engine?: string;
+  llm_analysis?: LLMAnalysisData;
 }
 
 interface SketchContextType {
@@ -99,6 +112,7 @@ interface SketchContextType {
   generationStatus: GenerationStatus;
   generatedImageUrl: string | null;
   sketchMetadata: SketchMetadata | null;
+  llmAnalysis: LLMAnalysisData | null;
   generateSketch: () => Promise<void>;
 }
 
@@ -129,7 +143,7 @@ export function SketchProvider({ children }: { children: React.ReactNode }) {
   const [cameraAngle, setCameraAngle] = useState<CameraAngle>("frontal");
   const [ageGroup, setAgeGroup] = useState("26-35");
   const [gender, setGender] = useState("Male");
-  const [ethnicity, setEthnicity] = useState("Unspecified");
+  const [ethnicity, setEthnicity] = useState("General / Neutral");
   const [lightingMood, setLightingMood] = useState<"neutral_studio" | "crime_scene">("neutral_studio");
   const [detailLevel, setDetailLevel] = useState<DetailLevel>("Standard");
 
@@ -143,6 +157,7 @@ export function SketchProvider({ children }: { children: React.ReactNode }) {
   const [generationStatus, setGenerationStatus] = useState<GenerationStatus>("not_generated");
   const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(null);
   const [sketchMetadata, setSketchMetadata] = useState<SketchMetadata | null>(null);
+  const [llmAnalysis, setLlmAnalysis] = useState<LLMAnalysisData | null>(null);
 
   // Helper to commit new selection state to history
   const commitFeatures = (newFeatures: Record<string, FeatureItem>) => {
@@ -215,12 +230,14 @@ export function SketchProvider({ children }: { children: React.ReactNode }) {
     setGeneratedImageUrl(null);
     setGenerationStatus("not_generated");
     setSketchMetadata(null);
+    setLlmAnalysis(null);
   };
 
   const generateSketch = async () => {
     if (isGenerating) return;
     setIsGenerating(true);
     setGenerationStatus("generating");
+    setGeneratedImageUrl(null);
 
     try {
       // Build rich attribute payload from selected dataset features
@@ -235,6 +252,12 @@ export function SketchProvider({ children }: { children: React.ReactNode }) {
         attributes[feat.subcategory] = feat.token;
         // Also store human name for geometry/fallback
         attributes[`${feat.subcategory}_name`] = feat.name.toLowerCase();
+        // Canonical aliases for eyewear / glasses so both terms are always present
+        if (feat.subcategory === "eyewear" || feat.id.startsWith("glasses_")) {
+          attributes["glasses"] = feat.token;
+          attributes["eyewear"] = feat.token;
+          attributes["accessories"] = feat.token;
+        }
         // Collect tokens for direct prompt injection
         featureTokens.push(feat.token);
         // Collect descriptions for LLM understanding
@@ -281,6 +304,11 @@ export function SketchProvider({ children }: { children: React.ReactNode }) {
       }
       if (data.metadata) {
         setSketchMetadata(data.metadata);
+      }
+      if (data.llm_analysis) {
+        setLlmAnalysis(data.llm_analysis);
+      } else if (data.metadata?.llm_analysis) {
+        setLlmAnalysis(data.metadata.llm_analysis);
       }
       setGenerationStatus("generated");
     } catch (err) {
@@ -353,6 +381,7 @@ export function SketchProvider({ children }: { children: React.ReactNode }) {
         generationStatus,
         generatedImageUrl,
         sketchMetadata,
+        llmAnalysis,
         generateSketch,
       }}
     >

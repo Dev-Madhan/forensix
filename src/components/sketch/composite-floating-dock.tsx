@@ -7,7 +7,6 @@ import {
   Plus,
   Maximize2,
   Minimize2,
-  SplitSquareVertical,
   Contrast,
   Download,
 } from "lucide-react";
@@ -164,30 +163,7 @@ export function CompositeFloatingDock() {
         {/* Extended Tools for Generated Output */}
         {generatedImageUrl && (
           <>
-            <Separator orientation="vertical" className="h-4 mx-0.5 bg-border/70" />
 
-            {/* Split Comparison Toggle */}
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <button
-                    type="button"
-                    onClick={toggleComparison}
-                    className={`size-7 rounded-sm flex items-center justify-center cursor-pointer transition-all duration-300 ease-out ${
-                      comparisonMode
-                        ? "bg-[#665AEF]/25 text-[#a594fd] border border-[#665AEF]/50 shadow-[0_0_12px_rgba(102,90,239,0.35)]"
-                        : "border border-transparent text-muted-foreground hover:text-foreground hover:bg-white/5"
-                    }`}
-                    aria-label="Before/After Split Comparison"
-                  />
-                }
-              >
-                <SplitSquareVertical className="size-3.5" />
-              </TooltipTrigger>
-              <TooltipContent side="top" className="text-[11px]">
-                {comparisonMode ? "Exit Split View" : "Split View (Wireframe vs Sketch)"}
-              </TooltipContent>
-            </Tooltip>
 
             {/* Forensic Darkroom UV Filter Toggle */}
             <Tooltip>

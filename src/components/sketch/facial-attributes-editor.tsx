@@ -8,8 +8,6 @@ import { Badge } from "@/components/ui/badge";
 interface FacialAttributesEditorProps {
   attributes: Record<string, any>;
   onChangeAttribute: (key: string, value: any) => void;
-  controlStrength: number;
-  onChangeControlStrength: (val: number) => void;
   steps: number;
   onChangeSteps: (val: number) => void;
 }
@@ -25,8 +23,6 @@ const FACIAL_HAIR = ["none", "light stubble", "mustache", "goatee", "full beard"
 export function FacialAttributesEditor({
   attributes,
   onChangeAttribute,
-  controlStrength,
-  onChangeControlStrength,
   steps,
   onChangeSteps,
 }: FacialAttributesEditorProps) {
@@ -57,7 +53,7 @@ export function FacialAttributesEditor({
           </Badge>
         </div>
         <CardDescription className="text-xs text-muted-foreground mt-1">
-          Adjust facial anatomy parameters and ControlNet conditioning parameters prior to synthesis.
+          Adjust facial anatomy parameters and diffusion synthesis settings prior to sketch generation.
         </CardDescription>
       </CardHeader>
 
@@ -182,32 +178,8 @@ export function FacialAttributesEditor({
         {/* Hyperparameters & Sliders */}
         <div className="rounded-lg border border-border/50 bg-surface/40 p-4 space-y-4">
           <span className="text-xs font-semibold text-foreground block">
-            Diffusion & Lineart Conditioning Parameters
+            Diffusion Synthesis Parameters
           </span>
-
-          {/* ControlNet Conditioning Scale Slider */}
-          <div className="space-y-1.5">
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">ControlNet Conditioning Strength</span>
-              <span className="font-mono text-purple-400 font-medium">
-                {controlStrength.toFixed(2)}
-              </span>
-            </div>
-            <input
-              type="range"
-              min="0.5"
-              max="1.0"
-              step="0.05"
-              value={controlStrength}
-              onChange={(e) => onChangeControlStrength(parseFloat(e.target.value))}
-              className="w-full accent-purple-500 cursor-pointer h-1.5 bg-border/60 rounded-lg"
-            />
-            <div className="flex justify-between text-[10px] text-muted-foreground font-mono">
-              <span>0.50 (Flexible)</span>
-              <span>0.85 (Forensic Standard)</span>
-              <span>1.00 (Strict Anchor)</span>
-            </div>
-          </div>
 
           {/* Inference Steps Slider */}
           <div className="space-y-1.5">

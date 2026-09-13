@@ -57,7 +57,6 @@ export function ForensicSketchStudio({
 
   const [seed, setSeed] = React.useState<number>(458921);
   const [steps, setSteps] = React.useState<number>(24);
-  const [controlStrength, setControlStrength] = React.useState<number>(0.85);
 
   const [sketchUrl, setSketchUrl] = React.useState<string | null>(null);
   const [isExtracting, setIsExtracting] = React.useState<boolean>(false);
@@ -97,7 +96,6 @@ export function ForensicSketchStudio({
           seed,
           resolution: 512,
           steps,
-          control_strength: controlStrength,
         }),
       });
 
@@ -215,7 +213,7 @@ export function ForensicSketchStudio({
             AI Forensic Composite Sketch Studio
           </h1>
           <p className="text-xs md:text-sm text-muted-foreground mt-1">
-            End-to-end investigative workbench: witness NLP tokenization (Qwen), geometry lineart conditioning (ControlNet), diffusion synthesis (SD1.5), and biometric face recognition (InsightFace ArcFace 512D & Neon pgvector).
+            End-to-end investigative workbench: witness NLP tokenization (Qwen), Rank-32 Forensic LoRA diffusion synthesis (SD1.5, frontal view), and biometric face recognition (InsightFace ArcFace 512D &amp; Neon pgvector).
           </p>
         </div>
       </div>
@@ -240,8 +238,6 @@ export function ForensicSketchStudio({
           <FacialAttributesEditor
             attributes={attributes}
             onChangeAttribute={handleChangeAttribute}
-            controlStrength={controlStrength}
-            onChangeControlStrength={setControlStrength}
             steps={steps}
             onChangeSteps={setSteps}
           />
@@ -261,7 +257,6 @@ export function ForensicSketchStudio({
             onSearchSuspects={handleSearchSuspects}
             isSearchingSuspects={isSearchingSuspects}
             steps={steps}
-            controlStrength={controlStrength}
           />
 
           <SuspectMatchPanel

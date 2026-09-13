@@ -3,7 +3,6 @@
 import React from "react";
 import { Undo2, Redo2, Trash2, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { useSketch } from "./sketch-context";
 
 export function CompositeSketchHeader() {
@@ -22,33 +21,21 @@ export function CompositeSketchHeader() {
     switch (generationStatus) {
       case "generating":
         return (
-          <Badge
-            variant="outline"
-            className="rounded-full px-2.5 py-0.5 text-[11px] font-medium border-2 border-border/80 bg-[#16161f] text-amber-400 flex items-center gap-1.5 shadow-sm"
-          >
-            <span className="size-1.5 rounded-full bg-amber-400 animate-ping" />
+          <span className="text-[11px] font-mono font-medium text-amber-400">
             Generating...
-          </Badge>
+          </span>
         );
       case "generated":
         return (
-          <Badge
-            variant="outline"
-            className="rounded-full px-2.5 py-0.5 text-[11px] font-medium border-2 border-emerald-500/40 bg-emerald-950/20 text-emerald-400 flex items-center gap-1.5 shadow-sm"
-          >
-            <span className="size-1.5 rounded-full bg-emerald-400" />
+          <span className="text-[11px] font-mono font-medium text-emerald-400">
             Generated
-          </Badge>
+          </span>
         );
       default:
         return (
-          <Badge
-            variant="outline"
-            className="rounded-full px-2.5 py-0.5 text-[11px] font-medium border-2 border-border/70 bg-[#13131a] text-muted-foreground flex items-center gap-1.5 shadow-sm"
-          >
-            <span className="size-1.5 rounded-full bg-zinc-400" />
+          <span className="text-[11px] font-mono font-medium text-muted-foreground/60">
             Not generated
-          </Badge>
+          </span>
         );
     }
   };

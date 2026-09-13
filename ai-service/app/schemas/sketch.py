@@ -45,10 +45,42 @@ class SketchGenerateRequest(BaseModel):
         description="Inference diffusion steps (default: 24)",
     )
     control_strength: float = Field(
-        0.85,
+        0.50,
         ge=0.0,
         le=1.0,
-        description="ControlNet Lineart structural conditioning weight (default: 0.85)",
+        description="ControlNet Lineart structural conditioning weight (default: 0.50)",
+    )
+    prompt: Optional[str] = Field(
+        None,
+        description="Witness statement narrative or investigator notes",
+    )
+    sketch_style: str = Field(
+        "Forensic Graphite (Pencil)",
+        description="Forensic art style (e.g. Forensic Graphite (Pencil), Realistic Charcoal, Digital Identi-Kit (Lineart), Color Age-Progressed)",
+    )
+    camera_angle: str = Field(
+        "frontal",
+        description="Camera perspective angle (frontal, three_quarter, profile)",
+    )
+    age_group: str = Field(
+        "26-35",
+        description="Estimated suspect age bracket (18-25, 26-35, 36-50, 50+)",
+    )
+    gender: str = Field(
+        "Male",
+        description="Suspect gender identification (Male, Female, Unspecified)",
+    )
+    ethnicity: Optional[str] = Field(
+        "Unspecified",
+        description="Suspect ethnic heritage or descent",
+    )
+    lighting_mood: Optional[str] = Field(
+        "neutral_studio",
+        description="Lighting setup (neutral_studio, crime_scene)",
+    )
+    detail_level: Optional[str] = Field(
+        "Standard",
+        description="Synthesis fidelity mode (Draft, Standard, Master)",
     )
 
     @field_validator("case_id", "witness_id", mode="before")
@@ -74,8 +106,13 @@ class SketchGenerateResponse(BaseResponse):
     witness_id: str
     image: SketchImage = Field(..., description="Generated forensic sketch image metadata")
     seed: Optional[int] = Field(None, description="Generation seed used for reproducibility")
+    llm_analysis: Optional[Dict[str, Any]] = Field(
+        None,
+        description="Detailed forensic taxonomy and morphological reasoning deduced by the LLM",
+    )
     metadata: Dict[str, Any] = Field(
         default_factory=dict,
         description="Model parameters (resolution, steps, control_strength, model version)",
     )
+
 

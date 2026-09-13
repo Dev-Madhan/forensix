@@ -1,4 +1,4 @@
-﻿import os
+import os
 from pathlib import Path
 from typing import Any, Dict, Optional
 from app.core.config import get_settings
@@ -10,48 +10,129 @@ settings = get_settings()
 
 class GeometryService:
     """
-    Translates semantic facial attribute tokens (from facial-dataset-data.ts)
-    into normalized 2D coordinate anchors for ControlNet Lineart guidance.
-    Tokens like 'wide_set_eyes', 'oblong_face_shape', 'aquiline_roman_nose' etc.
-    are mapped directly to landmark adjustments.
+    Translates semantic facial attribute tokens into normalized 2D coordinate anchors
+    for lineart guidance and conditioning.
+
+    v2 changes:
+    - Extended NormalizedAnchors: nasion, brow ridges, cheekbones, philtrum,
+      ear attachment points, clavicle line, facial thirds y-coordinates
+    - Token-driven adjustments cascade correctly to derived points
     """
 
     def __init__(self):
         self._landmarker: Any = None
         self._mediapipe_checked: bool = False
 
-    def compute_anchors(self, attributes: Dict[str, Any], resolution: int = 512) -> NormalizedGeometry:
+    def compute_anchors(
+        self,
+        attributes: Dict[str, Any],
+        resolution: int = 512,
+        camera_angle: str = "frontal",
+    ) -> NormalizedGeometry:
         """
-        Deterministic normalized geometry anchors computed from structured facial attribute tokens.
-        All values are normalized 0.0-1.0 fractions of the canvas dimension.
+        Deterministic normalized geometry anchors computed from structured facial attribute tokens
+        and camera perspective angle (frontal, three_quarter, profile).
+        All values are normalized 0.0–1.0 fractions of the canvas dimension.
         """
-        # ── Baseline forensic portrait anchors ────────────────────────────────
-        left_eye  = [0.36, 0.40]
-        right_eye = [0.64, 0.40]
-        nose_tip  = [0.50, 0.57]
-        mouth     = [0.50, 0.70]
-        chin      = [0.50, 0.84]
+        # ── Baseline forensic portrait anchors by perspective ─────────────────
+        if camera_angle == "profile":
+            left_eye         = [0.48, 0.40]
+            right_eye        = [0.48, 0.40]   # Single visible eye in profile
+            nose_tip         = [0.68, 0.55]
+            mouth            = [0.62, 0.69]
+            chin             = [0.63, 0.83]
+            nasion           = [0.56, 0.33]
+            brow_ridge_left  = [0.48, 0.35]
+            brow_ridge_right = [0.48, 0.35]
+            cheekbone_left   = [0.45, 0.50]
+            cheekbone_right  = [0.58, 0.50]
+            philtrum         = [0.64, 0.64]
+            ear_left_top     = [0.28, 0.37]
+            ear_left_bot     = [0.28, 0.57]
+            ear_right_top    = [0.28, 0.37]
+            ear_right_bot    = [0.28, 0.57]
+            clavicle_left    = [0.22, 0.97]
+            clavicle_right   = [0.55, 0.97]
+        elif camera_angle == "three_quarter":
+            left_eye         = [0.38, 0.40]
+            right_eye        = [0.61, 0.41]
+            nose_tip         = [0.55, 0.57]
+            mouth            = [0.53, 0.70]
+            chin             = [0.52, 0.84]
+            nasion           = [0.50, 0.33]
+            brow_ridge_left  = [0.38, 0.35]
+            brow_ridge_right = [0.61, 0.36]
+            cheekbone_left   = [0.28, 0.52]
+            cheekbone_right  = [0.70, 0.52]
+            philtrum         = [0.54, 0.65]
+            ear_left_top     = [0.22, 0.37]
+            ear_left_bot     = [0.22, 0.57]
+            ear_right_top    = [0.76, 0.38]
+            ear_right_bot    = [0.76, 0.58]
+            clavicle_left    = [0.28, 0.97]
+            clavicle_right   = [0.72, 0.97]
+        else:
+            # Symmetrical 0° frontal mugshot
+            left_eye         = [0.36, 0.40]
+            right_eye        = [0.64, 0.40]
+            nose_tip         = [0.50, 0.58]
+            mouth            = [0.50, 0.70]
+            chin             = [0.50, 0.86]
+            nasion           = [0.50, 0.32]
+            brow_ridge_left  = [0.36, 0.36]
+            brow_ridge_right = [0.64, 0.36]
+            cheekbone_left   = [0.24, 0.52]
+            cheekbone_right  = [0.76, 0.52]
+            philtrum         = [0.50, 0.65]
+            ear_left_top     = [0.17, 0.37]
+            ear_left_bot     = [0.17, 0.57]
+            ear_right_top    = [0.83, 0.37]
+            ear_right_bot    = [0.83, 0.57]
+            clavicle_left    = [0.30, 0.97]
+            clavicle_right   = [0.70, 0.97]
 
-        # ── Helper: collect all token values from flat attribute dict ─────────
-        all_tokens = set()
+        # Facial thirds y-coordinates (span full canvas width)
+        thirds_hairline_y  = 0.18
+        thirds_brow_y      = 0.38
+        thirds_nose_base_y = 0.62
+
+        # ── Helper: collect all token values ──────────────────────────────────
+        all_tokens: set = set()
         for k, v in attributes.items():
             if isinstance(v, str):
-                # handle both "almond_eyes" style and "_feature_tokens" list
-                for tok in v.split(", "):
-                    all_tokens.add(tok.strip())
+                for tok in v.split(","):
+                    t = tok.strip().lower()
+                    all_tokens.add(t)
+            elif isinstance(v, dict):
+                for subk, subv in v.items():
+                    if isinstance(subv, str):
+                        for tok in subv.split(","):
+                            t = tok.strip().lower()
+                            all_tokens.add(t)
+                            if k == "eyes" or "eye" in subk:
+                                all_tokens.add(f"{t}_set_eyes")
+                            all_tokens.add(f"{t}_{subk.lower()}")
+                            all_tokens.add(f"{k.lower()}_{subk.lower()}_{t}")
 
         def has(*tokens):
             return any(t in all_tokens for t in tokens)
 
-        # ── Eye Spacing ────────────────────────────────────────────────────────
-        if has("close_set_eyes"):
-            left_eye[0]  += 0.025
-            right_eye[0] -= 0.025
-        elif has("wide_set_eyes"):
-            left_eye[0]  -= 0.025
-            right_eye[0] += 0.025
+        # ── Eye Spacing (frontal/3/4 only) ────────────────────────────────────
+        if camera_angle != "profile":
+            eyes_attr = attributes.get("eyes", {})
+            eyes_spacing = eyes_attr.get("spacing") if isinstance(eyes_attr, dict) else None
+            if has("close_set_eyes") or eyes_spacing in ("close", "narrow"):
+                left_eye[0]          += 0.025
+                right_eye[0]         -= 0.025
+                brow_ridge_left[0]   += 0.025
+                brow_ridge_right[0]  -= 0.025
+            elif has("wide_set_eyes") or eyes_spacing == "wide":
+                left_eye[0]          -= 0.025
+                right_eye[0]         += 0.025
+                brow_ridge_left[0]   -= 0.025
+                brow_ridge_right[0]  += 0.025
 
-        # ── Eye Vertical Position ──────────────────────────────────────────────
+        # ── Eye Vertical Position ─────────────────────────────────────────────
         if has("upturned_eyes"):
             left_eye[1]  -= 0.005
             right_eye[1] -= 0.005
@@ -59,37 +140,63 @@ class GeometryService:
             left_eye[1]  += 0.005
             right_eye[1] += 0.005
 
-        # ── Eye Size (affects orbit radius used by draw code) ─────────────────
-        # (passed via metadata; geometry anchors are eye centers)
+        # ── Deep-set eyes: brow ridge closer to eye ───────────────────────────
+        if has("deep_set_eyes"):
+            brow_ridge_left[1]  = left_eye[1]  - 0.025
+            brow_ridge_right[1] = right_eye[1] - 0.025
 
-        # ── Nose Position ─────────────────────────────────────────────────────
-        if has("upturned_nose", "pointed_nose", "rounded_nose"):
-            nose_tip[1] -= 0.015   # shorter / upturned
+        # ── High/Low hairline → thirds adjustment ─────────────────────────────
+        if has("low_hairline", "slightly_low_hairline"):
+            thirds_hairline_y -= 0.03
+        elif has("high_hairline"):
+            thirds_hairline_y += 0.04
+
+        # ── High cheekbones: move cheekbone anchors upward ────────────────────
+        if has("high_cheekbones"):
+            cheekbone_left[1]  -= 0.02
+            cheekbone_right[1] -= 0.02
+
+        # ── Nose Position & Projection ────────────────────────────────────────
+        if has("upturned_nose", "pointed_nose", "rounded_nose", "slightly_upturned_tip"):
+            nose_tip[1] -= 0.015
+            if camera_angle == "profile":
+                nose_tip[0] -= 0.02
         elif has("aquiline_roman_nose", "hawk_beaked_nose"):
-            nose_tip[1] += 0.018   # longer / prominent
+            nose_tip[1] += 0.018
+            if camera_angle == "profile":
+                nose_tip[0] += 0.03
         elif has("broad_nose", "bulbous_fleshy_nose"):
-            nose_tip[1] += 0.010   # slightly lower/wider
+            nose_tip[1] += 0.010
+
+        # Nasion tracks nose_tip horizontally
+        nasion[0] = nose_tip[0]
 
         # ── Face Shape → Chin Drop ────────────────────────────────────────────
         face = attributes.get("face_shape", "")
         if has("oblong_face_shape") or "oblong" in face:
             chin[1] += 0.025
+            thirds_nose_base_y += 0.010
         elif has("round_face_shape") or "round" in face:
             chin[1] -= 0.018
         elif has("heart_face_shape") or "heart" in face:
-            chin[1] += 0.012   # long narrow chin
+            chin[1] += 0.012
         elif has("square_face_shape") or "square" in face:
-            chin[1] -= 0.005   # slightly shorter
+            chin[1] -= 0.005
 
-        # ── Chin → Chin Position Fine-Tune ────────────────────────────────────
+        # ── Chin Fine-Tune ────────────────────────────────────────────────────
         if has("receding_chin", "narrow_chin"):
             chin[1] -= 0.010
-        elif has("broad_chin", "square_chin"):
+            if camera_angle == "profile":
+                chin[0] -= 0.03
+        elif has("broad_chin", "square_chin", "moderately_prominent_chin"):
             chin[1] += 0.008
+            if camera_angle == "profile":
+                chin[0] += 0.02
 
-        # ── Mouth Position tracks chin ─────────────────────────────────────────
-        # Keep mouth proportionally above the chin
-        mouth[1] = chin[1] - 0.14
+        # ── Mouth & Philtrum track chin ───────────────────────────────────────
+        mouth[1]    = chin[1] - 0.16
+        philtrum[1] = mouth[1] - 0.05
+        thirds_nose_base_y = max(thirds_nose_base_y, nose_tip[1] + 0.03)
 
         return NormalizedGeometry(
             canvas=CanvasSize(width=resolution, height=resolution),
@@ -99,6 +206,21 @@ class GeometryService:
                 nose_tip=nose_tip,
                 mouth=mouth,
                 chin=chin,
+                nasion=nasion,
+                brow_ridge_left=brow_ridge_left,
+                brow_ridge_right=brow_ridge_right,
+                cheekbone_left=cheekbone_left,
+                cheekbone_right=cheekbone_right,
+                philtrum=philtrum,
+                ear_left_top=ear_left_top,
+                ear_left_bot=ear_left_bot,
+                ear_right_top=ear_right_top,
+                ear_right_bot=ear_right_bot,
+                clavicle_left=clavicle_left,
+                clavicle_right=clavicle_right,
+                thirds_hairline_y=thirds_hairline_y,
+                thirds_brow_y=thirds_brow_y,
+                thirds_nose_base_y=thirds_nose_base_y,
             ),
         )
 

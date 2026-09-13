@@ -275,27 +275,46 @@ export function buildForensicPrompt(input: ForensicPromptInput): EngineeredForen
   let styleDesc = sketchStyle;
   switch (sketchStyle) {
     case "Realistic Charcoal":
-      styleModifiers = "forensic charcoal portrait, textured charcoal paper, smudged graphite shading, high-contrast chiaroscuro, deep charcoal tones, police composite drawing";
+      styleModifiers = "realistic forensic charcoal pencil portrait, soft graphite and charcoal shading on white paper, smooth tonal transitions, textured fine art drawing, law enforcement composite art";
       break;
     case "Digital Identi-Kit (Lineart)":
-      styleModifiers = "clean digital police identikit drawing, high-contrast black ink contours, anatomically precise lineart, no shading, law enforcement reference composite";
+      styleModifiers = "clean digital police identikit drawing, high-contrast black ink contours, anatomically precise lineart, zero skin shading, law enforcement reference composite";
       break;
     case "Color Age-Progressed":
-      styleModifiers = "forensic age-progressed colored portrait, colored pencil tinting, natural skin tones, realistic aging signs, police identification art";
+      styleModifiers = "forensic age-progressed colored portrait, colored pencil tinting, natural melanin skin tones matching demographic profile, realistic aging signs, police identification art";
+      break;
+    case "Monochrome Inversion (Black Background)":
+      styleModifiers = "(forensic chalkboard composite sketch:1.6), (crisp monochrome white and light grey chalk pencil linework:1.5), (solid pitch black background:1.8), (law enforcement forensic identification sketch:1.5), (detailed facial contours:1.3), anatomical construction lines, (subtle cross-hatching shading:1.3), accurate facial proportions, clear individual feature definition, (bilateral facial symmetry:1.3), natural human imperfections, head neck upper shoulder area only";
       break;
     case "Forensic Graphite (Pencil)":
     default:
-      styleModifiers = "authentic forensic pencil sketch, FBI artist composite, sharp 2B graphite linework, fine cross-hatching, paper grain texture, monochrome police suspect drawing";
+      styleModifiers = "authentic forensic pencil sketch, FBI artist composite, sharp 2B graphite linework, fine cross-hatching, paper grain texture, monochrome police artist drawing on clean white background";
       styleDesc = "Forensic Graphite (Pencil)";
       break;
   }
 
   // 3. Demographics
   const demoTokens: string[] = [];
-  if (gender && gender !== "Unspecified") demoTokens.push(`${gender.toLowerCase()} suspect`);
-  else demoTokens.push("criminal suspect");
+  if (gender && gender !== "Unspecified") demoTokens.push(`forensic facial composite of an adult ${gender.toLowerCase()}`);
+  else demoTokens.push("forensic facial composite portrait of an adult subject");
   if (ageGroup) demoTokens.push(`approximately ${ageGroup} years old`);
-  if (ethnicity && ethnicity !== "Unspecified") demoTokens.push(`${ethnicity.toLowerCase()} descent`);
+  
+  const ethLower = (ethnicity || "").toLowerCase();
+  if (ethLower.includes("caucasian") || ethLower.includes("european") || ethLower.includes("white")) {
+    demoTokens.push("Caucasian European ancestry, fair light skin tone, European facial architecture");
+  } else if (ethLower.includes("east asian") || ethLower.includes("asian")) {
+    demoTokens.push("East Asian ancestry, epicanthic fold contour, straight dark hair, smooth skin tone");
+  } else if (ethLower.includes("south asian") || ethLower.includes("indian") || ethLower.includes("desi")) {
+    demoTokens.push("South Asian ancestry, balanced warm olive complexion, distinct almond ocular shape");
+  } else if (ethLower.includes("hispanic") || ethLower.includes("latino")) {
+    demoTokens.push("Hispanic Latino ancestry, warm medium skin tone, balanced facial proportions");
+  } else if (ethLower.includes("middle eastern") || ethLower.includes("arab")) {
+    demoTokens.push("Middle Eastern ancestry, Mediterranean Middle Eastern facial architecture");
+  } else if (ethLower.includes("african") || ethLower.includes("black")) {
+    demoTokens.push("African diaspora ancestry, authentic Afrocentric facial morphology, deep rich skin complexion");
+  } else {
+    demoTokens.push("demographically balanced universal facial composite, neutral pencil tones, balanced facial features");
+  }
   const demographicsDescription = demoTokens.join(", ");
 
   // 4. TOKEN RESOLUTION — map every selected dataset token to its SD descriptor
@@ -339,6 +358,10 @@ export function buildForensicPrompt(input: ForensicPromptInput): EngineeredForen
   }
 
   // 7. Assemble final prompt — feature descriptors go FIRST for highest conditioning weight
+  const isBlackBg =
+    sketchStyle === "Monochrome Inversion (Black Background)" ||
+    (witnessStatement && /black background|chalkboard|white.*linework|pitch black|deep black/i.test(witnessStatement));
+
   const promptSegments: string[] = [
     styleModifiers,
     demographicsDescription,
@@ -346,7 +369,9 @@ export function buildForensicPrompt(input: ForensicPromptInput): EngineeredForen
     ...resolvedDescriptors,          // <-- most important: specific SD visual descriptors
     lightingPrompt,
     detailPrompt,
-    "official police composite sketch, law enforcement evidence document, neutral white background, centered composition",
+    isBlackBg
+      ? "official police composite sketch, law enforcement evidence document, solid pitch black background, centered composition"
+      : "official police composite sketch, law enforcement evidence document, neutral white background, centered composition",
   ];
 
   if (witnessStatement && witnessStatement.trim().length > 0) {
@@ -356,15 +381,25 @@ export function buildForensicPrompt(input: ForensicPromptInput): EngineeredForen
   const finalPrompt = promptSegments.filter(Boolean).join(", ");
 
   // 8. Negative prompt — stay strict forensic
-  const negativePrompt = [
-    "color photograph, photorealistic, digital photo",
+  const negativePromptList = [
     "cartoon, anime, manga, 3D CGI, video game character",
     "blurry, watermark, signature, text, logo",
     "extra eyes, missing features, deformed anatomy, bad proportions",
     "smile, laughing, exaggerated expression",
     "beauty filter, airbrushed, glossy, oversaturated",
     "multiple faces, cropped face, partial face",
-  ].join(", ");
+  ];
+
+  if (isBlackBg) {
+    negativePromptList.unshift(
+      "(white background:2.0), (light background:2.0), (grey background:1.8), (light gray background:1.8), (cream background:1.8)",
+      "(color:1.8), (photograph:1.8), (photorealistic:1.8), (3d render:1.5), (digital art:1.5)"
+    );
+  } else {
+    negativePromptList.unshift("color photograph, photorealistic, digital photo");
+  }
+
+  const negativePrompt = negativePromptList.join(", ");
 
   const geometryHints = deriveGeometryHints(attributes);
 

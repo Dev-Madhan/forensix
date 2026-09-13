@@ -46,7 +46,7 @@ export function CompositeSketchWorkspace() {
         className={`flex flex-col overflow-hidden shadow-2xl transition-all duration-500 cubic-bezier(0.16, 1, 0.3, 1) ${
           isFullscreen
             ? "fixed inset-0 z-50 rounded-none border-0 bg-[#0d0d12]"
-            : "min-h-[350px] flex-1 rounded-xl border-2 border-border/80 bg-[#0d0d12]/90 backdrop-blur-2xl relative"
+            : "min-h-87.5 flex-1 rounded-xl border-2 border-border/80 bg-[#0d0d12]/90 backdrop-blur-2xl relative"
         }`}
       >
         <CompositeSketchHeader />

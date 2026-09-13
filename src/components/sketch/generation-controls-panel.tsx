@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Sparkles, Trash2, PenLine, ChevronDown, Loader2, Check, Compass, User } from "lucide-react";
+import { Sparkles, Trash2, PenLine, ChevronDown, Check, User, Globe } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   DropdownMenu,
@@ -10,34 +10,39 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useSketch, DetailLevel, CameraAngle } from "./sketch-context";
+import { useSketch, DetailLevel } from "./sketch-context";
+import { ConcentricRings } from "@/components/ui/concentric-rings";
 
 const SKETCH_STYLES = [
   "Forensic Graphite (Pencil)",
+  "Monochrome Inversion (Black Background)",
   "Realistic Charcoal",
   "Digital Identi-Kit (Lineart)",
   "Color Age-Progressed",
 ];
 
-const ANGLE_OPTIONS: { id: CameraAngle; label: string }[] = [
-  { id: "frontal", label: "Front (0°)" },
-  { id: "three_quarter", label: "3/4 (45°)" },
-  { id: "profile", label: "Profile (90°)" },
-];
-
 const AGE_OPTIONS = ["18-25", "26-35", "36-50", "50+"];
 const GENDER_OPTIONS = ["Male", "Female"];
+const ETHNICITY_OPTIONS = [
+  "General / Neutral",
+  "Caucasian / European",
+  "East Asian",
+  "South Asian",
+  "Hispanic / Latino",
+  "Middle Eastern",
+  "African / Black",
+];
 
 export function GenerationControlsPanel() {
   const {
     sketchStyle,
     setSketchStyle,
-    cameraAngle,
-    setCameraAngle,
     ageGroup,
     setAgeGroup,
     gender,
     setGender,
+    ethnicity,
+    setEthnicity,
     detailLevel,
     setDetailLevel,
     isGenerating,
@@ -47,17 +52,15 @@ export function GenerationControlsPanel() {
 
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [hoveredStyle, setHoveredStyle] = useState<string | null>(null);
+  const [isEthnicityOpen, setIsEthnicityOpen] = useState(false);
 
   const detailLevels: DetailLevel[] = ["Draft", "Standard", "Master"];
 
   return (
     <div className="rounded-xl border-2 border-border/80 bg-[#0d0d12]/90 backdrop-blur-2xl p-4 flex flex-col shadow-2xl shrink-0">
       {/* Header */}
-      <h3 className="font-heading text-sm font-semibold text-foreground tracking-tight pb-2.5 select-none flex items-center justify-between">
-        <span>Generation Controls</span>
-        <span className="text-[10px] font-mono text-[#8579ff] bg-[#665AEF]/15 px-2 py-0.5 rounded-full border border-[#665AEF]/30">
-          AI Conditioning
-        </span>
+      <h3 className="font-heading text-sm font-semibold text-foreground tracking-tight pb-2.5 select-none">
+        Generation Controls
       </h3>
 
       {/* Sketch Style Dropdown */}
@@ -88,7 +91,7 @@ export function GenerationControlsPanel() {
               <DropdownMenuContent
                 align="start"
                 sideOffset={6}
-                className="w-(--anchor-width) min-w-[240px] p-1.5 rounded-xl shadow-2xl bg-[#0e0e14]/95 backdrop-blur-2xl border-2 border-border/80 text-foreground overflow-hidden z-50"
+                className="w-(--anchor-width) min-w-60 p-1.5 rounded-xl shadow-2xl bg-[#0e0e14]/95 backdrop-blur-2xl border-2 border-border/80 text-foreground overflow-hidden z-50"
               >
                 <DropdownMenuGroup
                   className="space-y-0.5"
@@ -140,54 +143,16 @@ export function GenerationControlsPanel() {
         </DropdownMenu>
       </div>
 
-      {/* Perspective / Camera Angle (Replaced non-functional 2D/3D) */}
-      <div className="flex flex-col gap-1.5 mt-3">
-        <label className="text-[11px] text-muted-foreground/80 font-medium select-none flex items-center gap-1.5">
-          <Compass className="size-3 text-[#665AEF]" />
-          <span>Camera Perspective Angle</span>
-        </label>
-        <div className="relative grid grid-cols-3 gap-1 p-1 rounded-lg border-2 border-border/70 bg-black/40">
-          {ANGLE_OPTIONS.map((opt) => {
-            const isActive = cameraAngle === opt.id;
-            return (
-              <motion.button
-                key={opt.id}
-                type="button"
-                onClick={() => setCameraAngle(opt.id)}
-                whileTap={{ scale: 0.92 }}
-                className={`relative h-7 rounded-md text-[11px] font-medium cursor-pointer select-none z-10 flex items-center justify-center transition-colors duration-200 ${
-                  isActive
-                    ? "text-white font-semibold"
-                    : "text-muted-foreground hover:text-foreground hover:bg-white/[0.04]"
-                }`}
-              >
-                {isActive && (
-                  <motion.div
-                    layoutId="generation_camera_angle_pill"
-                    className="absolute inset-0 rounded-md bg-[#665AEF] shadow-md shadow-[#665AEF]/35 border-2 border-[#8579ff]/50 -z-10"
-                    transition={{
-                      type: "spring",
-                      stiffness: 450,
-                      damping: 24,
-                      mass: 0.7,
-                    }}
-                  />
-                )}
-                <span className="relative z-10 truncate px-1">{opt.label}</span>
-              </motion.button>
-            );
-          })}
-        </div>
-      </div>
 
-      {/* Suspect Demographics: Age & Gender */}
+
+      {/* Suspect Demographics: Age, Gender & Heritage */}
       <div className="flex flex-col gap-1.5 mt-3">
         <label className="text-[11px] text-muted-foreground/80 font-medium select-none flex items-center justify-between">
           <span className="flex items-center gap-1.5">
             <User className="size-3 text-[#665AEF]" />
             <span>Suspect Demographics</span>
           </span>
-          <span className="text-[10px] text-muted-foreground font-mono">{gender}, {ageGroup}</span>
+          <span className="text-[10px] text-muted-foreground font-mono">{gender}, {ageGroup} · {ethnicity.split(" / ")[0]}</span>
         </label>
         
         {/* Gender selector */}
@@ -201,7 +166,7 @@ export function GenerationControlsPanel() {
                 onClick={() => setGender(g)}
                 className={`h-6 rounded text-[11px] font-medium transition-all select-none cursor-pointer ${
                   isSel
-                    ? "bg-[#665AEF]/40 text-white font-semibold border border-[#8579ff]/60"
+                    ? "bg-[#665AEF]/40 text-white font-semibold border-2 border-[#8579ff]/70"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
@@ -222,7 +187,7 @@ export function GenerationControlsPanel() {
                 onClick={() => setAgeGroup(ag)}
                 className={`h-6 rounded text-[10.5px] font-medium transition-all select-none cursor-pointer ${
                   isSel
-                    ? "bg-[#665AEF]/40 text-white font-semibold border border-[#8579ff]/60"
+                    ? "bg-[#665AEF]/40 text-white font-semibold border-2 border-[#8579ff]/70"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
@@ -230,6 +195,58 @@ export function GenerationControlsPanel() {
               </button>
             );
           })}
+        </div>
+
+        {/* Demographic Heritage / Ethnicity Selector */}
+        <div className="flex flex-col gap-1 mt-1">
+          <div className="flex items-center justify-between">
+            <span className="text-[10px] text-muted-foreground/80 font-medium flex items-center gap-1">
+              <Globe className="size-2.5 text-[#665AEF]" />
+              <span>Demographic Heritage</span>
+            </span>
+            <span className="text-[9.5px] text-[#c2b5fd] font-medium">{ethnicity}</span>
+          </div>
+          <DropdownMenu open={isEthnicityOpen} onOpenChange={setIsEthnicityOpen}>
+            <DropdownMenuTrigger className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-md border border-border/60 bg-black/40 text-[11px] font-medium text-foreground hover:border-[#665AEF]/50 transition-colors cursor-pointer select-none outline-none">
+              <span className="flex items-center gap-1.5 truncate">
+                <Globe className="size-3 text-[#665AEF] shrink-0" />
+                <span className="truncate">{ethnicity}</span>
+              </span>
+              <ChevronDown
+                className={`size-3 text-muted-foreground shrink-0 transition-transform duration-200 ${
+                  isEthnicityOpen ? "rotate-180 text-[#665AEF]" : ""
+                }`}
+              />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="start"
+              sideOffset={4}
+              className="w-(--anchor-width) min-w-56 p-1 rounded-xl shadow-2xl bg-[#0e0e14]/95 backdrop-blur-2xl border-2 border-border/80 text-foreground overflow-hidden z-50"
+            >
+              <DropdownMenuGroup className="space-y-0.5">
+                {ETHNICITY_OPTIONS.map((eth) => {
+                  const isSel = ethnicity === eth;
+                  return (
+                    <DropdownMenuItem
+                      key={eth}
+                      onClick={() => {
+                        setEthnicity(eth);
+                        setIsEthnicityOpen(false);
+                      }}
+                      className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs cursor-pointer font-medium transition-colors ${
+                        isSel
+                          ? "bg-[#665AEF]/25 text-[#c2b5fd] font-semibold border-2 border-[#665AEF]/50"
+                          : "text-foreground hover:bg-white/5"
+                      }`}
+                    >
+                      <span>{eth}</span>
+                      {isSel && <Check className="size-3 text-[#665AEF] shrink-0 stroke-[2.5]" />}
+                    </DropdownMenuItem>
+                  );
+                })}
+              </DropdownMenuGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -250,7 +267,7 @@ export function GenerationControlsPanel() {
                 className={`relative h-7 rounded-md text-[11px] font-medium cursor-pointer select-none z-10 flex items-center justify-center transition-colors duration-200 ${
                   isActive
                     ? "text-white font-semibold"
-                    : "text-muted-foreground hover:text-foreground hover:bg-white/[0.04]"
+                    : "text-muted-foreground hover:text-foreground hover:bg-white/4"
                 }`}
               >
                 {isActive && (
@@ -284,8 +301,8 @@ export function GenerationControlsPanel() {
       >
         {isGenerating ? (
           <>
-            <Loader2 className="size-3.5 animate-spin" />
-            <span>Synthesizing Sketch...</span>
+            <ConcentricRings size={16} color="#fff" />
+            <span className="tracking-wide">Synthesizing...</span>
           </>
         ) : (
           <>

@@ -50,6 +50,7 @@ export async function POST(request: NextRequest) {
       const requestId = `req_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`;
       const steps =
         detailLevel === "Master" ? 36 : detailLevel === "Draft" ? 14 : 24;
+      const controlStrength = typeof rawBody.control_strength === "number" ? rawBody.control_strength : undefined;
 
       const fastApiRes = await fetch(`${aiServiceUrl}/api/v1/sketch/generate`, {
         method: "POST",
@@ -68,7 +69,15 @@ export async function POST(request: NextRequest) {
           seed,
           resolution: typeof resolution === "number" ? Math.min(resolution, 512) : 512,
           steps,
-          control_strength: 0.82,
+          ...(controlStrength !== undefined ? { control_strength: controlStrength } : {}),
+          sketch_style: sketchStyle,
+          camera_angle: cameraAngle,
+          age_group: ageGroup,
+          gender,
+          ethnicity,
+          lighting_mood: lightingMood,
+          detail_level: detailLevel,
+          prompt: prompt.trim() || undefined,
         }),
         // 3-minute timeout — first call loads model into VRAM
         signal: AbortSignal.timeout(180_000),
@@ -99,12 +108,14 @@ export async function POST(request: NextRequest) {
                 content_type: contentType,
               },
               seed: fastApiData.seed ?? seed,
+              llm_analysis: fastApiData.llm_analysis,
               metadata: {
+                ...(fastApiData.metadata || {}),
                 engine: "diffusion_local_sd15_controlnet",
                 prompt_used: engineeredPrompt.prompt,
                 sketch_style: sketchStyle,
                 camera_angle: cameraAngle,
-                confidence_score: 97.1,
+                confidence_score: fastApiData.llm_analysis?.confidence_score ?? 97.1,
                 resolution,
               },
             });

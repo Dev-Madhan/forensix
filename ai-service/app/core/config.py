@@ -56,7 +56,7 @@ class Settings(BaseSettings):
     # Generation Defaults
     DEFAULT_RESOLUTION: int = 512
     DEFAULT_STEPS: int = 24
-    DEFAULT_CONTROL_STRENGTH: float = 0.85
+    DEFAULT_CONTROL_STRENGTH: float = 0.50
     DEFAULT_BATCH_SIZE: int = 1
 
 

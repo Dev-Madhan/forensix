@@ -4,7 +4,6 @@ import * as React from "react";
 import Image from "next/image";
 import {
   Sparkles,
-  RefreshCw,
   Download,
   Save,
   Search,
@@ -14,10 +13,12 @@ import {
   Sliders,
   ShieldCheck,
   FileDown,
+  RefreshCw,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { ConcentricRings } from "@/components/ui/concentric-rings";
 
 interface CompositeCanvasProps {
   sketchUrl: string | null;
@@ -31,7 +32,6 @@ interface CompositeCanvasProps {
   onSearchSuspects: () => void;
   isSearchingSuspects: boolean;
   steps: number;
-  controlStrength: number;
 }
 
 export function CompositeCanvas({
@@ -46,7 +46,6 @@ export function CompositeCanvas({
   onSearchSuspects,
   isSearchingSuspects,
   steps,
-  controlStrength,
 }: CompositeCanvasProps) {
   const [downloadSuccess, setDownloadSuccess] = React.useState(false);
 
@@ -81,13 +80,13 @@ export function CompositeCanvas({
           </div>
         </div>
         <CardDescription className="text-xs text-muted-foreground mt-1">
-          Stable Diffusion 1.5 conditioned on geometry lineart anchors at FP16 precision.
+          Stable Diffusion 1.5 with Rank-64 Forensic LoRA v2 — frontal view synthesis at FP16 precision.
         </CardDescription>
       </CardHeader>
 
       <CardContent className="p-5 flex-1 flex flex-col items-center justify-center">
         {/* Canvas Display Frame */}
-        <div className="relative aspect-square w-full max-w-[420px] rounded-xl overflow-hidden border-2 border-border/70 bg-zinc-950 shadow-inner flex items-center justify-center group">
+        <div className="relative aspect-square w-full max-w-105 rounded-xl overflow-hidden border-2 border-border/70 bg-zinc-950 shadow-inner flex items-center justify-center group">
           {sketchUrl ? (
             <div className="relative size-full">
               <Image
@@ -104,7 +103,7 @@ export function CompositeCanvas({
                   Seed: {seed}
                 </span>
                 <span className="rounded-md bg-black/80 backdrop-blur-md px-2 py-0.5 text-[10px] font-mono text-zinc-400 border border-border/40">
-                  Steps: {steps} | Ctrl: {controlStrength.toFixed(2)}
+                  Steps: {steps}
                 </span>
               </div>
             </div>
@@ -114,7 +113,7 @@ export function CompositeCanvas({
                 <Eye className="size-8 text-muted-foreground/40" />
               </div>
               <p className="text-xs font-medium text-foreground">No Composite Synthesized</p>
-              <p className="text-[11px] text-muted-foreground mt-1 max-w-[240px]">
+              <p className="text-[11px] text-muted-foreground mt-1 max-w-60">
                 Click "Synthesize Composite" below to execute the local diffusion rendering pipeline.
               </p>
             </div>
@@ -122,12 +121,14 @@ export function CompositeCanvas({
 
           {/* Loading Overlay */}
           {isGenerating && (
-            <div className="absolute inset-0 bg-black/80 backdrop-blur-sm flex flex-col items-center justify-center gap-3 z-20">
-              <RefreshCw className="size-8 text-purple-400 animate-spin" />
-              <div className="text-center">
-                <p className="text-xs font-semibold text-foreground">Executing Diffusion Pipeline</p>
-                <p className="text-[10px] text-muted-foreground mt-0.5 font-mono">
-                  SD 1.5 + Lineart Conditioning ({steps} steps)
+            <div className="absolute inset-0 bg-[#06060a]/92 backdrop-blur-[2px] flex flex-col items-center justify-center gap-4 z-20">
+              <ConcentricRings size={56} />
+              <div className="text-center space-y-1">
+                <p className="text-[11px] font-mono font-medium tracking-widest text-white/80 uppercase">
+                  Synthesizing
+                </p>
+                <p className="text-[10px] font-mono text-white/35">
+                  SD 1.5 · Forensic LoRA · {steps} steps
                 </p>
               </div>
             </div>
@@ -135,7 +136,7 @@ export function CompositeCanvas({
         </div>
 
         {/* Quick Seed Bar */}
-        <div className="w-full max-w-[420px] flex items-center justify-between mt-3 text-xs text-muted-foreground">
+        <div className="w-full max-w-105 flex items-center justify-between mt-3 text-xs text-muted-foreground">
           <span className="font-mono text-[11px]">Generation Seed: {seed}</span>
           <button
             type="button"

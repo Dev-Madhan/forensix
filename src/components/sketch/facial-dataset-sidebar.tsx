@@ -265,7 +265,7 @@ export function FacialDatasetSidebar() {
   // === EXPANDED FULL SIDEBAR VIEW ===
   return (
     <>
-      <aside className="w-[350px] sm:w-[360px] lg:w-[370px] shrink-0 h-full rounded-xl border-2 border-border/80 bg-[#0d0d12]/95 backdrop-blur-2xl flex flex-col overflow-hidden shadow-2xl transition-all duration-300 z-20 select-none">
+      <aside className="w-87.5 sm:w-90 lg:w-92.5 shrink-0 h-full rounded-xl border-2 border-border/80 bg-[#0d0d12]/95 backdrop-blur-2xl flex flex-col overflow-hidden shadow-2xl transition-all duration-300 z-20 select-none">
         {/* Top Header */}
         <div className="p-4 pb-3 space-y-3">
           <div className="flex items-center justify-between">
@@ -476,7 +476,7 @@ export function FacialDatasetSidebar() {
                             </span>
                             <div
                               className={cn(
-                                "size-4 rounded-[4px] border-2 flex items-center justify-center transition-colors",
+                                "size-4 rounded-lg border-2 flex items-center justify-center transition-colors",
                                 isChecked
                                   ? "bg-[#665AEF] border-[#665AEF] text-white"
                                   : "border-border/80 bg-surface/50"
@@ -729,13 +729,13 @@ export function FacialDatasetSidebar() {
                   className={cn(
                     "relative text-left p-3 rounded-xl border-2 transition-all duration-200 flex flex-col gap-2.5 cursor-pointer group select-none",
                     isSelected
-                      ? "border-[#665AEF] bg-gradient-to-b from-[#665AEF]/15 via-[#665AEF]/8 to-transparent ring-2 ring-[#665AEF]/50 shadow-xl shadow-[#665AEF]/20"
+                      ? "border-[#665AEF] bg-linear-to-b from-[#665AEF]/15 via-[#665AEF]/8 to-transparent ring-2 ring-[#665AEF]/50 shadow-xl shadow-[#665AEF]/20"
                       : "border-border/70 bg-[#14141c] hover:bg-[#191924] hover:border-border/90 hover:scale-[1.01]"
                   )}
                 >
                   {/* Forensic Specimen Stage / Viewport */}
                   <div className={cn(
-                    "relative w-full aspect-[4/3] rounded-lg border transition-all duration-200 flex items-center justify-center p-2.5 overflow-hidden",
+                    "relative w-full aspect-4/3 rounded-lg border transition-all duration-200 flex items-center justify-center p-2.5 overflow-hidden",
                     isSelected
                       ? "bg-[#0b0a14] border-[#665AEF]/40 shadow-inner"
                       : "bg-[#0a0a0f] border-border/60 group-hover:border-border/90"

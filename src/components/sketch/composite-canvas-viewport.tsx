@@ -4,7 +4,7 @@ import React, { useRef, useState, useCallback, useEffect } from "react";
 import { gsap } from "gsap";
 import { useSketch } from "./sketch-context";
 import { CompositeFloatingDock } from "./composite-floating-dock";
-import { Loader2, Sparkles } from "lucide-react";
+import { ConcentricRings } from "@/components/ui/concentric-rings";
 import {
   CranialAnchorPoints,
   OVAL_ARCHETYPE,
@@ -18,14 +18,6 @@ import {
   generateClaviclePaths,
 } from "./forensic-cranial-morph-engine";
 import { ForensicPortraitFeatures } from "./forensic-portrait-features";
-
-const TELEMETRY_PHASES = [
-  "Analyzing witness testimony & prompt...",
-  "Extracting facial landmarks & cranial geometry...",
-  "Calibrating camera angle & perspective shadows...",
-  "Synthesizing forensic pencil composite...",
-  "Finalizing evidence contrast & paper texture...",
-];
 
 export function CompositeCanvasViewport() {
   const {
@@ -45,19 +37,6 @@ export function CompositeCanvasViewport() {
   const isMouseInsideRef = useRef(false);
   const leaveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Telemetry ticker state during generation
-  const [telemetryIndex, setTelemetryIndex] = useState(0);
-
-  useEffect(() => {
-    if (!isGenerating) {
-      setTelemetryIndex(0);
-      return;
-    }
-    const interval = setInterval(() => {
-      setTelemetryIndex((prev) => (prev + 1) % TELEMETRY_PHASES.length);
-    }, 1100);
-    return () => clearInterval(interval);
-  }, [isGenerating]);
 
   const dragStartRef = useRef<{ x: number; y: number; panX: number; panY: number }>({
     x: 0,
@@ -351,22 +330,13 @@ export function CompositeCanvasViewport() {
         </div>
       </div>
 
-      {/* Generation Police Scanner Overlay */}
+      {/* Minimal Subtle Generation Overlay */}
       {isGenerating && (
-        <div className="absolute inset-0 bg-black/80 backdrop-blur-md flex flex-col items-center justify-center gap-4 z-30 overflow-hidden">
-          {/* Vertical Moving Laser Scan Beam */}
-          <div className="absolute inset-x-0 h-1 bg-gradient-to-r from-transparent via-[#8579ff] to-transparent shadow-[0_0_24px_#665AEF] animate-[bounce_2s_infinite]" />
-
-          <Loader2 className="size-9 text-[#665AEF] animate-spin" />
-          <div className="text-center px-4">
-            <p className="text-sm font-semibold text-foreground tracking-tight flex items-center justify-center gap-2">
-              <Sparkles className="size-4 text-[#8579ff] animate-pulse" />
-              <span>Synthesizing Forensic Composite...</span>
-            </p>
-            <p className="text-xs text-[#a594fd] font-mono mt-1 transition-all duration-300">
-              {TELEMETRY_PHASES[telemetryIndex]}
-            </p>
-          </div>
+        <div className="absolute inset-0 bg-[#08080c]/65 backdrop-blur-[2.5px] flex flex-col items-center justify-center gap-3 z-30 transition-all duration-300">
+          <ConcentricRings size={34} color="#8579ff" />
+          <p className="text-xs font-medium text-zinc-300 tracking-wide select-none">
+            Synthesizing composite...
+          </p>
         </div>
       )}
 

@@ -48,6 +48,25 @@ export interface SketchGenerateRequest {
   resolution?: number;
   steps?: number;
   control_strength?: number;
+  prompt?: string;
+  sketch_style?: string;
+  camera_angle?: "frontal" | "three_quarter" | "profile";
+  age_group?: string;
+  gender?: string;
+  ethnicity?: string;
+  lighting_mood?: "neutral_studio" | "crime_scene";
+  detail_level?: "Draft" | "Standard" | "Master";
+}
+
+export interface LLMForensicAnalysis {
+  feature_summary?: Record<string, string>;
+  morphological_traits?: string[];
+  demographic_heritage?: string;
+  age_markers?: string[];
+  perspective_parameters?: Record<string, unknown>;
+  style_execution?: Record<string, unknown>;
+  confidence_score?: number;
+  reasoning?: string;
 }
 
 export interface SketchGenerateResponse extends BaseAIResponse {
@@ -55,6 +74,7 @@ export interface SketchGenerateResponse extends BaseAIResponse {
   witness_id: string;
   image: SketchImage;
   seed?: number;
+  llm_analysis?: LLMForensicAnalysis;
   metadata?: Record<string, unknown>;
 }
 
