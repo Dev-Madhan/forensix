@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100%" height="100%">
+  <defs>
+    <linearGradient id="graphite-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F1F5F9" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#E2E8F0" stop-opacity="0.6"/>
+    </linearGradient>
+    <linearGradient id="shadow-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#CBD5E1" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#94A3B8" stop-opacity="0.1"/>
+    </linearGradient>
+    <linearGradient id="gold-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FDE047"/>
+      <stop offset="60%" stop-color="#EAB308"/>
+      <stop offset="100%" stop-color="#CA8A04"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="96" height="96" rx="10" fill="#FAFAFA" stroke="#E5E7EB" stroke-width="1.5" />
+  <g class="forensic-feature" stroke-linecap="round" stroke-linejoin="round">
+<!-- Forehead Furrows -->
+    <path d="M28 22 C34 18 66 18 72 22" stroke="#94A3B8" stroke-width="1.0" stroke-dasharray="2 2" fill="none" />
+    <path d="M30 30 C38 28 62 28 70 30" stroke="#1E293B" stroke-width="1.9" fill="none" />
+    <path d="M33 36 C42 34 58 34 67 36" stroke="#1E293B" stroke-width="2.0" fill="none" />
+    <path d="M37 42 C44 40 56 40 63 42" stroke="#1E293B" stroke-width="1.8" fill="none" />
+    <!-- Fine transverse creases -->
+    <path d="M40 33 L43 33" stroke="#64748B" stroke-width="1.2" />
+    <path d="M57 39 L60 39" stroke="#64748B" stroke-width="1.2" />
+  </g>
+</svg>

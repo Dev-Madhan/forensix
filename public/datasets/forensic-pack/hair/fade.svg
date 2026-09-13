@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100%" height="100%">
+  <rect x="2" y="2" width="96" height="96" rx="10" fill="#FAFAFA" stroke="#E5E7EB" stroke-width="1.5" />
+  <g class="forensic-feature" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Skull Frame -->
+    <path d="M28 42 C28 26 38 18 50 18 C62 18 72 26 72 42 L72 68 C72 78 62 82 50 82 C38 82 28 78 28 68 Z" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="1.0" stroke-dasharray="2 2" />
+    <!-- Taper fade sides -->
+    <path d="M26 44 C26 36 29 32 32 28 L68 28 C71 32 74 36 74 44 C72 40 70 38 67 36 L33 36 C30 38 28 40 26 44 Z" fill="#64748B" opacity="0.4" />
+    <!-- Disconnected textured top volume -->
+    <path d="M30 29 C32 18 38 10 50 10 C62 10 68 18 70 29 C64 26 58 24 50 25 C42 24 36 26 30 29 Z" fill="#334155" stroke="#0F172A" stroke-width="2.0" />
+    <!-- Vertical lift texture -->
+    <path d="M42 22 C44 15 48 14 50 18" stroke="#CBD5E1" stroke-width="1.2" fill="none" />
+    <path d="M52 18 C54 14 58 15 60 22" stroke="#CBD5E1" stroke-width="1.2" fill="none" />
+  </g>
+</svg>

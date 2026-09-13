@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100%" height="100%">
+  <defs>
+    <linearGradient id="graphite-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F1F5F9" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#E2E8F0" stop-opacity="0.6"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Clean Evidence Card Background -->
+  <rect x="2" y="2" width="96" height="96" rx="10" fill="#FAFAFA" stroke="#E5E7EB" stroke-width="1.5" />
+
+  <!-- Feature Artwork: Free / Hanging Lobule -->
+  <g class="forensic-feature" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Outer Helix & Pendulous hanging lobe -->
+    <path d="M42 20 C56 20 66 30 66 44 C66 58 62 70 54 78 C48 83 38 82 36 74 C35 68 40 64 44 62" fill="none" stroke="#1E293B" stroke-width="2.2" />
+    <!-- Free lobe inner notch line -->
+    <path d="M36 70 C39 70 41 68 43 64" fill="none" stroke="#64748B" stroke-width="1.4" />
+    <!-- Antihelix and Concha -->
+    <path d="M50 30 C56 36 56 48 50 56 C46 60 42 61 38 61" fill="none" stroke="#64748B" stroke-width="1.6" />
+    <!-- Tragus -->
+    <path d="M37 45 C40 45 42 48 40 52 C39 54 36 55 35 53" fill="none" stroke="#1E293B" stroke-width="1.8" />
+  </g>
+</svg>

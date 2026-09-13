@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100%" height="100%">
+  <defs>
+    <linearGradient id="graphite-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F1F5F9" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#E2E8F0" stop-opacity="0.6"/>
+    </linearGradient>
+    <linearGradient id="shadow-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#CBD5E1" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#94A3B8" stop-opacity="0.1"/>
+    </linearGradient>
+    <linearGradient id="gold-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FDE047"/>
+      <stop offset="60%" stop-color="#EAB308"/>
+      <stop offset="100%" stop-color="#CA8A04"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="96" height="96" rx="10" fill="#FAFAFA" stroke="#E5E7EB" stroke-width="1.5" />
+  <g class="forensic-feature" stroke-linecap="round" stroke-linejoin="round">
+<!-- High Prominent Cheekbones -->
+    <path d="M50 18 C32 18 25 32 25 50 C25 68 34 80 50 84 C66 80 75 68 75 50 C75 32 68 18 50 18 Z" fill="#F8FAFC" stroke="#94A3B8" stroke-width="1.2" stroke-dasharray="2 2" />
+    <path d="M28 46 C34 38 42 42 46 48" stroke="#1E293B" stroke-width="2.2" fill="none" />
+    <path d="M72 46 C66 38 58 42 54 48" stroke="#1E293B" stroke-width="2.2" fill="none" />
+    <path d="M30 49 L36 55 M34 47 L40 53 M38 45 L44 51" stroke="#94A3B8" stroke-width="1.0" />
+    <path d="M70 49 L64 55 M66 47 L60 53 M62 45 L56 51" stroke="#94A3B8" stroke-width="1.0" />
+  </g>
+</svg>

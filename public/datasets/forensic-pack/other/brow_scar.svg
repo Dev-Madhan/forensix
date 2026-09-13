@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100%" height="100%">
+  <defs>
+    <linearGradient id="graphite-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F1F5F9" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#E2E8F0" stop-opacity="0.6"/>
+    </linearGradient>
+    <linearGradient id="shadow-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#CBD5E1" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#94A3B8" stop-opacity="0.1"/>
+    </linearGradient>
+    <linearGradient id="gold-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FDE047"/>
+      <stop offset="60%" stop-color="#EAB308"/>
+      <stop offset="100%" stop-color="#CA8A04"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="96" height="96" rx="10" fill="#FAFAFA" stroke="#E5E7EB" stroke-width="1.5" />
+  <g class="forensic-feature" stroke-linecap="round" stroke-linejoin="round">
+<!-- Eyebrow Vertical Scar -->
+    <path d="M24 50 C32 44 42 44 47 47" stroke="#1E293B" stroke-width="5.0" stroke-linecap="round" fill="none" />
+    <line x1="40" y1="40" x2="40" y2="54" stroke="#FAFAFA" stroke-width="3.5" stroke-linecap="round" />
+    <line x1="40" y1="41" x2="40" y2="53" stroke="#DC2626" stroke-width="1.2" stroke-linecap="round" opacity="0.8" />
+    <line x1="38" y1="44" x2="42" y2="44" stroke="#64748B" stroke-width="0.8" />
+    <line x1="38" y1="50" x2="42" y2="50" stroke="#64748B" stroke-width="0.8" />
+  </g>
+</svg>

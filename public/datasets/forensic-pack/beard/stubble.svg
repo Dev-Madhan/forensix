@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100%" height="100%">
+  <rect x="2" y="2" width="96" height="96" rx="10" fill="#FAFAFA" stroke="#E5E7EB" stroke-width="1.5" />
+  <g class="forensic-feature" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Stubble: Soft 5 o'clock shadow with stippling -->
+    <path d="M22 36 L22 62 C22 75 34 84 50 84 C66 84 78 75 78 62 L78 36 C74 44 68 50 62 53 C55 56 45 56 38 53 C32 50 26 44 22 36 Z" fill="#64748B" opacity="0.35" />
+    <ellipse cx="50" cy="58" rx="12" ry="5.5" fill="#FAFAFA" stroke="#94A3B8" stroke-width="1.0" />
+    <!-- Stipple dots -->
+    <circle cx="30" cy="52" r="0.9" fill="#334155" />
+    <circle cx="38" cy="62" r="0.9" fill="#334155" />
+    <circle cx="44" cy="72" r="0.9" fill="#334155" />
+    <circle cx="50" cy="74" r="0.9" fill="#334155" />
+    <circle cx="56" cy="72" r="0.9" fill="#334155" />
+    <circle cx="62" cy="62" r="0.9" fill="#334155" />
+    <circle cx="70" cy="52" r="0.9" fill="#334155" />
+    <circle cx="34" cy="44" r="0.9" fill="#334155" />
+    <circle cx="66" cy="44" r="0.9" fill="#334155" />
+  </g>
+</svg>

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100%" height="100%">
+  <rect x="2" y="2" width="96" height="96" rx="10" fill="#FAFAFA" stroke="#E5E7EB" stroke-width="1.5" />
+  <g class="forensic-feature" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Skull Frame -->
+    <path d="M28 42 C28 26 38 18 50 18 C62 18 72 26 72 42 L72 68 C72 78 62 82 50 82 C38 82 28 78 28 68 Z" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="1.0" stroke-dasharray="2 2" />
+    <!-- Flowing cascading tresses past jaw and shoulders -->
+    <path d="M22 82 C18 64 20 38 27 26 C33 14 41 12 50 12 C59 12 67 14 73 26 C80 38 82 64 78 82 C71 68 73 48 70 38 C62 33 56 31 50 31 C44 31 38 33 30 38 C27 48 29 68 22 82 Z" fill="#334155" stroke="#0F172A" stroke-width="2.0" />
+    <!-- Flowing wave lines -->
+    <path d="M24 54 C23 64 26 76 28 82" stroke="#94A3B8" stroke-width="1.3" fill="none" />
+    <path d="M76 54 C77 64 74 76 72 82" stroke="#94A3B8" stroke-width="1.3" fill="none" />
+    <path d="M49 14 L48 31" stroke="#FAFAFA" stroke-width="1.2" stroke-dasharray="2 2" />
+  </g>
+</svg>

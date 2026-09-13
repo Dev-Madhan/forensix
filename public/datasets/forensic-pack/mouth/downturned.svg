@@ -1,0 +1,56 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100%" height="100%">
+  <defs>
+    <linearGradient id="pencil-shade" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#E2E8F0" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#CBD5E1" stop-opacity="0.4"/>
+    </linearGradient>
+    <linearGradient id="upper-lip-shade" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#CBD5E1" stop-opacity="0.85"/>
+      <stop offset="100%" stop-color="#94A3B8" stop-opacity="0.95"/>
+    </linearGradient>
+    <linearGradient id="lower-lip-shade" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#F1F5F9" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#E2E8F0" stop-opacity="0.95"/>
+    </linearGradient>
+    <radialGradient id="nose-tip-glow" cx="45%" cy="45%" r="55%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.9"/>
+      <stop offset="60%" stop-color="#F1F5F9" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#CBD5E1" stop-opacity="0.7"/>
+    </radialGradient>
+    
+  </defs>
+
+  <!-- Clean Evidence Card Background -->
+  <rect x="2" y="2" width="96" height="96" rx="10" fill="#FAFAFA" stroke="#E5E7EB" stroke-width="1.5" />
+  
+  <!-- Feature Artwork -->
+  <g class="forensic-feature" stroke-linecap="round" stroke-linejoin="round">
+    
+    <!-- Downturned Mouth: Melancholic resting angle, depressed commissures -->
+    <!-- Philtrum -->
+    <path d="M44 26 C45 32 46 36 46 39" stroke="#94A3B8" stroke-width="1.2" fill="none" />
+    <path d="M56 26 C55 32 54 36 54 39" stroke="#94A3B8" stroke-width="1.2" fill="none" />
+
+    <!-- Upper Lip (Curves downward at lateral edges) -->
+    <path d="M15 56 C26 46 42 39 47 37 C49 39 51 39 53 37 C58 39 74 46 85 56 C74 53 58 50 50 50 C42 50 26 53 15 56 Z" fill="url(#upper-lip-shade)" stroke="#1E293B" stroke-width="1.8" />
+
+    <!-- Downturned Oral Fissure (Depressed corners at y: 56) -->
+    <path d="M14 56 C24 48 42 49 50 49 C58 49 76 48 86 56" stroke="#0F172A" stroke-width="2.6" fill="none" />
+    <!-- Downward corner creases (subtle depressor anguli oris hints) -->
+    <line x1="14" y1="56" x2="11" y2="62" stroke="#475569" stroke-width="1.8" />
+    <line x1="86" y1="56" x2="89" y2="62" stroke="#475569" stroke-width="1.8" />
+    <circle cx="14" cy="56" r="1.6" fill="#0F172A" />
+    <circle cx="86" cy="56" r="1.6" fill="#0F172A" />
+
+    <!-- Lower Lip -->
+    <path d="M17 56 C26 66 74 66 83 56 C74 53 58 50 50 50 C42 50 26 53 17 56 Z" fill="url(#lower-lip-shade)" stroke="#1E293B" stroke-width="1.8" />
+
+    <!-- Highlights -->
+    <ellipse cx="42" cy="55" rx="5" ry="2" fill="#FFFFFF" opacity="0.75" />
+    <ellipse cx="58" cy="55" rx="5" ry="2" fill="#FFFFFF" opacity="0.75" />
+
+    <!-- Labiomental shadow -->
+    <path d="M36 69 C44 72 56 72 64 69" stroke="#64748B" stroke-width="1.6" fill="none" />
+  
+  </g>
+</svg>

@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100%" height="100%">
+  <defs>
+    <linearGradient id="graphite-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F1F5F9" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#E2E8F0" stop-opacity="0.6"/>
+    </linearGradient>
+    <linearGradient id="shadow-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#CBD5E1" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#94A3B8" stop-opacity="0.1"/>
+    </linearGradient>
+    <radialGradient id="iris-grad" cx="40%" cy="40%" r="65%">
+      <stop offset="0%" stop-color="#64748B"/>
+      <stop offset="50%" stop-color="#334155"/>
+      <stop offset="100%" stop-color="#0F172A"/>
+    </radialGradient>
+    
+  </defs>
+
+  <!-- Clean Evidence Card Background -->
+  <rect x="2" y="2" width="96" height="96" rx="10" fill="#FAFAFA" stroke="#E5E7EB" stroke-width="1.5" />
+  
+  <!-- Feature Artwork -->
+  <g class="forensic-feature" stroke-linecap="round" stroke-linejoin="round">
+    
+    <!-- Angular Jawline: sharp gonial angle, steep descending ramus -->
+    <path d="M22 26 L22 52 L38 72 L50 75 L62 72 L78 52 L78 26" fill="none" stroke="#1E293B" stroke-width="2.4" />
+    <!-- Defined mandibular angle crease -->
+    <line x1="22" y1="52" x2="30" y2="57" stroke="#64748B" stroke-width="1.6" />
+    <line x1="78" y1="52" x2="70" y2="57" stroke="#64748B" stroke-width="1.6" />
+    <path d="M26 53 L38 68 L50 71 L62 68 L74 53" fill="none" stroke="#94A3B8" stroke-width="1.2" stroke-dasharray="2 2" />
+  
+  </g>
+</svg>

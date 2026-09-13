@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100%" height="100%">
+  <rect x="2" y="2" width="96" height="96" rx="10" fill="#FAFAFA" stroke="#E5E7EB" stroke-width="1.5" />
+  <g class="forensic-feature" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Skull Frame -->
+    <path d="M28 42 C28 26 38 18 50 18 C62 18 72 26 72 42 L72 68 C72 78 62 82 50 82 C38 82 28 78 28 68 Z" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="1.0" stroke-dasharray="2 2" />
+    <!-- Side Part / Professional Contour -->
+    <path d="M25 46 L25 36 C24 23 35 12 51 12 C67 12 77 23 75 36 L75 46 C72 40 70 34 65 31 C56 28 48 31 38 31 C33 31 29 36 25 46 Z" fill="#334155" stroke="#0F172A" stroke-width="2.0" />
+    <!-- Defined lateral side part -->
+    <line x1="38" y1="14" x2="36" y2="31" stroke="#FAFAFA" stroke-width="1.5" />
+    <!-- Swept combed directional strokes -->
+    <path d="M41 18 C50 16 60 18 67 24" stroke="#94A3B8" stroke-width="1.3" fill="none" />
+    <path d="M42 24 C50 22 58 24 64 28" stroke="#94A3B8" stroke-width="1.2" fill="none" />
+    <path d="M35 22 C32 24 28 28 26 34" stroke="#94A3B8" stroke-width="1.1" fill="none" />
+  </g>
+</svg>

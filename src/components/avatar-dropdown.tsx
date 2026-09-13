@@ -18,9 +18,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { User, Settings, Shield, LogOut, Briefcase, Users, PenTool, LayoutDashboard } from "lucide-react";
+import { User, Settings, Shield, LogOut, Briefcase, Users, PenTool, LayoutDashboard, ChevronDown } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
-
+import { cn } from "@/lib/utils";
 
 import { motion, AnimatePresence } from "motion/react";
 
@@ -31,6 +31,7 @@ interface AvatarDropdownProps {
     image?: string;
     role?: string;
   };
+  showName?: boolean;
 }
 
 export function AvatarDropdown({
@@ -39,6 +40,7 @@ export function AvatarDropdown({
     email: "officer@forensix.gov",
     role: "INVESTIGATOR",
   },
+  showName = false,
 }: AvatarDropdownProps) {
   const router = useRouter();
   const [isPending, setIsPending] = React.useState(false);
@@ -79,17 +81,30 @@ export function AvatarDropdown({
         render={
           <button
             type="button"
-            className="relative flex size-8 cursor-pointer items-center justify-center rounded-full outline-none focus-visible:ring-2 focus-visible:ring-ring transition-transform active:scale-95"
+            className={cn(
+              "relative flex items-center cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-ring transition-all active:scale-95",
+              showName
+                ? "gap-2 py-1 px-1.5 sm:px-2 rounded-lg hover:bg-surface/80 border border-transparent hover:border-border/60"
+                : "size-8 justify-center rounded-full"
+            )}
             aria-label="User account menu"
           />
         }
       >
-        <Avatar className="size-8 border border-border">
+        <Avatar className="size-7.5 border border-border/80">
           {user.image && <AvatarImage src={user.image} alt={user.name} />}
           <AvatarFallback className="font-heading text-xs font-semibold bg-surface text-foreground">
             {initials}
           </AvatarFallback>
         </Avatar>
+        {showName && (
+          <>
+            <span className="hidden sm:inline-block text-xs font-medium text-foreground max-w-[140px] truncate">
+              {user.name || "User"}
+            </span>
+            <ChevronDown className="size-3.5 text-muted-foreground shrink-0" />
+          </>
+        )}
       </DropdownMenuTrigger>
 
       <AnimatePresence>

@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100%" height="100%">
+  <!-- Clean Evidence Card Background -->
+  <rect x="2" y="2" width="96" height="96" rx="10" fill="#FAFAFA" stroke="#E5E7EB" stroke-width="1.5" />
+  <!-- Feature Artwork -->
+  <g class="forensic-feature" stroke-linecap="round" stroke-linejoin="round">
+    
+    <!-- Pointed Nose: Chiseled linear bridge, acute triangular apex, sharp supratip break -->
+    <line x1="45" y1="16" x2="46" y2="54" stroke="#CBD5E1" stroke-width="1.2" />
+    <line x1="55" y1="16" x2="54" y2="54" stroke="#1E293B" stroke-width="1.6" />
+    <polygon points="45,16 55,16 54,54 46,54" fill="#E2E8F0" opacity="0.45" />
+
+    <!-- Acute supratip break & triangular apex -->
+    <path d="M46 56 L50 63.5 L54 56" stroke="#1E293B" stroke-width="1.5" fill="none" />
+    <!-- Acute triangular apex contour -->
+    <path d="M44 63.5 L50 66.5 L56 63.5" stroke="#1E293B" stroke-width="1.8" fill="none" />
+
+    <!-- Taut, angular alar wings -->
+    <path d="M33 61 C30 64 31 69 36 71" stroke="#1E293B" stroke-width="2.0" fill="none" />
+    <path d="M67 61 C70 64 69 69 64 71" stroke="#1E293B" stroke-width="2.0" fill="none" />
+
+    <!-- Angular nostril apertures -->
+    <polygon points="38,70 42,67 44,70" fill="#0F172A" />
+    <polygon points="62,70 58,67 56,70" fill="#0F172A" />
+
+    <!-- Pointed columella base -->
+    <path d="M47 67 L50 71 L53 67" stroke="#1E293B" stroke-width="1.8" fill="none" />
+
+    <line x1="46" y1="74" x2="45" y2="83" stroke="#CBD5E1" stroke-width="1.0" stroke-dasharray="1.5 2" />
+    <line x1="54" y1="74" x2="55" y2="83" stroke="#CBD5E1" stroke-width="1.0" stroke-dasharray="1.5 2" />
+  
+  </g>
+</svg>

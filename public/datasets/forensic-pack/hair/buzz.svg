@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100%" height="100%">
+  <rect x="2" y="2" width="96" height="96" rx="10" fill="#FAFAFA" stroke="#E5E7EB" stroke-width="1.5" />
+  <g class="forensic-feature" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Skull Frame -->
+    <path d="M28 42 C28 26 38 18 50 18 C62 18 72 26 72 42 L72 68 C72 78 62 82 50 82 C38 82 28 78 28 68 Z" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="1.0" stroke-dasharray="2 2" />
+    <!-- Buzz Cut close cranial layer -->
+    <path d="M27 44 L27 37 C26 25 36 16 50 16 C64 16 74 25 73 37 L73 44 C71 39 70 33 65 30 C56 26 44 26 35 30 C30 33 29 39 27 44 Z" fill="#475569" stroke="#1E293B" stroke-width="1.8" />
+    <!-- Stippled military stubble texture -->
+    <circle cx="42" cy="22" r="0.8" fill="#CBD5E1" />
+    <circle cx="50" cy="20" r="0.8" fill="#CBD5E1" />
+    <circle cx="58" cy="22" r="0.8" fill="#CBD5E1" />
+    <circle cx="36" cy="28" r="0.8" fill="#CBD5E1" />
+    <circle cx="64" cy="28" r="0.8" fill="#CBD5E1" />
+    <circle cx="50" cy="25" r="0.8" fill="#CBD5E1" />
+  </g>
+</svg>

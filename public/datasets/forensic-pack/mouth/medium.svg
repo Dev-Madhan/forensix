@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100%" height="100%">
+  <defs>
+    <linearGradient id="pencil-shade" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#E2E8F0" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#CBD5E1" stop-opacity="0.4"/>
+    </linearGradient>
+    <linearGradient id="upper-lip-shade" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#CBD5E1" stop-opacity="0.85"/>
+      <stop offset="100%" stop-color="#94A3B8" stop-opacity="0.95"/>
+    </linearGradient>
+    <linearGradient id="lower-lip-shade" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#F1F5F9" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#E2E8F0" stop-opacity="0.95"/>
+    </linearGradient>
+    <radialGradient id="nose-tip-glow" cx="45%" cy="45%" r="55%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.9"/>
+      <stop offset="60%" stop-color="#F1F5F9" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#CBD5E1" stop-opacity="0.7"/>
+    </radialGradient>
+    
+  </defs>
+
+  <!-- Clean Evidence Card Background -->
+  <rect x="2" y="2" width="96" height="96" rx="10" fill="#FAFAFA" stroke="#E5E7EB" stroke-width="1.5" />
+  
+  <!-- Feature Artwork -->
+  <g class="forensic-feature" stroke-linecap="round" stroke-linejoin="round">
+    
+    <!-- Medium Lips: Classical anatomical balance, defined Cupid's bow, tubercle -->
+    <!-- Philtrum columns -->
+    <path d="M44 26 C45 32 46 36 46 39" stroke="#94A3B8" stroke-width="1.2" fill="none" />
+    <path d="M56 26 C55 32 54 36 54 39" stroke="#94A3B8" stroke-width="1.2" fill="none" />
+
+    <!-- Upper Lip (Cupid's Bow & Vermilion) -->
+    <path d="M15 50 C26 44 42 38 47 36 C49 38 51 38 53 36 C58 38 74 44 85 50 C72 51 57 53 50 53 C43 53 28 51 15 50 Z" fill="url(#upper-lip-shade)" stroke="#1E293B" stroke-width="1.8" />
+
+    <!-- Center tubercle dip -->
+    <path d="M47 36 C49 38 51 38 53 36" stroke="#1E293B" stroke-width="2.0" fill="none" />
+
+    <!-- Oral Fissure (Subtle wave with corner nodes) -->
+    <path d="M14 50 C25 49 42 53.5 50 53.5 C58 53.5 75 49 86 50" stroke="#0F172A" stroke-width="2.6" fill="none" />
+    <circle cx="14" cy="50" r="1.8" fill="#0F172A" />
+    <circle cx="86" cy="50" r="1.8" fill="#0F172A" />
+
+    <!-- Lower Lip (Voluptuous cushions & highlight) -->
+    <path d="M16 50 C24 64 76 64 84 50 C74 53 58 53.5 50 53.5 C42 53.5 26 53 16 50 Z" fill="url(#lower-lip-shade)" stroke="#1E293B" stroke-width="1.8" />
+    
+    <!-- Central lower lip specular highlights -->
+    <ellipse cx="42" cy="56" rx="6" ry="2.2" fill="#FFFFFF" opacity="0.75" />
+    <ellipse cx="58" cy="56" rx="6" ry="2.2" fill="#FFFFFF" opacity="0.75" />
+    <!-- Fine lip texture lines -->
+    <line x1="38" y1="53" x2="39" y2="58" stroke="#CBD5E1" stroke-width="1.0" />
+    <line x1="50" y1="54" x2="50" y2="60" stroke="#CBD5E1" stroke-width="1.0" />
+    <line x1="62" y1="53" x2="61" y2="58" stroke="#CBD5E1" stroke-width="1.0" />
+
+    <!-- Labiomental shadow below -->
+    <path d="M34 68 C42 71 58 71 66 68" stroke="#64748B" stroke-width="1.6" fill="none" />
+  
+  </g>
+</svg>

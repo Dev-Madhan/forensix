@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100%" height="100%">
+  <rect x="2" y="2" width="96" height="96" rx="10" fill="#FAFAFA" stroke="#E5E7EB" stroke-width="1.5" />
+  <g class="forensic-feature" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Van Dyke: Pointed chin tuft and detached moustache -->
+    <path d="M38 52 C44 48 48 51 50 51 C52 51 56 48 62 52 C58 56 54 56 50 54 C46 56 42 56 38 52 Z" fill="#1E293B" stroke="#0F172A" stroke-width="1.5" />
+    <path d="M42 62 L58 62 C58 72 54 82 50 86 C46 82 42 72 42 62 Z" fill="#334155" stroke="#0F172A" stroke-width="2.0" />
+    <line x1="48" y1="66" x2="49" y2="78" stroke="#94A3B8" stroke-width="1.2" />
+    <line x1="52" y1="66" x2="51" y2="78" stroke="#94A3B8" stroke-width="1.2" />
+  </g>
+</svg>

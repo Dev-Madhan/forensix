@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100%" height="100%">
+  <rect x="2" y="2" width="96" height="96" rx="10" fill="#FAFAFA" stroke="#E5E7EB" stroke-width="1.5" />
+  <g class="forensic-feature" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Skull Frame -->
+    <path d="M28 42 C28 26 38 18 50 18 C62 18 72 26 72 42 L72 68 C72 78 62 82 50 82 C38 82 28 78 28 68 Z" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="1.0" stroke-dasharray="2 2" />
+    <!-- Medium length layered volume reaching past ears -->
+    <path d="M24 58 C22 46 24 32 30 22 C36 12 43 11 50 11 C57 11 64 12 70 22 C76 32 78 46 76 58 C72 50 72 38 67 34 C60 30 55 36 50 34 C45 36 40 30 33 34 C28 38 28 50 24 58 Z" fill="#334155" stroke="#0F172A" stroke-width="2.0" />
+    <!-- Layered flick strokes -->
+    <path d="M26 50 C28 44 32 38 38 35" stroke="#94A3B8" stroke-width="1.2" fill="none" />
+    <path d="M74 50 C72 44 68 38 62 35" stroke="#94A3B8" stroke-width="1.2" fill="none" />
+    <path d="M38 24 C44 20 50 21 56 25" stroke="#CBD5E1" stroke-width="1.2" fill="none" />
+  </g>
+</svg>

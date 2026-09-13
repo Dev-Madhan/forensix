@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100%" height="100%">
+  <rect x="2" y="2" width="96" height="96" rx="10" fill="#FAFAFA" stroke="#E5E7EB" stroke-width="1.5" />
+  <g class="forensic-feature" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Skull Frame -->
+    <path d="M28 42 C28 26 38 18 50 18 C62 18 72 26 72 42 L72 68 C72 78 62 82 50 82 C38 82 28 78 28 68 Z" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="1.0" stroke-dasharray="2 2" />
+    <!-- Voluminous wavy/curly crown -->
+    <path d="M24 46 C22 38 23 30 28 23 C33 16 41 11 50 11 C59 11 67 16 72 23 C77 30 78 38 76 46 C73 40 70 33 65 31 C60 35 55 31 50 33 C45 31 40 35 35 31 C30 33 27 40 24 46 Z" fill="#334155" stroke="#0F172A" stroke-width="2.0" />
+    <!-- Wave / Curl Arcs -->
+    <path d="M34 20 C38 16 44 22 48 18" stroke="#94A3B8" stroke-width="1.3" fill="none" />
+    <path d="M52 18 C56 22 62 16 66 20" stroke="#94A3B8" stroke-width="1.3" fill="none" />
+    <path d="M30 28 C36 24 40 28 46 25" stroke="#94A3B8" stroke-width="1.2" fill="none" />
+    <path d="M54 25 C60 28 64 24 70 28" stroke="#94A3B8" stroke-width="1.2" fill="none" />
+  </g>
+</svg>

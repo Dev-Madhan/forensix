@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100%" height="100%">
+  <defs>
+    <linearGradient id="pencil-shade" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#E2E8F0" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#CBD5E1" stop-opacity="0.4"/>
+    </linearGradient>
+    <linearGradient id="upper-lip-shade" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#CBD5E1" stop-opacity="0.85"/>
+      <stop offset="100%" stop-color="#94A3B8" stop-opacity="0.95"/>
+    </linearGradient>
+    <linearGradient id="lower-lip-shade" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#F1F5F9" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#E2E8F0" stop-opacity="0.95"/>
+    </linearGradient>
+    <radialGradient id="nose-tip-glow" cx="45%" cy="45%" r="55%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.9"/>
+      <stop offset="60%" stop-color="#F1F5F9" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#CBD5E1" stop-opacity="0.7"/>
+    </radialGradient>
+    
+  </defs>
+
+  <!-- Clean Evidence Card Background -->
+  <rect x="2" y="2" width="96" height="96" rx="10" fill="#FAFAFA" stroke="#E5E7EB" stroke-width="1.5" />
+  
+  <!-- Feature Artwork -->
+  <g class="forensic-feature" stroke-linecap="round" stroke-linejoin="round">
+    
+    <!-- Wide Mouth: Extended horizontal width, elegant elongated contours -->
+    <!-- Philtrum -->
+    <path d="M45 28 C46 34 46 38 46 40" stroke="#94A3B8" stroke-width="1.2" fill="none" />
+    <path d="M55 28 C54 34 54 38 54 40" stroke="#94A3B8" stroke-width="1.2" fill="none" />
+
+    <!-- Upper Lip (Horizontally elongated) -->
+    <path d="M8 50 C22 43 42 39 47 38 C49 40 51 40 53 38 C58 39 78 43 92 50 C78 51 58 52.5 50 52.5 C42 52.5 22 51 8 50 Z" fill="url(#upper-lip-shade)" stroke="#1E293B" stroke-width="1.8" />
+
+    <!-- Extended Oral Fissure line -->
+    <path d="M7 50 C22 49 42 52.5 50 52.5 C58 52.5 78 49 93 50" stroke="#0F172A" stroke-width="2.6" fill="none" />
+    <circle cx="7" cy="50" r="1.8" fill="#0F172A" />
+    <circle cx="93" cy="50" r="1.8" fill="#0F172A" />
+
+    <!-- Lower Lip -->
+    <path d="M10 50 C20 64 80 64 90 50 C78 52.5 58 52.5 50 52.5 C42 52.5 22 52.5 10 50 Z" fill="url(#lower-lip-shade)" stroke="#1E293B" stroke-width="1.8" />
+
+    <!-- Highlights along elongated span -->
+    <ellipse cx="38" cy="56" rx="10" ry="2.2" fill="#FFFFFF" opacity="0.75" />
+    <ellipse cx="62" cy="56" rx="10" ry="2.2" fill="#FFFFFF" opacity="0.75" />
+
+    <!-- Labiomental shadow -->
+    <path d="M32 68 C42 71 58 71 68 68" stroke="#64748B" stroke-width="1.6" fill="none" />
+  
+  </g>
+</svg>

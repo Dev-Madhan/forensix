@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100%" height="100%">
+  <defs>
+    <linearGradient id="graphite-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F1F5F9" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#E2E8F0" stop-opacity="0.6"/>
+    </linearGradient>
+    <linearGradient id="shadow-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#CBD5E1" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#94A3B8" stop-opacity="0.1"/>
+    </linearGradient>
+    <linearGradient id="gold-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FDE047"/>
+      <stop offset="60%" stop-color="#EAB308"/>
+      <stop offset="100%" stop-color="#CA8A04"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="96" height="96" rx="10" fill="#FAFAFA" stroke="#E5E7EB" stroke-width="1.5" />
+  <g class="forensic-feature" stroke-linecap="round" stroke-linejoin="round">
+<!-- Deviated / Broken Septum -->
+    <path d="M48 22 C48 30 43 38 45 48 C47 56 42 62 49 68" stroke="#1E293B" stroke-width="2.4" fill="none" />
+    <path d="M44 38 L49 39" stroke="#64748B" stroke-width="1.4" />
+    <path d="M36 65 C34 68 38 72 45 71" stroke="#1E293B" stroke-width="2.0" fill="none" />
+    <path d="M62 67 C64 70 60 73 53 72" stroke="#1E293B" stroke-width="2.0" fill="none" />
+    <ellipse cx="43" cy="69" rx="3.2" ry="1.8" fill="#1E293B" />
+    <ellipse cx="55" cy="70" rx="2.6" ry="1.6" fill="#1E293B" />
+  </g>
+</svg>

@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100%" height="100%">
+  <defs>
+    <linearGradient id="graphite-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F1F5F9" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#E2E8F0" stop-opacity="0.6"/>
+    </linearGradient>
+    <linearGradient id="shadow-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#CBD5E1" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#94A3B8" stop-opacity="0.1"/>
+    </linearGradient>
+    <radialGradient id="iris-grad" cx="40%" cy="40%" r="65%">
+      <stop offset="0%" stop-color="#64748B"/>
+      <stop offset="50%" stop-color="#334155"/>
+      <stop offset="100%" stop-color="#0F172A"/>
+    </radialGradient>
+    
+  </defs>
+
+  <!-- Clean Evidence Card Background -->
+  <rect x="2" y="2" width="96" height="96" rx="10" fill="#FAFAFA" stroke="#E5E7EB" stroke-width="1.5" />
+  
+  <!-- Feature Artwork -->
+  <g class="forensic-feature" stroke-linecap="round" stroke-linejoin="round">
+    
+    <!-- Short Hair: neat cropped forensic suspect hair silhouette -->
+    <!-- Head frame -->
+    <path d="M28 42 C28 26 38 18 50 18 C62 18 72 26 72 42 L72 68 C72 78 62 82 50 82 C38 82 28 78 28 68 Z" fill="#F1F5F9" stroke="#CBD5E1" stroke-width="1.0" stroke-dasharray="2 2" />
+    <!-- Short hair cap & sideburns -->
+    <path d="M26 48 L26 38 C24 24 34 14 50 14 C66 14 76 24 74 38 L74 48 C72 42 71 36 68 34 C58 32 54 30 50 30 C46 30 42 32 32 34 C29 36 28 42 26 48 Z" fill="#334155" stroke="#0F172A" stroke-width="2.0" />
+    <!-- Directional pencil strokes -->
+    <path d="M34 26 C40 22 46 22 52 24" stroke="#64748B" stroke-width="1.2" fill="none" />
+    <path d="M46 20 C54 18 60 20 64 24" stroke="#64748B" stroke-width="1.2" fill="none" />
+  
+  </g>
+</svg>

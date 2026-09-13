@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100%" height="100%">
+  <defs>
+    <linearGradient id="pencil-shade" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#E2E8F0" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#CBD5E1" stop-opacity="0.4"/>
+    </linearGradient>
+    <linearGradient id="upper-lip-shade" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#CBD5E1" stop-opacity="0.85"/>
+      <stop offset="100%" stop-color="#94A3B8" stop-opacity="0.95"/>
+    </linearGradient>
+    <linearGradient id="lower-lip-shade" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#F1F5F9" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#E2E8F0" stop-opacity="0.95"/>
+    </linearGradient>
+    <radialGradient id="nose-tip-glow" cx="45%" cy="45%" r="55%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.9"/>
+      <stop offset="60%" stop-color="#F1F5F9" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#CBD5E1" stop-opacity="0.7"/>
+    </radialGradient>
+    
+  </defs>
+
+  <!-- Clean Evidence Card Background -->
+  <rect x="2" y="2" width="96" height="96" rx="10" fill="#FAFAFA" stroke="#E5E7EB" stroke-width="1.5" />
+  
+  <!-- Feature Artwork -->
+  <g class="forensic-feature" stroke-linecap="round" stroke-linejoin="round">
+    
+    <!-- Narrow Mouth: Compact petite aperture, snug rosebud fullness -->
+    <!-- Compact Philtrum -->
+    <path d="M46 28 C47 34 47 37 47 40" stroke="#94A3B8" stroke-width="1.2" fill="none" />
+    <path d="M54 28 C53 34 53 37 53 40" stroke="#94A3B8" stroke-width="1.2" fill="none" />
+
+    <!-- Upper Lip (Compact Cupid's bow) -->
+    <path d="M25 50 C32 43 43 38 47 37 C49 39 51 39 53 37 C57 38 68 43 75 50 C66 52 56 53 50 53 C44 53 34 52 25 50 Z" fill="url(#upper-lip-shade)" stroke="#1E293B" stroke-width="1.8" />
+
+    <!-- Oral Fissure -->
+    <path d="M24 50 C33 49 43 53 50 53 C57 53 67 49 76 50" stroke="#0F172A" stroke-width="2.6" fill="none" />
+    <circle cx="24" cy="50" r="1.8" fill="#0F172A" />
+    <circle cx="76" cy="50" r="1.8" fill="#0F172A" />
+
+    <!-- Lower Lip (Snug rounded pouch) -->
+    <path d="M26 50 C32 64 68 64 74 50 C66 53 56 53 50 53 C44 53 34 53 26 50 Z" fill="url(#lower-lip-shade)" stroke="#1E293B" stroke-width="1.8" />
+
+    <!-- Central highlight -->
+    <ellipse cx="50" cy="57" rx="6" ry="2.5" fill="#FFFFFF" opacity="0.8" />
+
+    <!-- Petite Labiomental shadow -->
+    <path d="M40 68 C44 70 56 70 60 68" stroke="#64748B" stroke-width="1.6" fill="none" />
+  
+  </g>
+</svg>

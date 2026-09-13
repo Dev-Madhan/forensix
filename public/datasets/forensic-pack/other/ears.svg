@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100%" height="100%">
+  <defs>
+    <linearGradient id="graphite-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F1F5F9" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#E2E8F0" stop-opacity="0.6"/>
+    </linearGradient>
+    <linearGradient id="shadow-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#CBD5E1" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#94A3B8" stop-opacity="0.1"/>
+    </linearGradient>
+    <radialGradient id="iris-grad" cx="40%" cy="40%" r="65%">
+      <stop offset="0%" stop-color="#64748B"/>
+      <stop offset="50%" stop-color="#334155"/>
+      <stop offset="100%" stop-color="#0F172A"/>
+    </radialGradient>
+    
+  </defs>
+
+  <!-- Clean Evidence Card Background -->
+  <rect x="2" y="2" width="96" height="96" rx="10" fill="#FAFAFA" stroke="#E5E7EB" stroke-width="1.5" />
+  
+  <!-- Feature Artwork -->
+  <g class="forensic-feature" stroke-linecap="round" stroke-linejoin="round">
+    
+    <!-- Ears: anatomical helix, antihelix, concha, tragus, lobule -->
+    <!-- Outer Helix -->
+    <path d="M38 18 C58 14 74 26 74 46 C74 64 64 78 52 82 C44 85 36 80 36 74 C36 68 44 64 48 58" fill="#F1F5F9" stroke="#1E293B" stroke-width="2.4" />
+    <!-- Antihelix & Concha bowl -->
+    <path d="M48 28 C58 32 62 42 62 52 C62 62 54 70 46 72" stroke="#64748B" stroke-width="1.8" fill="none" />
+    <path d="M42 42 C48 42 52 46 52 52 C52 58 46 62 40 62" stroke="#1E293B" stroke-width="1.8" fill="#E2E8F0" />
+    <!-- Tragus notch -->
+    <path d="M34 48 C38 48 40 52 38 56" stroke="#1E293B" stroke-width="2.0" fill="none" />
+    <!-- Lobule fleshy contour -->
+    <path d="M46 72 C48 76 46 80 42 81" stroke="#94A3B8" stroke-width="1.4" fill="none" />
+  
+  </g>
+</svg>

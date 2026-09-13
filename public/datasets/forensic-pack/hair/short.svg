@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100%" height="100%">
+  <rect x="2" y="2" width="96" height="96" rx="10" fill="#FAFAFA" stroke="#E5E7EB" stroke-width="1.5" />
+  <g class="forensic-feature" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Skull Frame -->
+    <path d="M28 42 C28 26 38 18 50 18 C62 18 72 26 72 42 L72 68 C72 78 62 82 50 82 C38 82 28 78 28 68 Z" fill="#F8FAFC" stroke="#CBD5E1" stroke-width="1.0" stroke-dasharray="2 2" />
+    <!-- Short Classic Crop -->
+    <path d="M25 46 L25 36 C23 23 34 13 50 13 C66 13 77 23 75 36 L75 46 C73 40 71 34 68 32 C58 30 54 28 50 28 C46 28 42 30 32 32 C29 34 27 40 25 46 Z" fill="#334155" stroke="#0F172A" stroke-width="2.0" />
+    <path d="M33 24 C40 20 46 20 52 22" stroke="#94A3B8" stroke-width="1.2" fill="none" />
+    <path d="M47 18 C55 17 62 19 66 23" stroke="#94A3B8" stroke-width="1.2" fill="none" />
+  </g>
+</svg>

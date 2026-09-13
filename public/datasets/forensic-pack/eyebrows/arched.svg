@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100%" height="100%">
+  <defs>
+    <linearGradient id="pencil-shade" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#E2E8F0" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#CBD5E1" stop-opacity="0.4"/>
+    </linearGradient>
+    <linearGradient id="brow-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#1E293B"/>
+      <stop offset="85%" stop-color="#0F172A"/>
+      <stop offset="100%" stop-color="#334155"/>
+    </linearGradient>
+    <radialGradient id="iris-grad" cx="40%" cy="40%" r="65%">
+      <stop offset="0%" stop-color="#64748B"/>
+      <stop offset="50%" stop-color="#334155"/>
+      <stop offset="100%" stop-color="#0F172A"/>
+    </radialGradient>
+    
+  </defs>
+
+  <!-- Clean Evidence Card (NO graph lines, NO crosshairs) -->
+  <rect x="2" y="2" width="96" height="96" rx="10" fill="#FAFAFA" stroke="#E5E7EB" stroke-width="1.5" />
+
+  <!-- Pure Feature Artwork -->
+  <g class="forensic-feature" stroke-linecap="round" stroke-linejoin="round">
+    
+    <!-- Arched Eyebrow: Distinct upward arch peak at 2/3 and tapered tail -->
+    <path d="M14 56 C28 42 58 32 70 32 C78 33 83 42 86 48 C80 43 74 38 66 38 C54 38 30 48 14 56 Z" fill="#1E293B" stroke="#0F172A" stroke-width="1.2" />
+    <!-- Hair stroke texture -->
+    <line x1="18" y1="54" x2="24" y2="48" stroke="#475569" stroke-width="1.2" />
+    <line x1="32" y1="46" x2="40" y2="40" stroke="#475569" stroke-width="1.2" />
+    <line x1="48" y1="40" x2="56" y2="35.5" stroke="#475569" stroke-width="1.2" />
+    <line x1="64" y1="35" x2="71" y2="34" stroke="#475569" stroke-width="1.2" />
+    <line x1="74" y1="36" x2="80" y2="42" stroke="#475569" stroke-width="1.2" />
+    <line x1="81" y1="44" x2="85" y2="48" stroke="#475569" stroke-width="1.2" />
+  
+  </g>
+</svg>

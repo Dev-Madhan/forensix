@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100%" height="100%">
+  <defs>
+    <linearGradient id="graphite-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F1F5F9" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#E2E8F0" stop-opacity="0.6"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Clean Evidence Card Background -->
+  <rect x="2" y="2" width="96" height="96" rx="10" fill="#FAFAFA" stroke="#E5E7EB" stroke-width="1.5" />
+
+  <!-- Feature Artwork: Standard Proportional Neck -->
+  <g class="forensic-feature" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Chin base reference -->
+    <path d="M40 32 C45 35 55 35 60 32" stroke="#CBD5E1" stroke-width="1.4" fill="none" />
+    
+    <!-- Left Cervical Neck & Trapezius -->
+    <path d="M34 32 C34 46 32 60 26 70 C22 76 16 80 12 82" fill="none" stroke="#1E293B" stroke-width="2.2" />
+    <!-- Right Cervical Neck & Trapezius -->
+    <path d="M66 32 C66 46 68 60 74 70 C78 76 84 80 88 82" fill="none" stroke="#1E293B" stroke-width="2.2" />
+
+    <!-- Sternal Notch & Clavicle hints -->
+    <path d="M44 76 C47 78 53 78 56 76" stroke="#64748B" stroke-width="1.6" fill="none" />
+    <path d="M36 78 C28 77 22 79 16 82" stroke="#94A3B8" stroke-width="1.2" fill="none" />
+    <path d="M64 78 C72 77 78 79 84 82" stroke="#94A3B8" stroke-width="1.2" fill="none" />
+  </g>
+</svg>

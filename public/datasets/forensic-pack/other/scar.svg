@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100%" height="100%">
+  <defs>
+    <linearGradient id="graphite-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F1F5F9" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#E2E8F0" stop-opacity="0.6"/>
+    </linearGradient>
+    <linearGradient id="shadow-grad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#CBD5E1" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#94A3B8" stop-opacity="0.1"/>
+    </linearGradient>
+    <radialGradient id="iris-grad" cx="40%" cy="40%" r="65%">
+      <stop offset="0%" stop-color="#64748B"/>
+      <stop offset="50%" stop-color="#334155"/>
+      <stop offset="100%" stop-color="#0F172A"/>
+    </radialGradient>
+    
+  </defs>
+
+  <!-- Clean Evidence Card Background -->
+  <rect x="2" y="2" width="96" height="96" rx="10" fill="#FAFAFA" stroke="#E5E7EB" stroke-width="1.5" />
+  
+  <!-- Feature Artwork -->
+  <g class="forensic-feature" stroke-linecap="round" stroke-linejoin="round">
+    
+    <!-- Facial Scar: traumatic linear scar across cheek with healed suture cross-marks -->
+    <!-- Cheekbone contour base -->
+    <path d="M26 34 C36 44 48 50 64 54" stroke="#CBD5E1" stroke-width="1.2" stroke-dasharray="2 2" fill="none" />
+    <!-- Linear laceration scar -->
+    <path d="M30 42 Q48 52 68 46" stroke="#1E293B" stroke-width="2.2" fill="none" />
+    <!-- Healed suture cross-marks -->
+    <line x1="36" y1="41" x2="38" y2="49" stroke="#475569" stroke-width="1.5" />
+    <line x1="45" y1="44" x2="47" y2="52" stroke="#475569" stroke-width="1.5" />
+    <line x1="54" y1="45" x2="56" y2="53" stroke="#475569" stroke-width="1.5" />
+    <line x1="62" y1="44" x2="64" y2="51" stroke="#475569" stroke-width="1.5" />
+    <!-- Tissue margin shading -->
+    <path d="M32 40 Q48 50 66 44" stroke="#94A3B8" stroke-width="1.0" fill="none" />
+  
+  </g>
+</svg>
