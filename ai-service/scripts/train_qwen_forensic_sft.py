@@ -127,12 +127,16 @@ def main() -> None:
         report_to="none",
     )
 
+    import inspect
+    sig = inspect.signature(SFTTrainer.__init__).parameters
+    tokenizer_kwargs = {"processing_class": tokenizer} if "processing_class" in sig else {"tokenizer": tokenizer}
+
     trainer = SFTTrainer(
         model=model,
         train_dataset=raw_dataset,
         peft_config=peft_config,
-        tokenizer=tokenizer,
         args=training_args,
+        **tokenizer_kwargs,
     )
 
     print("[Forensic SFT] Starting training loop...")
