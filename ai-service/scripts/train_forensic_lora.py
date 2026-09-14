@@ -43,7 +43,8 @@ try:
     import torch.nn.functional as F
     from torch.utils.data import Dataset, DataLoader
     from torchvision import transforms
-    from PIL import Image, ImageOps
+    from PIL import Image, ImageOps, ImageFilter
+    import numpy as np
     from diffusers import (
         StableDiffusionPipeline,
         DDIMScheduler,
@@ -174,7 +175,32 @@ class ForensicLoRADataset(Dataset):
             })
 
     def _load_celeba_hq(self, celeba_dir: Path) -> None:
-        """Load CelebAMask-HQ images filtered to front-facing portraits."""
+        """Load CelebAMask-HQ images with attribute-conditioned captions."""
+        processed_jsonl = AI_SERVICE_DIR / "datasets" / "processed" / "diffusion_train.jsonl"
+        if processed_jsonl.exists():
+            print(f"[Dataset] Loading attribute-conditioned captions from {processed_jsonl}...")
+            with open(processed_jsonl, "r", encoding="utf-8") as f:
+                for line in f:
+                    try:
+                        record = json.loads(line)
+                        p = Path(record["image_path"])
+                        if p.exists():
+                            cap = record["caption"]
+                            # 50% graphite, 50% chalkboard
+                            inv = self.rng.random() < 0.5
+                            if inv:
+                                cap = "<forensic_chalkboard> " + cap.replace("neutral white background", "pitch black background").replace("monochrome pencil portrait", "monochrome white chalk portrait")
+                            self.samples.append({
+                                "image_path": str(p),
+                                "invert": inv,
+                                "caption": cap,
+                                "is_photo_reference": True,
+                            })
+                    except Exception:
+                        continue
+            print(f"[Dataset] Loaded {len(self.samples)} attribute-conditioned samples.")
+            return
+
         img_dir = celeba_dir / "CelebA-HQ-img"
         if not img_dir.exists():
             for candidate in [celeba_dir / "images", celeba_dir]:
@@ -186,26 +212,10 @@ class ForensicLoRADataset(Dataset):
             print(f"[WARN] CelebAMask-HQ image directory not found at {celeba_dir}. Skipping CelebA-HQ.")
             return
 
-        mapping_file = celeba_dir / "CelebA-HQ-to-CelebA-mapping.txt"
-        allowed_ids: Optional[set] = None
-        if mapping_file.exists():
-            try:
-                with open(mapping_file) as f:
-                    lines = f.read().strip().splitlines()[1:]  # skip header
-                allowed_ids = {int(line.split()[0]) for line in lines[:5000] if line.strip()}
-            except Exception:
-                allowed_ids = None
-
         img_paths = sorted(list(img_dir.glob("*.jpg")) + list(img_dir.glob("*.png")))[:5000]
         print(f"[Dataset] Found {len(img_paths)} CelebA-HQ images.")
 
         for path in img_paths:
-            try:
-                img_id = int(path.stem)
-                if allowed_ids is not None and img_id not in allowed_ids:
-                    continue
-            except ValueError:
-                pass
             self.samples.append({
                 "image_path": str(path),
                 "invert": False,
@@ -220,9 +230,15 @@ class ForensicLoRADataset(Dataset):
         sample = self.samples[index]
         img = Image.open(sample["image_path"]).convert("RGB")
 
-        # Photo references: grayscale + threshold approximates sketch-like input
+        # Photo references: convert to high-fidelity pencil sketch via Gaussian color dodge
         if sample.get("is_photo_reference"):
-            img = img.convert("L").point(lambda p: 255 if p > 128 else 0).convert("RGB")
+            gray = img.convert("L")
+            inv = ImageOps.invert(gray)
+            blurred = inv.filter(ImageFilter.GaussianBlur(radius=2.5))
+            g = np.asarray(gray, dtype=np.float32)
+            b = np.asarray(blurred, dtype=np.float32)
+            dodge = np.clip((g * 256.0) / (255.0 - b + 1.0), 0, 255).astype(np.uint8)
+            img = Image.fromarray(dodge).convert("RGB")
 
         if sample.get("invert", False):
             img = ImageOps.invert(img)
