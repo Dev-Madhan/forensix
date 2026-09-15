@@ -1,3 +1,4 @@
+import pytest
 from app.services.geometry_service import geometry_service
 
 
@@ -60,4 +61,31 @@ def test_geometry_service_mediapipe_fallback():
     # In CI/development environment, landmarker gracefully handles presence/absence without exception
     landmarker = geometry_service.get_landmarker()
     assert landmarker is None or landmarker is not None
+
+
+def test_geometry_service_v2_confidence_scaling():
+    from app.schemas.taxonomy import AttributeValue, ForensicAttributeSchemaV2
+
+    # High confidence wide eyes
+    schema_high = ForensicAttributeSchemaV2(
+        eyes={"spacing": AttributeValue(value="wide", confidence=1.0)},
+    )
+    geom_high = geometry_service.compute_anchors_v2(schema_high)
+
+    # Moderate confidence wide eyes
+    schema_med = ForensicAttributeSchemaV2(
+        eyes={"spacing": AttributeValue(value="wide", confidence=0.5)},
+    )
+    geom_med = geometry_service.compute_anchors_v2(schema_med)
+
+    # Baseline centered eyes
+    schema_base = ForensicAttributeSchemaV2()
+    geom_base = geometry_service.compute_anchors_v2(schema_base)
+
+    # Eye displacement should be proportional to confidence
+    disp_high = geom_base.anchors.left_eye[0] - geom_high.anchors.left_eye[0]
+    disp_med = geom_base.anchors.left_eye[0] - geom_med.anchors.left_eye[0]
+    assert disp_high > disp_med > 0
+    assert disp_med == pytest.approx(disp_high * 0.5, rel=1e-3)
+
 

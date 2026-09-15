@@ -72,9 +72,10 @@ SD15_DIR       = MODELS_DIR / "sd15"
 
 # Reference prompt for periodic validation generation
 VALIDATION_PROMPT = (
+    "(single person:1.6), (solo:1.6), (single face:1.6), "
     "(forensic chalkboard composite sketch:1.6), (crisp monochrome white and light grey chalk pencil linework:1.5) "
     "on (solid pitch black background:1.8), (law enforcement forensic identification sketch:1.5), "
-    "direct frontal mugshot view, bilateral facial symmetry. "
+    "direct frontal mugshot view, direct forward gaze. "
     "(oval-shaped face:1.3), (soft gentle jawline:1.2), (moderately prominent rounded chin:1.3), "
     "(high prominent cheekbones:1.4). "
     "(medium-sized almond-shaped eyes:1.35), (close-set eyes:1.35), (deep-set eyes:1.4), "
@@ -87,8 +88,27 @@ VALIDATION_PROMPT = (
     "(clean-shaven face:1.5), forensic facial composite of an adult male, aged 26 to 35."
 )
 VALIDATION_NEGATIVE = (
+    "(two faces:2.0), (multiple faces:2.0), (two people:2.0), (dual image:2.0), (side by side:2.0), "
+    "(diptych:2.0), (split image:2.0), (twin:2.0), (duplicate:2.0), (cloned face:2.0), (multiple people:2.0), "
     "(white background:2.0), (light background:2.0), color, photorealistic, 3d render, "
-    "beard, mustache, stubble, watermark, text, multiple people"
+    "beard, mustache, stubble, watermark, text"
+)
+
+VALIDATION_PROMPT_COLOR = (
+    "(single person:1.6), (solo:1.6), (single face:1.6), (only one person:1.6), (centered frontal portrait:1.5), "
+    "<forensic_color> authentic forensic colored composite portrait, realistic human skin tone, "
+    "natural demographic skin pigmentation, realistic hair color, lifelike studio lighting, "
+    "police composite identification portrait, direct frontal mugshot view, direct forward gaze, "
+    "(oval-shaped face:1.3), (medium-sized almond-shaped eyes:1.35), (straight medium-width nose:1.35), "
+    "(medium-wide mouth:1.3), (short neat side-parted dark hair:1.4), (clean-shaven face:1.5), "
+    "forensic facial composite of an adult female, mature older suspect aged 50 and above, "
+    "deep transverse forehead wrinkles, pronounced nasolabial folds, aging skin texture"
+)
+VALIDATION_NEGATIVE_COLOR = (
+    "(two faces:2.0), (multiple faces:2.0), (two people:2.0), (dual image:2.0), (side by side:2.0), "
+    "(diptych:2.0), (split image:2.0), (twin:2.0), (twins:2.0), (duplicate:2.0), (cloned face:2.0), (before and after:2.0), "
+    "(comparison:2.0), (double portrait:2.0), (extra head:2.0), (two heads:2.0), multiple people, "
+    "cartoon, anime, 3d render, flat monochrome, black and white, grayscale, desaturated, deformed, bad anatomy"
 )
 
 
@@ -96,16 +116,25 @@ VALIDATION_NEGATIVE = (
 
 def make_graphite_caption(subject_desc: str) -> str:
     return (
-        f"<forensic_graphite> authentic forensic graphite sketch, sharp 2B pencil linework, "
-        f"fine cross-hatching shading, monochrome graphite on clean white background, {subject_desc}"
+        f"(single person:1.6), (solo:1.6), (single face:1.6), <forensic_graphite> authentic forensic graphite sketch, "
+        f"sharp 2B pencil linework, fine cross-hatching shading, monochrome graphite on clean white background, {subject_desc}"
     )
 
 
 def make_chalkboard_caption(subject_desc: str) -> str:
     return (
-        f"<forensic_chalkboard> forensic chalkboard composite sketch, crisp monochrome white "
-        f"and light grey chalk pencil linework on solid pitch black background, "
+        f"(single person:1.6), (solo:1.6), (single face:1.6), <forensic_chalkboard> forensic chalkboard composite sketch, "
+        f"crisp monochrome white and light grey chalk pencil linework on solid pitch black background, "
         f"law enforcement forensic identification sketch, {subject_desc}"
+    )
+
+
+def make_color_caption(subject_desc: str) -> str:
+    return (
+        f"(single person:1.6), (solo:1.6), (single face:1.6), (only one person:1.6), (centered frontal portrait:1.5), "
+        f"<forensic_color> authentic forensic colored composite portrait, realistic human skin tone, "
+        f"natural demographic skin pigmentation, realistic hair color, lifelike studio lighting, "
+        f"law enforcement composite identification portrait, {subject_desc}"
     )
 
 
@@ -175,7 +204,7 @@ class ForensicLoRADataset(Dataset):
             })
 
     def _load_celeba_hq(self, celeba_dir: Path) -> None:
-        """Load CelebAMask-HQ images with attribute-conditioned captions."""
+        """Load CelebAMask-HQ images with attribute-conditioned multimodal captions."""
         processed_jsonl = AI_SERVICE_DIR / "datasets" / "processed" / "diffusion_train.jsonl"
         if processed_jsonl.exists():
             print(f"[Dataset] Loading attribute-conditioned captions from {processed_jsonl}...")
@@ -186,13 +215,13 @@ class ForensicLoRADataset(Dataset):
                         p = Path(record["image_path"])
                         if p.exists():
                             cap = record["caption"]
-                            # 50% graphite, 50% chalkboard
-                            inv = self.rng.random() < 0.5
-                            if inv:
-                                cap = "<forensic_chalkboard> " + cap.replace("neutral white background", "pitch black background").replace("monochrome pencil portrait", "monochrome white chalk portrait")
+                            style = record.get("style", "graphite")
+                            is_color = (style == "color_age")
+                            inv = (style == "chalkboard")
                             self.samples.append({
                                 "image_path": str(p),
                                 "invert": inv,
+                                "is_color": is_color,
                                 "caption": cap,
                                 "is_photo_reference": True,
                             })
@@ -215,11 +244,21 @@ class ForensicLoRADataset(Dataset):
         img_paths = sorted(list(img_dir.glob("*.jpg")) + list(img_dir.glob("*.png")))[:5000]
         print(f"[Dataset] Found {len(img_paths)} CelebA-HQ images.")
 
-        for path in img_paths:
+        for i, path in enumerate(img_paths):
+            roll = i % 10
+            is_color = (roll >= 7)
+            inv = (4 <= roll < 7)
+            if is_color:
+                cap = make_color_caption("forensic composite portrait of an adult subject")
+            elif inv:
+                cap = make_chalkboard_caption("forensic composite portrait of an adult subject")
+            else:
+                cap = make_graphite_caption("forensic composite portrait of an adult subject")
             self.samples.append({
                 "image_path": str(path),
-                "invert": False,
-                "caption": make_graphite_caption("forensic composite portrait, demographically balanced adult subject"),
+                "invert": inv,
+                "is_color": is_color,
+                "caption": cap,
                 "is_photo_reference": True,
             })
 
@@ -230,8 +269,10 @@ class ForensicLoRADataset(Dataset):
         sample = self.samples[index]
         img = Image.open(sample["image_path"]).convert("RGB")
 
-        # Photo references: convert to high-fidelity pencil sketch via Gaussian color dodge
-        if sample.get("is_photo_reference"):
+        # Photo references:
+        # - If is_color: retain original RGB color photo (Color Age-Progressed style)
+        # - If monochrome: convert to high-fidelity pencil sketch via Gaussian color dodge
+        if sample.get("is_photo_reference") and not sample.get("is_color", False):
             gray = img.convert("L")
             inv = ImageOps.invert(gray)
             blurred = inv.filter(ImageFilter.GaussianBlur(radius=2.5))
@@ -269,7 +310,7 @@ def _run_validation(
     unet: Any, vae: Any, text_encoder: Any, tokenizer: Any,
     scheduler: Any, device: Any, step: int, output_dir: Path,
 ) -> None:
-    """Generate a validation image using the reference forensic composite prompt."""
+    """Generate validation images for both chalkboard and color forensic styles."""
     try:
         unet.eval()
         pipeline_cls: Any = StableDiffusionPipeline
@@ -279,19 +320,36 @@ def _run_validation(
             feature_extractor=None, requires_safety_checker=False,
         ).to(device)
         autocast_ctx: Any = torch.autocast(device.type if hasattr(device, "type") else "cuda", dtype=torch.float16)
+        val_dir = output_dir / "validation"
+        val_dir.mkdir(exist_ok=True)
+
+        # 1. Chalkboard validation
         with torch.no_grad(), autocast_ctx:
-            out = pipe(
+            out_chalk = pipe(
                 prompt=VALIDATION_PROMPT,
                 negative_prompt=VALIDATION_NEGATIVE,
                 num_inference_steps=20,
-                guidance_scale=12.0,
+                guidance_scale=10.0,
                 height=512, width=512,
                 generator=torch.Generator(device="cpu").manual_seed(42),
             )
-        val_dir = output_dir / "validation"
-        val_dir.mkdir(exist_ok=True)
-        out.images[0].save(val_dir / f"step_{step:05d}.png")
-        print(f"  [Validation] Saved → {val_dir / f'step_{step:05d}.png'}")
+        chalk_file = val_dir / f"step_{step:05d}_chalk.png"
+        out_chalk.images[0].save(chalk_file)
+
+        # 2. Color Age-Progressed single-person validation
+        with torch.no_grad(), autocast_ctx:
+            out_color = pipe(
+                prompt=VALIDATION_PROMPT_COLOR,
+                negative_prompt=VALIDATION_NEGATIVE_COLOR,
+                num_inference_steps=20,
+                guidance_scale=7.5,
+                height=512, width=512,
+                generator=torch.Generator(device="cpu").manual_seed(42),
+            )
+        color_file = val_dir / f"step_{step:05d}_color.png"
+        out_color.images[0].save(color_file)
+
+        print(f"  [Validation] Saved → {chalk_file.name} and {color_file.name}")
         del pipe
     except Exception as err:
         print(f"  [Validation] Skipped at step {step}: {err}")
@@ -503,10 +561,10 @@ def train(args: argparse.Namespace) -> None:
 # ── CLI ───────────────────────────────────────────────────────────────────────
 
 def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="Forensix Forensic LoRA v2 Training Script (Rank-64, Dual-Style)")
+    p = argparse.ArgumentParser(description="Forensix Forensic LoRA v3 Training Script (Rank-64, Multimodal Tri-Style)")
     p.add_argument("--sd_model_path",               default=str(SD15_DIR),                       type=str)
     p.add_argument("--output_dir",                  default=str(MODELS_DIR / "lora"),             type=str)
-    p.add_argument("--lora_name",                   default="forensic_sketch_lora_v2.safetensors", type=str)
+    p.add_argument("--lora_name",                   default="forensic_sketch_lora_v3.safetensors", type=str)
     p.add_argument("--rank",                        default=64,   type=int,   help="LoRA rank (32–128 recommended)")
     p.add_argument("--learning_rate",               default=1e-4, type=float)
     p.add_argument("--batch_size",                  default=1,    type=int)

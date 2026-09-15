@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState } from "react";
+import { GenerationMode, PendingModeSwitch } from "@/types/sketch-generation";
 
 export interface FeatureItem {
   id: string;
@@ -46,6 +47,17 @@ export interface SketchMetadata {
 }
 
 interface SketchContextType {
+  // Generation Mode State Machine
+  generationMode: GenerationMode;
+  setGenerationMode: React.Dispatch<React.SetStateAction<GenerationMode>>;
+  isPromptEnabled: boolean;
+  isSidebarEnabled: boolean;
+  isDemographicsEnabled: boolean;
+  pendingModeSwitch: PendingModeSwitch | null;
+  requestModeChange: (targetMode: GenerationMode, onConfirmed?: () => void) => void;
+  confirmModeSwitch: () => void;
+  cancelModeSwitch: () => void;
+
   // Feature selections
   selectedFeatures: Record<string, FeatureItem>;
   toggleFeature: (feature: FeatureItem) => void;
@@ -122,6 +134,14 @@ export function SketchProvider({ children }: { children: React.ReactNode }) {
   // Feature selections
   const [selectedFeatures, setSelectedFeatures] = useState<Record<string, FeatureItem>>({});
 
+  // Generation Mode State Machine
+  const [generationMode, setGenerationMode] = useState<GenerationMode>("IDLE");
+  const [pendingModeSwitch, setPendingModeSwitch] = useState<PendingModeSwitch | null>(null);
+
+  const isPromptEnabled = generationMode !== "DATASET_COMPOSITE";
+  const isSidebarEnabled = generationMode !== "PROMPT_GENERATION";
+  const isDemographicsEnabled = generationMode !== "PROMPT_GENERATION";
+
   // History stack for Undo / Redo
   const [history, setHistory] = useState<Record<string, FeatureItem>[]>([{}]);
   const [historyIndex, setHistoryIndex] = useState(0);
@@ -169,7 +189,69 @@ export function SketchProvider({ children }: { children: React.ReactNode }) {
     setHistoryIndex((prev) => prev + 1);
   };
 
-  const toggleFeature = (feature: FeatureItem) => {
+  const requestModeChange = (targetMode: GenerationMode, onConfirmed?: () => void) => {
+    if (targetMode === generationMode) {
+      if (onConfirmed) onConfirmed();
+      return;
+    }
+
+    if (targetMode === "PROMPT_GENERATION") {
+      const hasFeatures = Object.keys(selectedFeatures).length > 0;
+      if (hasFeatures) {
+        setPendingModeSwitch({
+          targetMode: "PROMPT_GENERATION",
+          description: `You have ${Object.keys(selectedFeatures).length} facial feature(s) selected in your composite. Switching to Prompt Generation mode will discard these feature selections.`,
+          onConfirm: () => {
+            clearAllFeatures();
+            setGenerationMode("PROMPT_GENERATION");
+            setPendingModeSwitch(null);
+            if (onConfirmed) onConfirmed();
+          },
+        });
+        return;
+      }
+      setGenerationMode("PROMPT_GENERATION");
+      if (onConfirmed) onConfirmed();
+      return;
+    }
+
+    if (targetMode === "DATASET_COMPOSITE") {
+      const hasPrompt = promptText.trim().length > 0;
+      if (hasPrompt) {
+        setPendingModeSwitch({
+          targetMode: "DATASET_COMPOSITE",
+          description: "You have an active witness statement prompt. Switching to Dataset Composite mode will clear your prompt text.",
+          onConfirm: () => {
+            setPromptText("");
+            setGenerationMode("DATASET_COMPOSITE");
+            setPendingModeSwitch(null);
+            if (onConfirmed) onConfirmed();
+          },
+        });
+        return;
+      }
+      setGenerationMode("DATASET_COMPOSITE");
+      if (onConfirmed) onConfirmed();
+      return;
+    }
+
+    if (targetMode === "IDLE") {
+      setGenerationMode("IDLE");
+      if (onConfirmed) onConfirmed();
+    }
+  };
+
+  const confirmModeSwitch = () => {
+    if (pendingModeSwitch) {
+      pendingModeSwitch.onConfirm();
+    }
+  };
+
+  const cancelModeSwitch = () => {
+    setPendingModeSwitch(null);
+  };
+
+  const doToggleFeature = (feature: FeatureItem) => {
     const isAlready = selectedFeatures[feature.subcategory]?.id === feature.id;
     let next: Record<string, FeatureItem>;
     if (isAlready) {
@@ -182,16 +264,38 @@ export function SketchProvider({ children }: { children: React.ReactNode }) {
       };
     }
     commitFeatures(next);
+    if (Object.keys(next).length === 0 && promptText.trim().length === 0) {
+      setGenerationMode("IDLE");
+    }
+  };
+
+  const toggleFeature = (feature: FeatureItem) => {
+    if (generationMode === "PROMPT_GENERATION") {
+      requestModeChange("DATASET_COMPOSITE", () => {
+        doToggleFeature(feature);
+      });
+      return;
+    }
+    if (generationMode === "IDLE") {
+      setGenerationMode("DATASET_COMPOSITE");
+    }
+    doToggleFeature(feature);
   };
 
   const removeFeature = (subcategory: string) => {
     const next = { ...selectedFeatures };
     delete next[subcategory];
     commitFeatures(next);
+    if (Object.keys(next).length === 0 && promptText.trim().length === 0) {
+      setGenerationMode("IDLE");
+    }
   };
 
   const clearAllFeatures = () => {
     commitFeatures({});
+    if (generationMode === "DATASET_COMPOSITE" && promptText.trim().length === 0) {
+      setGenerationMode("IDLE");
+    }
   };
 
   const canUndo = historyIndex > 0;
@@ -275,23 +379,50 @@ export function SketchProvider({ children }: { children: React.ReactNode }) {
         attributes["_feature_descriptions"] = featureDescriptions.join(". ");
       }
 
+      const isPromptMode = generationMode === "PROMPT_GENERATION" || (generationMode === "IDLE" && promptText.trim().length > 0);
+      const activeMode = isPromptMode ? "PROMPT_GENERATION" : "DATASET_COMPOSITE";
+
+      // Build components map for dataset composite mode
+      const components: Record<string, string> = {};
+      Object.entries(selectedFeatures).forEach(([subcat, feat]) => {
+        components[subcat] = feat.id;
+      });
+
+      const requestPayload = isPromptMode
+        ? {
+            mode: "PROMPT_GENERATION" as const,
+            case_id: "CASE-2026-X49",
+            witness_id: "WITNESS-01",
+            prompt: promptText.trim(),
+            sketch_style: sketchStyle,
+            camera_angle: cameraAngle,
+            age_group: ageGroup,
+            gender,
+            ethnicity,
+            lighting_mood: lightingMood,
+            detail_level: detailLevel,
+            resolution: 512,
+          }
+        : {
+            mode: "DATASET_COMPOSITE" as const,
+            case_id: "CASE-2026-X49",
+            witness_id: "WITNESS-01",
+            attributes,
+            components,
+            sketch_style: sketchStyle,
+            camera_angle: cameraAngle,
+            age_group: ageGroup,
+            gender,
+            ethnicity,
+            lighting_mood: lightingMood,
+            detail_level: detailLevel,
+            resolution: 512,
+          };
+
       const response = await fetch("/api/ai/sketch", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          case_id: "CASE-2026-X49",
-          witness_id: "WITNESS-01",
-          prompt: promptText.trim() || undefined,
-          attributes,
-          sketch_style: sketchStyle,
-          camera_angle: cameraAngle,
-          age_group: ageGroup,
-          gender,
-          ethnicity,
-          lighting_mood: lightingMood,
-          detail_level: detailLevel,
-          resolution: 640,
-        }),
+        body: JSON.stringify(requestPayload),
       });
 
       if (!response.ok) {
@@ -322,6 +453,16 @@ export function SketchProvider({ children }: { children: React.ReactNode }) {
   return (
     <SketchContext.Provider
       value={{
+        generationMode,
+        setGenerationMode,
+        isPromptEnabled,
+        isSidebarEnabled,
+        isDemographicsEnabled,
+        pendingModeSwitch,
+        requestModeChange,
+        confirmModeSwitch,
+        cancelModeSwitch,
+
         selectedFeatures,
         toggleFeature,
         removeFeature,

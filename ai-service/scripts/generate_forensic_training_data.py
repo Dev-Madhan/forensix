@@ -109,28 +109,55 @@ ATTR_WITNESS_PHRASES: Dict[str, List[str]] = {
 }
 
 
-def build_diffusion_caption(pos_attrs: Set[str], is_male: bool, is_young: bool) -> str:
+def build_diffusion_caption(pos_attrs: Set[str], is_male: bool, is_young: bool, style: str = "graphite") -> str:
     gender = "male" if is_male else "female"
     age = "young adult" if is_young else "mature adult"
     
-    parts = [
-        "authentic police forensic composite sketch",
-        "fine 2B graphite pencil cross-hatching",
-        "official law enforcement forensic drawing",
-        f"monochrome pencil portrait of an adult {gender}, {age}",
-    ]
-    
-    # Inject exact attribute descriptors
-    for attr, desc in ATTR_DIFFUSION_DESCRIPTORS.items():
-        if attr in pos_attrs:
-            parts.append(desc)
-            
-    parts.extend([
-        "sharp anatomical facial contours",
-        "paper grain texture",
-        "neutral white background",
-        "precise law enforcement identification drawing",
-    ])
+    # Universal single-person anchor to enforce non-dual generation
+    single_anchor = "(single person:1.6), (solo:1.6), (single face:1.6), (only one person:1.6), (centered frontal portrait:1.5)"
+
+    if style == "color_age":
+        parts = [
+            single_anchor,
+            "<forensic_color> authentic forensic colored composite portrait",
+            "realistic demographic skin pigmentation, natural melanin skin tones, realistic hair color",
+            f"single individual adult {gender}, {age}",
+        ]
+        for attr, desc in ATTR_DIFFUSION_DESCRIPTORS.items():
+            if attr in pos_attrs:
+                parts.append(desc)
+        parts.extend([
+            "clean studio lighting, neutral background, sharp anatomical facial contours",
+            "law enforcement composite identification portrait",
+        ])
+    elif style == "chalkboard":
+        parts = [
+            single_anchor,
+            "<forensic_chalkboard> forensic chalkboard composite sketch",
+            "crisp monochrome white and light grey chalk pencil linework on solid pitch black background",
+            f"monochrome white chalk portrait of an adult {gender}, {age}",
+        ]
+        for attr, desc in ATTR_DIFFUSION_DESCRIPTORS.items():
+            if attr in pos_attrs:
+                parts.append(desc)
+        parts.extend([
+            "sharp anatomical facial contours, solid pitch black background",
+            "law enforcement forensic identification sketch",
+        ])
+    else:  # graphite
+        parts = [
+            single_anchor,
+            "<forensic_graphite> authentic police forensic composite sketch",
+            "fine 2B graphite pencil cross-hatching, official law enforcement forensic drawing",
+            f"monochrome pencil portrait of an adult {gender}, {age}",
+        ]
+        for attr, desc in ATTR_DIFFUSION_DESCRIPTORS.items():
+            if attr in pos_attrs:
+                parts.append(desc)
+        parts.extend([
+            "sharp anatomical facial contours, paper grain texture, neutral white background",
+            "precise law enforcement identification drawing",
+        ])
     
     return ", ".join(parts)
 
@@ -263,11 +290,20 @@ def main() -> None:
             is_male = "Male" in pos_attrs
             is_young = "Young" in pos_attrs
 
-            # 1. Diffusion sample
-            caption = build_diffusion_caption(pos_attrs, is_male, is_young)
+            # 1. Diffusion sample with balanced multimodal styles (40% graphite, 30% chalkboard, 30% color)
+            style_roll = processed % 10
+            if style_roll < 4:
+                sample_style = "graphite"
+            elif style_roll < 7:
+                sample_style = "chalkboard"
+            else:
+                sample_style = "color_age"
+
+            caption = build_diffusion_caption(pos_attrs, is_male, is_young, style=sample_style)
             diffusion_entries.append({
                 "image_path": str(img_path),
                 "caption": caption,
+                "style": sample_style,
                 "positive_attributes": sorted(list(pos_attrs)),
                 "gender": "male" if is_male else "female",
                 "is_young": is_young,

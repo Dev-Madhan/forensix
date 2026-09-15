@@ -231,20 +231,20 @@ AGE_MORPHOMETRICS: Dict[str, Dict[str, Any]] = {
 # ---------------------------------------------------------------------------
 CAMERA_PERSPECTIVE_DIRECTIVES: Dict[str, Dict[str, Any]] = {
     "frontal": {
-        "prompt": "(direct frontal mugshot view:1.4), perfectly centered en-face portrait, (bilateral facial symmetry:1.3), direct forward gaze, head and neck upper shoulder area",
-        "negative": "side profile, 3/4 angle, turned head, asymmetric tilt, tilted face",
+        "prompt": "(direct frontal mugshot view:1.4), perfectly centered en-face portrait, single centered face, direct forward gaze, head and neck upper shoulder area",
+        "negative": "side profile, 3/4 angle, turned head, asymmetric tilt, tilted face, two faces, side by side, duplicate head",
         "description": "Frontal (0° En Face Mugshot)",
         "yaw": 0.0,
     },
     "three_quarter": {
         "prompt": "(three-quarter angle portrait:1.3), 45-degree head turn, asymmetric perspective, prominent cheekbone contour, jawline depth visible, angled nose bridge",
-        "negative": "direct frontal symmetrical face, strict 90 degree side profile",
+        "negative": "direct frontal symmetrical face, strict 90 degree side profile, two faces, side by side",
         "description": "Three-Quarter (45° Oblique Perspective)",
         "yaw": 45.0,
     },
     "profile": {
         "prompt": "(strict 90-degree lateral side profile:1.4), silhouette of face, projecting nasal bridge and tip silhouette, clean jawline angle to ear, single visible eye in profile, lips profile silhouette",
-        "negative": "two eyes visible, frontal face, front-facing mouth, three quarter turn, symmetrical face",
+        "negative": "two eyes visible, frontal face, front-facing mouth, three quarter turn, symmetrical face, two faces",
         "description": "Side Profile (90° Strict Lateral)",
         "yaw": 90.0,
     },
@@ -256,7 +256,7 @@ CAMERA_PERSPECTIVE_DIRECTIVES: Dict[str, Dict[str, Any]] = {
 # ---------------------------------------------------------------------------
 STYLE_DIRECTIVES: Dict[str, Dict[str, Any]] = {
     "Forensic Graphite (Pencil)": {
-        "prompt": "(authentic forensic graphite sketch:1.4), official police composite drawing, (sharp 2B pencil linework:1.3), fine cross-hatching shading, paper grain texture, monochrome graphite on clean white background",
+        "prompt": "(single person:1.6), (solo:1.6), (single face:1.6), (authentic forensic graphite sketch:1.4), official police composite drawing, (sharp 2B pencil linework:1.3), fine cross-hatching shading, paper grain texture, monochrome graphite on clean white background",
         "negative": "color, painted, photorealistic, 3d render, digital glossy, charcoal smudges, muddy dark skin patches",
         "cfg": 9.0,
         "control_weight": 0.25,
@@ -265,7 +265,7 @@ STYLE_DIRECTIVES: Dict[str, Dict[str, Any]] = {
         "steps_draft": 16,
     },
     "Realistic Charcoal": {
-        "prompt": "(realistic forensic charcoal pencil portrait:1.4), soft graphite and charcoal shading on white paper, smooth tonal transitions, textured fine art drawing, law enforcement composite art",
+        "prompt": "(single person:1.6), (solo:1.6), (single face:1.6), (realistic forensic charcoal pencil portrait:1.4), soft graphite and charcoal shading on white paper, smooth tonal transitions, textured fine art drawing, law enforcement composite art",
         "negative": "color, vector lineart, smooth digital airbrush, oversaturated dark skin smudges, muddy black skin",
         "cfg": 8.5,
         "control_weight": 0.25,
@@ -274,7 +274,7 @@ STYLE_DIRECTIVES: Dict[str, Dict[str, Any]] = {
         "steps_draft": 16,
     },
     "Digital Identi-Kit (Lineart)": {
-        "prompt": "(digital forensic identi-kit lineart:1.5), high-contrast black vector ink lines, clean anatomical contours, zero skin shading, pure black line art on plain white background, FBI reference drawing",
+        "prompt": "(single person:1.6), (solo:1.6), (single face:1.6), (digital forensic identi-kit lineart:1.5), high-contrast black vector ink lines, clean anatomical contours, zero skin shading, pure black line art on plain white background, FBI reference drawing",
         "negative": "shading, gradients, pencil smudges, charcoal dust, photorealistic, color, skin tones",
         "cfg": 10.0,
         "control_weight": 0.35,
@@ -283,8 +283,8 @@ STYLE_DIRECTIVES: Dict[str, Dict[str, Any]] = {
         "steps_draft": 18,
     },
     "Color Age-Progressed": {
-        "prompt": "(color age-progressed forensic portrait:1.4), authentic forensic colored composite, full head and face centered portrait mugshot, realistic demographic skin pigmentation, natural melanin skin tones, realistic hair color, lifelike lighting, police composite identification portrait",
-        "negative": "cartoon, anime, 3d render, flat monochrome, black and white, grayscale, desaturated, zombie, seam, split face, (extreme closeup:1.5), (cropped face:1.5), (macro:1.5)",
+        "prompt": "(single person:1.6), (solo:1.6), (single face:1.6), (only one person:1.6), (centered frontal portrait:1.5), (authentic forensic colored composite:1.4), (realistic age progression of an individual:1.3), realistic human skin tone, natural demographic skin pigmentation, realistic hair color, lifelike studio lighting, police composite identification portrait",
+        "negative": "(two faces:2.0), (multiple faces:2.0), (two people:2.0), (dual image:2.0), (side by side:2.0), (diptych:2.0), (triptych:2.0), (split image:2.0), (split screen:2.0), (twin:2.0), (twins:2.0), (duplicate:2.0), (cloned face:2.0), (multiple views:2.0), (before and after:2.0), (comparison:2.0), (double portrait:2.0), (extra head:2.0), (two heads:2.0), (second person:2.0), (multiple people:2.0), (group:2.0), (collage:2.0), (photo collage:2.0), cartoon, anime, 3d render, flat monochrome, black and white, grayscale, desaturated, zombie, seam, split face, (extreme closeup:1.5), (cropped face:1.5), (macro:1.5)",
         "cfg": 7.5,
         "control_weight": 0.25,
         "steps_standard": 28,
@@ -292,7 +292,7 @@ STYLE_DIRECTIVES: Dict[str, Dict[str, Any]] = {
         "steps_draft": 16,
     },
     "Monochrome Inversion (Black Background)": {
-        "prompt": "(forensic chalkboard composite sketch:1.6), (crisp monochrome white and light grey chalk pencil linework:1.5), (solid pitch black background:1.8), (law enforcement forensic identification sketch:1.5), (detailed facial contours:1.3), anatomical construction lines, (subtle cross-hatching shading:1.3), accurate facial proportions, clear individual feature definition, (bilateral facial symmetry:1.3), natural human imperfections, head neck upper shoulder area only",
+        "prompt": "(single person:1.6), (solo:1.6), (single face:1.6), (forensic chalkboard composite sketch:1.6), (crisp monochrome white and light grey chalk pencil linework:1.5), (solid pitch black background:1.8), (law enforcement forensic identification sketch:1.5), (detailed facial contours:1.3), anatomical construction lines, (subtle cross-hatching shading:1.3), accurate facial proportions, clear individual feature definition, natural human imperfections, head neck upper shoulder area only",
         "negative": "(white background:2.0), (light background:2.0), (grey background:1.8), (light gray background:1.8), (cream background:1.8), color, painted, photorealistic, 3d render, digital glossy, frame, picture frame, border, gold, ornate border, (colored lines:1.5)",
         "cfg": 12.0,
         "control_weight": 0.30,
@@ -936,7 +936,12 @@ class ForensicLLMEngine:
         if is_black_bg:
             prompt_parts.append(style_info["prompt"])  # full monochrome chalkboard block
         elif is_color_style:
-            prompt_parts.append("(color age-progressed forensic portrait:1.45), realistic human skin tone, natural demographic skin pigmentation, realistic hair color, lifelike studio portrait, law enforcement composite identification portrait")
+            prompt_parts.append(
+                "(single person:1.6), (solo:1.6), (single face:1.6), (only one person:1.6), (centered frontal portrait:1.5), "
+                "(authentic forensic colored composite:1.4), (realistic age progression of an individual:1.3), "
+                "realistic human skin tone, natural demographic skin pigmentation, realistic hair color, lifelike studio lighting, "
+                "law enforcement composite identification portrait"
+            )
         else:
             prompt_parts.append(style_info["prompt"])
 
@@ -1007,7 +1012,7 @@ class ForensicLLMEngine:
         prompt_parts.append(lighting_prompt)
 
         # Priority 13: EXPLICIT EXCLUSION ANCHORS (positive-side prohibitions)
-        exclusion_anchors = "no text overlay, no watermark, no signature, no background objects, no background elements, no dramatic lighting, head and neck and upper shoulder area only"
+        exclusion_anchors = "single person only, no multiple people, no two faces, no side by side, no split view, no text overlay, no watermark, no signature, no background objects, no background elements, no dramatic lighting, head and neck and upper shoulder area only"
         if not is_color_style:
             exclusion_anchors += ", no color, monochrome only"
         prompt_parts.append(exclusion_anchors)
@@ -1023,6 +1028,8 @@ class ForensicLLMEngine:
         # 8. ASSEMBLE NEGATIVE PROMPT — Hardened per style
         # ══════════════════════════════════════════════════════════════════════
         negative_parts: List[str] = [
+            # Anti-dual / Anti-duplicate / Anti-comparison suppression (highest weight — universal)
+            "(two faces:2.0), (multiple faces:2.0), (two people:2.0), (dual image:2.0), (side by side:2.0), (diptych:2.0), (triptych:2.0), (split image:2.0), (split screen:2.0), (twin:2.0), (twins:2.0), (duplicate:2.0), (cloned face:2.0), (multiple views:2.0), (before and after:2.0), (comparison:2.0), (double portrait:2.0), (extra head:2.0), (two heads:2.0), (second person:2.0), (multiple people:2.0), (group:2.0), (collage:2.0), (photo collage:2.0)",
             # Seam / robot / frame suppression (highest weight — universal)
             "(frame:1.5), (picture frame:1.5), (border:1.5), (gold frame:1.5), (ornate frame:1.5), (decorative border:1.5), (cameo:1.5)",
             "(seam:1.8), (split face:1.8), (vertical line down face:1.8), (vertical line down forehead:1.8), (vertical cleft:1.8), (facial seam:1.8), (grid line:1.8), (robot:1.8), (mannequin:1.8), (wooden dummy:1.8), (cyborg:1.8), (split screen:1.8), (wireframe:1.8), (halved face:1.8), (divided face:1.8)",

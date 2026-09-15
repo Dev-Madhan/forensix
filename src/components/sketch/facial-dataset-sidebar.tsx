@@ -17,6 +17,8 @@ import {
   Check,
   X,
   RotateCcw,
+  Lock,
+  ArrowLeftRight,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,7 +40,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { useSketch } from "./sketch-context";
+import { useSketch, FeatureItem } from "./sketch-context";
 import { FACIAL_DATASET, SubcategoryGroup } from "./facial-dataset-data";
 import { FacialFeatureIcon } from "./facial-feature-icon";
 
@@ -52,7 +54,18 @@ export function FacialDatasetSidebar() {
     setSidebarCollapsed,
     searchQuery,
     setSearchQuery,
+    generationMode,
+    isSidebarEnabled,
+    requestModeChange,
   } = useSketch();
+
+  const handleFeatureClick = (item: FeatureItem) => {
+    if (!isSidebarEnabled) {
+      requestModeChange("DATASET_COMPOSITE", () => toggleFeature(item));
+    } else {
+      toggleFeature(item);
+    }
+  };
 
   // Accordions open by default: FACE and EYES
   const [openCategories, setOpenCategories] = useState<Record<string, boolean>>({
@@ -533,6 +546,37 @@ export function FacialDatasetSidebar() {
           )}
         </div>
 
+        {/* Prompt Mode Active Warning Banner */}
+        {!isSidebarEnabled && (
+          <div className="mx-3.5 mb-2.5 p-2.5 rounded-lg border-2 border-[#665AEF]/40 bg-[#665AEF]/10 flex flex-col gap-1.5 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-[#a594fd]">
+                <Lock className="size-3.5" />
+                <span>Prompt Mode Active</span>
+              </div>
+              <Badge
+                variant="outline"
+                className="h-4.5 px-1.5 text-[9px] font-mono border-[#665AEF]/50 text-[#c2b5fd] bg-[#665AEF]/20 uppercase"
+              >
+                Read-Only
+              </Badge>
+            </div>
+            <p className="text-[11px] text-muted-foreground leading-tight">
+              Feature selection is locked while generating from witness prompt.
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => requestModeChange("DATASET_COMPOSITE")}
+              className="mt-0.5 h-6.5 text-[11px] font-medium border-[#665AEF]/50 text-[#a594fd] hover:bg-[#665AEF]/20 hover:text-white cursor-pointer w-full flex items-center justify-center gap-1.5 rounded-md"
+            >
+              <ArrowLeftRight className="size-3" />
+              <span>Switch to Dataset Mode</span>
+            </Button>
+          </div>
+        )}
+
         {/* Scrollable Categories List */}
         <div className="flex-1 overflow-y-auto overflow-x-hidden px-3.5 pb-2 space-y-3 custom-scrollbar">
           {filteredDataset.length === 0 ? (
@@ -630,7 +674,7 @@ export function FacialDatasetSidebar() {
                                     render={
                                       <button
                                         type="button"
-                                        onClick={() => toggleFeature(item)}
+                                        onClick={() => handleFeatureClick(item)}
                                         className={cn(
                                           "group relative shrink-0 size-11 sm:size-11.5 rounded-md border-2 transition-all duration-150 flex flex-col items-center justify-center p-0.5 cursor-pointer select-none",
                                           isSelected
@@ -725,7 +769,7 @@ export function FacialDatasetSidebar() {
                 <button
                   key={item.id}
                   type="button"
-                  onClick={() => toggleFeature(item)}
+                  onClick={() => handleFeatureClick(item)}
                   className={cn(
                     "relative text-left p-3 rounded-xl border-2 transition-all duration-200 flex flex-col gap-2.5 cursor-pointer group select-none",
                     isSelected

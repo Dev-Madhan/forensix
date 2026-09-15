@@ -224,6 +224,197 @@ class GeometryService:
             ),
         )
 
+    def compute_anchors_v2(
+        self,
+        schema: Any,
+        resolution: int = 512,
+        camera_angle: str = "frontal",
+    ) -> NormalizedGeometry:
+        """
+        Forensic Geometry Engine v2.0.
+        Computes anchor coordinates with confidence weighting and normalized domain values
+        from ForensicAttributeSchemaV2.
+        """
+        from app.schemas.taxonomy import ForensicAttributeSchemaV2
+
+        if isinstance(schema, ForensicAttributeSchemaV2):
+            v2_schema = schema
+        elif isinstance(schema, dict):
+            v2_schema = ForensicAttributeSchemaV2.from_v1_dict(schema)
+        else:
+            v2_schema = ForensicAttributeSchemaV2()
+
+        # ── Baseline forensic portrait anchors by perspective ─────────────────
+        if camera_angle == "profile":
+            left_eye         = [0.48, 0.40]
+            right_eye        = [0.48, 0.40]
+            nose_tip         = [0.68, 0.55]
+            mouth            = [0.62, 0.69]
+            chin             = [0.63, 0.83]
+            nasion           = [0.56, 0.33]
+            brow_ridge_left  = [0.48, 0.35]
+            brow_ridge_right = [0.48, 0.35]
+            cheekbone_left   = [0.45, 0.50]
+            cheekbone_right  = [0.58, 0.50]
+            philtrum         = [0.64, 0.64]
+            ear_left_top     = [0.28, 0.37]
+            ear_left_bot     = [0.28, 0.57]
+            ear_right_top    = [0.28, 0.37]
+            ear_right_bot    = [0.28, 0.57]
+            clavicle_left    = [0.22, 0.97]
+            clavicle_right   = [0.55, 0.97]
+        elif camera_angle == "three_quarter":
+            left_eye         = [0.38, 0.40]
+            right_eye        = [0.61, 0.41]
+            nose_tip         = [0.55, 0.57]
+            mouth            = [0.53, 0.70]
+            chin             = [0.52, 0.84]
+            nasion           = [0.50, 0.33]
+            brow_ridge_left  = [0.38, 0.35]
+            brow_ridge_right = [0.61, 0.36]
+            cheekbone_left   = [0.28, 0.52]
+            cheekbone_right  = [0.70, 0.52]
+            philtrum         = [0.54, 0.65]
+            ear_left_top     = [0.22, 0.37]
+            ear_left_bot     = [0.22, 0.57]
+            ear_right_top    = [0.76, 0.38]
+            ear_right_bot    = [0.76, 0.58]
+            clavicle_left    = [0.28, 0.97]
+            clavicle_right   = [0.72, 0.97]
+        else:
+            left_eye         = [0.36, 0.40]
+            right_eye        = [0.64, 0.40]
+            nose_tip         = [0.50, 0.58]
+            mouth            = [0.50, 0.70]
+            chin             = [0.50, 0.86]
+            nasion           = [0.50, 0.32]
+            brow_ridge_left  = [0.36, 0.36]
+            brow_ridge_right = [0.64, 0.36]
+            cheekbone_left   = [0.24, 0.52]
+            cheekbone_right  = [0.76, 0.52]
+            philtrum         = [0.50, 0.65]
+            ear_left_top     = [0.17, 0.37]
+            ear_left_bot     = [0.17, 0.57]
+            ear_right_top    = [0.83, 0.37]
+            ear_right_bot    = [0.83, 0.57]
+            clavicle_left    = [0.30, 0.97]
+            clavicle_right   = [0.70, 0.97]
+
+        thirds_hairline_y  = 0.18
+        thirds_brow_y      = 0.38
+        thirds_nose_base_y = 0.62
+
+        # ── Eye Spacing with confidence weighting ─────────────────────────────
+        if camera_angle != "profile":
+            spacing_attr = v2_schema.get_attr("eyes", "spacing")
+            if spacing_attr and spacing_attr.source != "unknown":
+                conf = spacing_attr.confidence
+                val = spacing_attr.normalized or spacing_attr.value
+                if val in ("close", "narrow"):
+                    delta = 0.025 * conf
+                    left_eye[0] += delta
+                    right_eye[0] -= delta
+                    brow_ridge_left[0] += delta
+                    brow_ridge_right[0] -= delta
+                elif val == "wide":
+                    delta = 0.025 * conf
+                    left_eye[0] -= delta
+                    right_eye[0] += delta
+                    brow_ridge_left[0] -= delta
+                    brow_ridge_right[0] += delta
+
+        # ── Eye Vertical Tilt ─────────────────────────────────────────────────
+        tilt_attr = v2_schema.get_attr("eyes", "tilt")
+        if tilt_attr and tilt_attr.source != "unknown":
+            conf = tilt_attr.confidence
+            val = tilt_attr.normalized or tilt_attr.value
+            if val in ("upward", "upturned"):
+                left_eye[1] -= 0.005 * conf
+                right_eye[1] -= 0.005 * conf
+            elif val in ("downward", "downturned"):
+                left_eye[1] += 0.005 * conf
+                right_eye[1] += 0.005 * conf
+
+        # ── Cheekbones ────────────────────────────────────────────────────────
+        cheek_attr = v2_schema.get_attr("face", "cheekbones")
+        if cheek_attr and cheek_attr.source != "unknown":
+            conf = cheek_attr.confidence
+            val = cheek_attr.normalized or cheek_attr.value
+            if val in ("high", "prominent"):
+                cheekbone_left[1] -= 0.02 * conf
+                cheekbone_right[1] -= 0.02 * conf
+
+        # ── Nose Tip & Projection ─────────────────────────────────────────────
+        tip_attr = v2_schema.get_attr("nose", "tip")
+        if tip_attr and tip_attr.source != "unknown":
+            conf = tip_attr.confidence
+            val = tip_attr.normalized or tip_attr.value
+            if val in ("pointed", "upturned", "rounded"):
+                nose_tip[1] -= 0.015 * conf
+                if camera_angle == "profile":
+                    nose_tip[0] -= 0.02 * conf
+            elif val in ("bulbous", "broad"):
+                nose_tip[1] += 0.010 * conf
+
+        # ── Face Shape & Chin ─────────────────────────────────────────────────
+        shape_attr = v2_schema.get_attr("face", "face_shape")
+        if shape_attr and shape_attr.source != "unknown":
+            conf = shape_attr.confidence
+            val = shape_attr.normalized or shape_attr.value
+            if val in ("oblong", "long"):
+                chin[1] += 0.025 * conf
+                thirds_nose_base_y += 0.010 * conf
+            elif val == "round":
+                chin[1] -= 0.018 * conf
+            elif val == "heart":
+                chin[1] += 0.012 * conf
+            elif val == "square":
+                chin[1] -= 0.005 * conf
+
+        chin_attr = v2_schema.get_attr("chin", "shape")
+        if chin_attr and chin_attr.source != "unknown":
+            conf = chin_attr.confidence
+            val = chin_attr.normalized or chin_attr.value
+            if val in ("receding", "narrow"):
+                chin[1] -= 0.010 * conf
+                if camera_angle == "profile":
+                    chin[0] -= 0.03 * conf
+            elif val in ("broad", "square", "protruding"):
+                chin[1] += 0.008 * conf
+                if camera_angle == "profile":
+                    chin[0] += 0.02 * conf
+
+        mouth[1] = chin[1] - 0.16
+        philtrum[1] = mouth[1] - 0.05
+        nasion[0] = nose_tip[0]
+        thirds_nose_base_y = max(thirds_nose_base_y, nose_tip[1] + 0.03)
+
+        return NormalizedGeometry(
+            canvas=CanvasSize(width=resolution, height=resolution),
+            anchors=NormalizedAnchors(
+                left_eye=left_eye,
+                right_eye=right_eye,
+                nose_tip=nose_tip,
+                mouth=mouth,
+                chin=chin,
+                nasion=nasion,
+                brow_ridge_left=brow_ridge_left,
+                brow_ridge_right=brow_ridge_right,
+                cheekbone_left=cheekbone_left,
+                cheekbone_right=cheekbone_right,
+                philtrum=philtrum,
+                ear_left_top=ear_left_top,
+                ear_left_bot=ear_left_bot,
+                ear_right_top=ear_right_top,
+                ear_right_bot=ear_right_bot,
+                clavicle_left=clavicle_left,
+                clavicle_right=clavicle_right,
+                thirds_hairline_y=thirds_hairline_y,
+                thirds_brow_y=thirds_brow_y,
+                thirds_nose_base_y=thirds_nose_base_y,
+            ),
+        )
+
     def is_mediapipe_available(self) -> bool:
         task_path = Path(settings.MEDIAPIPE_MODEL_PATH)
         if not task_path.exists():

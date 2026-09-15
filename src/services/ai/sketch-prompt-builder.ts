@@ -281,14 +281,14 @@ export function buildForensicPrompt(input: ForensicPromptInput): EngineeredForen
       styleModifiers = "clean digital police identikit drawing, high-contrast black ink contours, anatomically precise lineart, zero skin shading, law enforcement reference composite";
       break;
     case "Color Age-Progressed":
-      styleModifiers = "forensic age-progressed colored portrait, colored pencil tinting, natural melanin skin tones matching demographic profile, realistic aging signs, police identification art";
+      styleModifiers = "single person, solo, single face, centered frontal forensic color portrait, realistic age progression of an individual, authentic colored pencil tinting, natural melanin skin tones matching demographic profile, realistic aging signs, police identification art";
       break;
     case "Monochrome Inversion (Black Background)":
-      styleModifiers = "(forensic chalkboard composite sketch:1.6), (crisp monochrome white and light grey chalk pencil linework:1.5), (solid pitch black background:1.8), (law enforcement forensic identification sketch:1.5), (detailed facial contours:1.3), anatomical construction lines, (subtle cross-hatching shading:1.3), accurate facial proportions, clear individual feature definition, (bilateral facial symmetry:1.3), natural human imperfections, head neck upper shoulder area only";
+      styleModifiers = "(single person:1.6), (solo:1.6), (single face:1.6), (forensic chalkboard composite sketch:1.6), (crisp monochrome white and light grey chalk pencil linework:1.5), (solid pitch black background:1.8), (law enforcement forensic identification sketch:1.5), (detailed facial contours:1.3), anatomical construction lines, (subtle cross-hatching shading:1.3), accurate facial proportions, clear individual feature definition, natural human imperfections, head neck upper shoulder area only";
       break;
     case "Forensic Graphite (Pencil)":
     default:
-      styleModifiers = "authentic forensic pencil sketch, FBI artist composite, sharp 2B graphite linework, fine cross-hatching, paper grain texture, monochrome police artist drawing on clean white background";
+      styleModifiers = "(single person:1.6), (solo:1.6), (single face:1.6), authentic forensic pencil sketch, FBI artist composite, sharp 2B graphite linework, fine cross-hatching, paper grain texture, monochrome police artist drawing on clean white background";
       styleDesc = "Forensic Graphite (Pencil)";
       break;
   }
@@ -370,8 +370,8 @@ export function buildForensicPrompt(input: ForensicPromptInput): EngineeredForen
     lightingPrompt,
     detailPrompt,
     isBlackBg
-      ? "official police composite sketch, law enforcement evidence document, solid pitch black background, centered composition"
-      : "official police composite sketch, law enforcement evidence document, neutral white background, centered composition",
+      ? "official police composite sketch, law enforcement evidence document, solid pitch black background, single person centered composition"
+      : "official police composite sketch, law enforcement evidence document, neutral background, single person centered composition, no duplicate faces",
   ];
 
   if (witnessStatement && witnessStatement.trim().length > 0) {
@@ -380,8 +380,9 @@ export function buildForensicPrompt(input: ForensicPromptInput): EngineeredForen
 
   const finalPrompt = promptSegments.filter(Boolean).join(", ");
 
-  // 8. Negative prompt — stay strict forensic
+  // 8. Negative prompt — stay strict forensic and suppress duplicate/dual images
   const negativePromptList = [
+    "(two faces:2.0), (multiple faces:2.0), (two people:2.0), (dual image:2.0), (side by side:2.0), (diptych:2.0), (split image:2.0), (twin:2.0), (duplicate:2.0), (cloned face:2.0), (before and after:2.0), (comparison:2.0), (double portrait:2.0), (extra head:2.0), (two heads:2.0), multiple people",
     "cartoon, anime, manga, 3D CGI, video game character",
     "blurry, watermark, signature, text, logo",
     "extra eyes, missing features, deformed anatomy, bad proportions",
@@ -395,7 +396,7 @@ export function buildForensicPrompt(input: ForensicPromptInput): EngineeredForen
       "(white background:2.0), (light background:2.0), (grey background:1.8), (light gray background:1.8), (cream background:1.8)",
       "(color:1.8), (photograph:1.8), (photorealistic:1.8), (3d render:1.5), (digital art:1.5)"
     );
-  } else {
+  } else if (sketchStyle !== "Color Age-Progressed") {
     negativePromptList.unshift("color photograph, photorealistic, digital photo");
   }
 

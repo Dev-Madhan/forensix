@@ -1,5 +1,5 @@
-from typing import Any, Dict, Optional
-from pydantic import BaseModel, Field, field_validator
+from typing import Any, Dict, Literal, Optional
+from pydantic import BaseModel, Field, field_validator, model_validator
 from app.schemas.common import BaseResponse
 
 
@@ -10,6 +10,10 @@ class SketchImage(BaseModel):
 
 
 class SketchGenerateRequest(BaseModel):
+    mode: Literal["PROMPT_GENERATION", "DATASET_COMPOSITE"] = Field(
+        "DATASET_COMPOSITE",
+        description="Active synthesis mode: PROMPT_GENERATION (witness prompt) or DATASET_COMPOSITE (feature assembly)",
+    )
     case_id: str = Field(
         ...,
         min_length=1,
@@ -22,10 +26,14 @@ class SketchGenerateRequest(BaseModel):
         description="Unique identifier of the witness",
         examples=["wit-01JABCDEF1234567"],
     )
-    attributes: Dict[str, Any] = Field(
-        ...,
-        description="Structured facial attributes parsed from witness statement",
+    attributes: Optional[Dict[str, Any]] = Field(
+        default_factory=dict,
+        description="Structured facial attributes parsed from witness statement or dataset component selections",
         examples=[{"gender": "male", "face_shape": "oval", "hair": "curly dark brown"}],
+    )
+    components: Optional[Dict[str, str]] = Field(
+        None,
+        description="Explicit dataset component item selections (e.g. {'eyes': 'almond_01', 'nose': 'aquiline_02'})",
     )
     seed: Optional[int] = Field(
         None,
@@ -96,9 +104,39 @@ class SketchGenerateRequest(BaseModel):
     @field_validator("attributes", mode="before")
     @classmethod
     def validate_attributes(cls, v: Any) -> Dict[str, Any]:
+        if v is None:
+            return {}
         if not isinstance(v, dict):
             raise ValueError("Attributes must be a valid JSON object/dictionary.")
         return v
+
+    @model_validator(mode="after")
+    def enforce_mode_exclusivity(self) -> "SketchGenerateRequest":
+        is_mode_explicit = "mode" in self.model_fields_set
+        has_prompt = bool(self.prompt and self.prompt.strip())
+        has_components = bool(self.components and len(self.components) > 0)
+        has_attributes = bool(self.attributes and len(self.attributes) > 0)
+
+        if self.mode == "PROMPT_GENERATION":
+            if not has_prompt:
+                raise ValueError("In PROMPT_GENERATION mode, 'prompt' must be provided and cannot be empty.")
+            if has_components:
+                raise ValueError("Strict Mode Exclusivity: 'components' cannot be provided in PROMPT_GENERATION mode.")
+        elif self.mode == "DATASET_COMPOSITE":
+            if is_mode_explicit and has_prompt:
+                raise ValueError(
+                    "Strict Mode Exclusivity: 'prompt' cannot be provided in DATASET_COMPOSITE mode. "
+                    "Clear prompt or switch to PROMPT_GENERATION mode."
+                )
+            # For backward compatibility if mode was not explicitly passed:
+            if not is_mode_explicit and has_prompt and not has_components:
+                self.mode = "PROMPT_GENERATION"
+            elif not has_attributes and not has_components:
+                raise ValueError(
+                    "In DATASET_COMPOSITE mode, at least one feature must be selected in 'attributes' or 'components'."
+                )
+
+        return self
 
 
 class SketchGenerateResponse(BaseResponse):
@@ -106,6 +144,10 @@ class SketchGenerateResponse(BaseResponse):
     witness_id: str
     image: SketchImage = Field(..., description="Generated forensic sketch image metadata")
     seed: Optional[int] = Field(None, description="Generation seed used for reproducibility")
+    generation_id: Optional[str] = Field(None, description="Unique trace identifier for this generation run")
+    mode: Optional[str] = Field(None, description="Execution mode (PROMPT_GENERATION or DATASET_COMPOSITE)")
+    consistency_score: Optional[float] = Field(None, description="MediaPipe structural consistency metric (0.0 - 1.0)")
+    refinement_passes: int = Field(0, description="Number of automated refinement passes executed")
     llm_analysis: Optional[Dict[str, Any]] = Field(
         None,
         description="Detailed forensic taxonomy and morphological reasoning deduced by the LLM",

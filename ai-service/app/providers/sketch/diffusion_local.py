@@ -22,6 +22,8 @@ try:
         StableDiffusionPipeline,
         DDIMScheduler,
         StableDiffusionImg2ImgPipeline,
+        ControlNetModel,
+        StableDiffusionControlNetPipeline,
     )
     HAS_DIFFUSION_DEPS = True
 except ImportError:
@@ -29,6 +31,8 @@ except ImportError:
     StableDiffusionPipeline = None  # type: ignore
     DDIMScheduler = None  # type: ignore
     StableDiffusionImg2ImgPipeline = None  # type: ignore
+    ControlNetModel = None  # type: ignore
+    StableDiffusionControlNetPipeline = None  # type: ignore
     HAS_DIFFUSION_DEPS = False
 
 # ---------------------------------------------------------------------------
@@ -83,9 +87,13 @@ class LocalDiffusionProvider(BaseSketchProvider):
         self.output_dir.mkdir(parents=True, exist_ok=True)
         self._pipe: Any = None
         self._lora_active: bool = False
+        self._controlnet_active: bool = False
 
     def _ensure_pipeline(self) -> Any:
-        """Lazy-load the standard SD 1.5 pipeline (no ControlNet) onto GPU with CPU offload."""
+        """
+        Lazy-load diffusion pipeline onto GPU with CPU offload.
+        Attempts StableDiffusionControlNetPipeline first; falls back gracefully to vanilla SD1.5.
+        """
         if self._pipe is not None:
             return self._pipe
 
@@ -101,23 +109,61 @@ class LocalDiffusionProvider(BaseSketchProvider):
                 f"Stable Diffusion 1.5 model not found at {self.sd_model_path}."
             )
 
-        logger.info(
-            f"Loading Stable Diffusion 1.5 (no ControlNet) from {self.sd_model_path} with FP16...",
-            extra={"endpoint": "/api/v1/sketch/generate"},
-        )
-        pipe = StableDiffusionPipeline.from_pretrained(
-            str(self.sd_model_path),
-            torch_dtype=torch.float16,
-            variant="fp16",
-            safety_checker=None,
-        )
+        pipe = None
+        self._controlnet_active = False
+
+        # Attempt ControlNet Lineart pipeline initialization
+        if getattr(settings, "CONTROLNET_ENABLED", True) and ControlNetModel is not None and StableDiffusionControlNetPipeline is not None:
+            cnet_candidates = [
+                self.sd_model_path.parent / "controlnet" / "lineart",
+                Path(settings.CONTROLNET_MODEL_PATH),
+                Path(__file__).resolve().parents[3] / "models" / "controlnet" / "lineart",
+                Path("ai-service/models/controlnet/lineart"),
+            ]
+            cnet_path = next((p for p in cnet_candidates if p.exists()), None)
+            if cnet_path:
+                try:
+                    logger.info(f"Loading ControlNet Lineart model from {cnet_path}...")
+                    dtype = torch.float16 if torch.cuda.is_available() else torch.float32
+                    cnet_model = ControlNetModel.from_pretrained(
+                        str(cnet_path),
+                        torch_dtype=dtype,
+                    )
+                    logger.info(f"Loading StableDiffusionControlNetPipeline from {self.sd_model_path}...")
+                    pipe = StableDiffusionControlNetPipeline.from_pretrained(
+                        str(self.sd_model_path),
+                        controlnet=cnet_model,
+                        torch_dtype=dtype,
+                        variant="fp16" if dtype == torch.float16 else None,
+                        safety_checker=None,
+                    )
+                    self._controlnet_active = True
+                    logger.info("StableDiffusionControlNetPipeline successfully initialized with Lineart guidance.")
+                except Exception as cnet_err:
+                    logger.warning(
+                        f"ControlNet initialization failed ({cnet_err}). Gracefully falling back to vanilla StableDiffusionPipeline."
+                    )
+                    pipe = None
+                    self._controlnet_active = False
+
+        # Fallback to standard StableDiffusionPipeline
+        if pipe is None:
+            logger.info(
+                f"Loading Stable Diffusion 1.5 (vanilla) from {self.sd_model_path} with FP16...",
+                extra={"endpoint": "/api/v1/sketch/generate"},
+            )
+            pipe = StableDiffusionPipeline.from_pretrained(
+                str(self.sd_model_path),
+                torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32,
+                variant="fp16" if torch.cuda.is_available() else None,
+                safety_checker=None,
+            )
+            self._controlnet_active = False
 
         if pipe is None:
             raise ProviderException(
-                "StableDiffusionPipeline.from_pretrained() returned None. "
-                "Verify that the model files at '{}' are valid and complete (e.g. model_index.json present).".format(
-                    self.sd_model_path
-                )
+                "Diffusion pipeline from_pretrained() returned None. "
+                "Verify that model files at '{}' are complete.".format(self.sd_model_path)
             )
 
         # Switch to DDIM scheduler — crisper monochrome linework vs default PNDM
@@ -137,12 +183,16 @@ class LocalDiffusionProvider(BaseSketchProvider):
             logger.warning("CUDA is not available, falling back to CPU execution.")
             pipe = pipe.to("cpu")
 
-        # Load trained forensic LoRA adapter if available (prefers v2 if trained)
+        # Load trained forensic LoRA adapter if available (prefers v3 if trained, then v2)
+        self._lora_version: str = "none"
         lora_candidates = [
+            self.sd_model_path.parent / "lora" / "forensic_sketch_lora_v3.safetensors",
             self.sd_model_path.parent / "lora" / "forensic_sketch_lora_v2.safetensors",
             self.sd_model_path.parent / "lora" / "forensic_sketch_lora.safetensors",
+            Path("models/lora/forensic_sketch_lora_v3.safetensors"),
             Path("models/lora/forensic_sketch_lora_v2.safetensors"),
             Path("models/lora/forensic_sketch_lora.safetensors"),
+            Path(__file__).resolve().parents[3] / "models" / "lora" / "forensic_sketch_lora_v3.safetensors",
             Path(__file__).resolve().parents[3] / "models" / "lora" / "forensic_sketch_lora_v2.safetensors",
             Path(__file__).resolve().parents[3] / "models" / "lora" / "forensic_sketch_lora.safetensors",
         ]
@@ -152,12 +202,14 @@ class LocalDiffusionProvider(BaseSketchProvider):
                     logger.info(f"Loading trained forensic LoRA weights from {lp}...")
                     pipe.load_lora_weights(str(lp.parent), weight_name=lp.name)
                     self._lora_active = True
-                    logger.info("Forensic LoRA weights successfully loaded into diffusion pipeline.")
+                    self._lora_version = "v3" if "v3" in lp.name else ("v2" if "v2" in lp.name else "v1")
+                    logger.info(f"Forensic LoRA ({self._lora_version}) successfully loaded into diffusion pipeline.")
                     break
                 except Exception as lora_err:
                     try:
                         pipe.load_lora_weights(str(lp.parent))
                         self._lora_active = True
+                        self._lora_version = "v3" if "v3" in lp.name else ("v2" if "v2" in lp.name else "v1")
                         logger.info(f"Loaded forensic LoRA adapter directory from {lp.parent}")
                         break
                     except Exception as err2:
@@ -808,7 +860,7 @@ class LocalDiffusionProvider(BaseSketchProvider):
                 image=upscaled,
                 prompt_embeds=p_embeds,
                 negative_prompt_embeds=n_embeds,
-                strength=0.35,
+                strength=0.28,
                 num_inference_steps=20,
                 guidance_scale=cfg_scale,
                 generator=generator,
@@ -838,6 +890,7 @@ class LocalDiffusionProvider(BaseSketchProvider):
         positive_prompt: Optional[str] = None,
         negative_prompt: Optional[str] = None,
         cfg_scale: float = 9.0,
+        control_strength: float = 0.50,
     ) -> Dict[str, Any]:
         """
         Synthesizes a forensic composite sketch using the LLM-engineered prompt and Rank-32
@@ -884,25 +937,54 @@ class LocalDiffusionProvider(BaseSketchProvider):
             pipe = self._ensure_pipeline()
             generator = torch.Generator(device="cpu").manual_seed(generation_seed) if torch is not None else None
 
+            # Dynamic LoRA v3 adapter detection & upgrade:
+            # If forensic_sketch_lora_v3.safetensors is available on disk and not yet active, upgrade immediately.
+            v3_candidates = [
+                self.sd_model_path.parent / "lora" / "forensic_sketch_lora_v3.safetensors",
+                Path("models/lora/forensic_sketch_lora_v3.safetensors"),
+                Path(__file__).resolve().parents[3] / "models" / "lora" / "forensic_sketch_lora_v3.safetensors",
+            ]
+            v3_path = next((p for p in v3_candidates if p.exists()), None)
+            if v3_path and self._lora_version != "v3":
+                try:
+                    if self._lora_active:
+                        pipe.unload_lora_weights()
+                    pipe.load_lora_weights(str(v3_path.parent), weight_name=v3_path.name)
+                    self._lora_active = True
+                    self._lora_version = "v3"
+                    logger.info(f"Dynamically upgraded active LoRA adapter to multimodal v3 from {v3_path}")
+                except Exception as up_err:
+                    logger.warning(f"Could not load LoRA v3: {up_err}")
+
             # Style-aware LoRA adapter management:
-            # - For "Color Age-Progressed": Unload sketch LoRA so SD1.5 generates rich skin tones
-            # - For monochrome forensic styles: Keep Rank-32 LoRA active for authentic pencil hatching
+            # - If LoRA v3 is loaded (multimodal: monochrome + color): Keep LoRA active for ALL styles
+            # - If legacy LoRA (v1/v2 monochrome only): Unload sketch LoRA for Color Age-Progressed
             is_color_style = bool("color" in sketch_style.lower() or "age-progressed" in sketch_style.lower())
             if is_color_style:
-                if self._lora_active:
+                if self._lora_active and self._lora_version not in ("v3",):
                     try:
                         pipe.unload_lora_weights()
                         self._lora_active = False
-                        logger.info("Deactivated monochrome LoRA weights for Color Age-Progressed synthesis.")
+                        logger.info("Deactivated legacy monochrome LoRA weights for Color Age-Progressed synthesis.")
+                    except Exception:
+                        pass
+                elif not self._lora_active and self._lora_version == "v3" and v3_path:
+                    try:
+                        pipe.load_lora_weights(str(v3_path.parent), weight_name=v3_path.name)
+                        self._lora_active = True
+                        logger.info("Re-activated multimodal LoRA v3 for Color Age-Progressed synthesis.")
                     except Exception:
                         pass
             else:
                 if not self._lora_active:
                     lora_candidates = [
+                        self.sd_model_path.parent / "lora" / "forensic_sketch_lora_v3.safetensors",
                         self.sd_model_path.parent / "lora" / "forensic_sketch_lora_v2.safetensors",
                         self.sd_model_path.parent / "lora" / "forensic_sketch_lora.safetensors",
+                        Path("models/lora/forensic_sketch_lora_v3.safetensors"),
                         Path("models/lora/forensic_sketch_lora_v2.safetensors"),
                         Path("models/lora/forensic_sketch_lora.safetensors"),
+                        Path(__file__).resolve().parents[3] / "models" / "lora" / "forensic_sketch_lora_v3.safetensors",
                         Path(__file__).resolve().parents[3] / "models" / "lora" / "forensic_sketch_lora_v2.safetensors",
                         Path(__file__).resolve().parents[3] / "models" / "lora" / "forensic_sketch_lora.safetensors",
                     ]
@@ -911,12 +993,14 @@ class LocalDiffusionProvider(BaseSketchProvider):
                             try:
                                 pipe.load_lora_weights(str(lp.parent), weight_name=lp.name)
                                 self._lora_active = True
-                                logger.info(f"Activated trained forensic LoRA weights from {lp}")
+                                self._lora_version = "v3" if "v3" in lp.name else ("v2" if "v2" in lp.name else "v1")
+                                logger.info(f"Activated trained forensic LoRA weights ({self._lora_version}) from {lp}")
                                 break
                             except Exception:
                                 try:
                                     pipe.load_lora_weights(str(lp.parent))
                                     self._lora_active = True
+                                    self._lora_version = "v3" if "v3" in lp.name else ("v2" if "v2" in lp.name else "v1")
                                     logger.info(f"Activated trained forensic LoRA adapter from {lp.parent}")
                                     break
                                 except Exception:
@@ -928,16 +1012,28 @@ class LocalDiffusionProvider(BaseSketchProvider):
                 or "inversion" in sketch_style.lower()
                 or "chalkboard" in sketch_style.lower()
             )
-            lora_scale = 1.0 if is_black_bg else (0.85 if "charcoal" in sketch_style.lower() else 0.90)
+            lora_scale = 1.0 if is_black_bg else (0.80 if is_color_style else (0.85 if "charcoal" in sketch_style.lower() else 0.90))
 
             if torch is not None and torch.cuda.is_available():
                 torch.cuda.empty_cache()
 
-            logger.info(
-                f"Running diffusion inference (no ControlNet): case={case_id}, witness={witness_id}, "
-                f"seed={generation_seed}, steps={inference_steps}, angle={camera_angle}, style={sketch_style}, cfg={guidance}, lora_scale={lora_scale}",
-                extra={"endpoint": "/api/v1/sketch/generate"},
-            )
+            # Clamp base diffusion resolution to 512 native to avoid multi-head latent splitting
+            base_resolution = min(resolution, 512)
+
+            if self._controlnet_active:
+                logger.info(
+                    f"Running diffusion inference (ControlNet Lineart active): case={case_id}, witness={witness_id}, "
+                    f"seed={generation_seed}, steps={inference_steps}, angle={camera_angle}, style={sketch_style}, "
+                    f"control_scale={control_strength}, cfg={guidance}, lora_scale={lora_scale}, res={base_resolution}",
+                    extra={"endpoint": "/api/v1/sketch/generate"},
+                )
+            else:
+                logger.info(
+                    f"Running diffusion inference (vanilla SD): case={case_id}, witness={witness_id}, "
+                    f"seed={generation_seed}, steps={inference_steps}, angle={camera_angle}, style={sketch_style}, "
+                    f"cfg={guidance}, lora_scale={lora_scale}, res={base_resolution}",
+                    extra={"endpoint": "/api/v1/sketch/generate"},
+                )
 
             prompt_embeds, negative_prompt_embeds = self._encode_prompt_with_chunks(
                 pipe=pipe,
@@ -950,18 +1046,41 @@ class LocalDiffusionProvider(BaseSketchProvider):
                 "negative_prompt_embeds": negative_prompt_embeds,
                 "num_inference_steps": inference_steps,
                 "guidance_scale": guidance,
-                "height": resolution,
-                "width": resolution,
+                "height": base_resolution,
+                "width": base_resolution,
                 "generator": generator,
             }
-            if self._lora_active and not is_color_style:
+            if self._lora_active and (not is_color_style or self._lora_version == "v3"):
                 pipe_kwargs["cross_attention_kwargs"] = {"scale": lora_scale}
 
-            output = pipe(**pipe_kwargs)
+            if self._controlnet_active:
+                try:
+                    conditioning_lineart = self.create_conditioning_lineart(
+                        attributes=attributes,
+                        resolution=base_resolution,
+                        camera_angle=camera_angle,
+                    )
+                    cnet_kwargs = dict(pipe_kwargs)
+                    cnet_kwargs["image"] = conditioning_lineart
+                    cnet_kwargs["controlnet_conditioning_scale"] = float(control_strength)
+                    output = pipe(**cnet_kwargs)
+                except Exception as cnet_runtime_err:
+                    logger.warning(
+                        f"ControlNet inference runtime failure or OOM ({cnet_runtime_err}). Falling back to vanilla SD pipeline."
+                    )
+                    if torch is not None and torch.cuda.is_available():
+                        torch.cuda.empty_cache()
+                    self._pipe = None
+                    self._controlnet_active = False
+                    vanilla_pipe = self._ensure_pipeline()
+                    output = vanilla_pipe(**pipe_kwargs)
+            else:
+                output = pipe(**pipe_kwargs)
+
             generated_image = output.images[0]
 
             # Hi-res fix pass for Master detail level (768×768 refinement)
-            if detail_level == "Master" and resolution <= 512:
+            if detail_level == "Master":
                 logger.info("Running hi-res fix pass at 768×768 for Master detail level...")
                 generated_image = self._run_hires_fix(
                     pipe=pipe,

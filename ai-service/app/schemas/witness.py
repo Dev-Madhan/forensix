@@ -1,6 +1,7 @@
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 from pydantic import BaseModel, Field, field_validator
 from app.schemas.common import BaseResponse
+from app.schemas.taxonomy import AttributeValue, ForensicAttributeSchemaV2
 
 
 class WitnessProcessRequest(BaseModel):
@@ -100,6 +101,10 @@ class WitnessProcessResponse(BaseResponse):
     attributes: Dict[str, Any] = Field(
         default_factory=dict,
         description="Structured facial attributes extracted from description conforming to forensic taxonomy",
+    )
+    v2_schema: Optional[ForensicAttributeSchemaV2] = Field(
+        None,
+        description="ForensicAttributeSchemaV2 strongly-typed taxonomy with confidence scores and source metadata",
     )
     warnings: list[str] = Field(
         default_factory=list,

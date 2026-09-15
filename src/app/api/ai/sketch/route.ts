@@ -28,6 +28,9 @@ export async function POST(request: NextRequest) {
     const resolution = rawBody.resolution ?? 640;
     const seed = rawBody.seed ?? Math.floor(100000 + Math.random() * 900000);
 
+    const mode = rawBody.mode || (rawBody.prompt?.trim() ? "PROMPT_GENERATION" : "DATASET_COMPOSITE");
+    const components = rawBody.components || undefined;
+
     // Build the master forensic prompt
     const engineeredPrompt = buildForensicPrompt({
       witnessStatement: prompt,
@@ -60,12 +63,11 @@ export async function POST(request: NextRequest) {
           "X-Request-ID": requestId,
         },
         body: JSON.stringify({
+          mode,
           case_id: caseId,
           witness_id: witnessId,
-          attributes: {
-            ...attributes,
-            ...(prompt.trim() ? { witness_statement: prompt.trim() } : {}),
-          },
+          attributes: mode === "DATASET_COMPOSITE" ? attributes : undefined,
+          components: mode === "DATASET_COMPOSITE" ? components : undefined,
           seed,
           resolution: typeof resolution === "number" ? Math.min(resolution, 512) : 512,
           steps,
@@ -77,7 +79,7 @@ export async function POST(request: NextRequest) {
           ethnicity,
           lighting_mood: lightingMood,
           detail_level: detailLevel,
-          prompt: prompt.trim() || undefined,
+          prompt: mode === "PROMPT_GENERATION" ? (prompt.trim() || undefined) : undefined,
         }),
         // 3-minute timeout — first call loads model into VRAM
         signal: AbortSignal.timeout(180_000),

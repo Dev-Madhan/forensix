@@ -59,6 +59,16 @@ class Settings(BaseSettings):
     DEFAULT_CONTROL_STRENGTH: float = 0.50
     DEFAULT_BATCH_SIZE: int = 1
 
+    # Forensic ControlNet & Refinement Loop Configuration
+    CONTROLNET_ENABLED: bool = True
+    CONTROLNET_CONDITIONING_SCALE: float = 0.50
+    MAX_REFINEMENT_PASSES: int = 2
+    CONSISTENCY_THRESHOLD: float = 0.75
+    OUTPUT_METADATA_DIR: str = "./outputs/metadata"
+    TAXONOMY_VERSION: str = "2.0"
+    QWEN_LORA_ADAPTER_PATH: str = "./models/qwen_forensic_adapter"
+    SD_LORA_PATH: str = "./models/lora/forensic_sketch_lora_v3.safetensors"
+
 
     # Phase 5 Storage Reference
     STORAGE_ENDPOINT: str | None = None

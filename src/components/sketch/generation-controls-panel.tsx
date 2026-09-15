@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Sparkles, Trash2, PenLine, ChevronDown, Check, User, Globe } from "lucide-react";
+import { Sparkles, Trash2, PenLine, ChevronDown, Check, User, Globe, Lock } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   DropdownMenu,
@@ -48,6 +48,11 @@ export function GenerationControlsPanel() {
     isGenerating,
     generateSketch,
     clearAllFeatures,
+    promptText,
+    setPromptText,
+    selectedCount,
+    generationMode,
+    isDemographicsEnabled,
   } = useSketch();
 
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -146,23 +151,30 @@ export function GenerationControlsPanel() {
 
 
       {/* Suspect Demographics: Age, Gender & Heritage */}
-      <div className="flex flex-col gap-1.5 mt-3">
+      <div className={`flex flex-col gap-1.5 mt-3 transition-opacity duration-200 ${!isDemographicsEnabled ? "opacity-50" : ""}`}>
         <label className="text-[11px] text-muted-foreground/80 font-medium select-none flex items-center justify-between">
           <span className="flex items-center gap-1.5">
             <User className="size-3 text-[#665AEF]" />
             <span>Suspect Demographics</span>
           </span>
-          <span className="text-[10px] text-muted-foreground font-mono">{gender}, {ageGroup} · {ethnicity.split(" / ")[0]}</span>
+          {!isDemographicsEnabled ? (
+            <span className="flex items-center gap-1 text-[10px] text-[#a594fd] font-medium">
+              <Lock className="size-2.5" /> Prompt-Inferred
+            </span>
+          ) : (
+            <span className="text-[10px] text-muted-foreground font-mono">{gender}, {ageGroup} · {ethnicity.split(" / ")[0]}</span>
+          )}
         </label>
         
         {/* Gender selector */}
-        <div className="grid grid-cols-2 gap-1 p-0.5 rounded-md border border-border/60 bg-black/30">
+        <div className={`grid grid-cols-2 gap-1 p-0.5 rounded-md border border-border/60 bg-black/30 ${!isDemographicsEnabled ? "pointer-events-none" : ""}`}>
           {GENDER_OPTIONS.map((g) => {
             const isSel = gender === g;
             return (
               <button
                 key={g}
                 type="button"
+                disabled={!isDemographicsEnabled}
                 onClick={() => setGender(g)}
                 className={`h-6 rounded text-[11px] font-medium transition-all select-none cursor-pointer ${
                   isSel
@@ -177,13 +189,14 @@ export function GenerationControlsPanel() {
         </div>
 
         {/* Age group selector */}
-        <div className="grid grid-cols-4 gap-1 p-0.5 rounded-md border border-border/60 bg-black/30 mt-0.5">
+        <div className={`grid grid-cols-4 gap-1 p-0.5 rounded-md border border-border/60 bg-black/30 mt-0.5 ${!isDemographicsEnabled ? "pointer-events-none" : ""}`}>
           {AGE_OPTIONS.map((ag) => {
             const isSel = ageGroup === ag;
             return (
               <button
                 key={ag}
                 type="button"
+                disabled={!isDemographicsEnabled}
                 onClick={() => setAgeGroup(ag)}
                 className={`h-6 rounded text-[10.5px] font-medium transition-all select-none cursor-pointer ${
                   isSel
@@ -198,7 +211,7 @@ export function GenerationControlsPanel() {
         </div>
 
         {/* Demographic Heritage / Ethnicity Selector */}
-        <div className="flex flex-col gap-1 mt-1">
+        <div className={`flex flex-col gap-1 mt-1 ${!isDemographicsEnabled ? "pointer-events-none" : ""}`}>
           <div className="flex items-center justify-between">
             <span className="text-[10px] text-muted-foreground/80 font-medium flex items-center gap-1">
               <Globe className="size-2.5 text-[#665AEF]" />
@@ -206,8 +219,11 @@ export function GenerationControlsPanel() {
             </span>
             <span className="text-[9.5px] text-[#c2b5fd] font-medium">{ethnicity}</span>
           </div>
-          <DropdownMenu open={isEthnicityOpen} onOpenChange={setIsEthnicityOpen}>
-            <DropdownMenuTrigger className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-md border border-border/60 bg-black/40 text-[11px] font-medium text-foreground hover:border-[#665AEF]/50 transition-colors cursor-pointer select-none outline-none">
+          <DropdownMenu open={isDemographicsEnabled && isEthnicityOpen} onOpenChange={setIsEthnicityOpen}>
+            <DropdownMenuTrigger
+              disabled={!isDemographicsEnabled}
+              className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-md border border-border/60 bg-black/40 text-[11px] font-medium text-foreground hover:border-[#665AEF]/50 transition-colors cursor-pointer select-none outline-none disabled:cursor-not-allowed"
+            >
               <span className="flex items-center gap-1.5 truncate">
                 <Globe className="size-3 text-[#665AEF] shrink-0" />
                 <span className="truncate">{ethnicity}</span>
@@ -251,20 +267,28 @@ export function GenerationControlsPanel() {
       </div>
 
       {/* Detail Level Segmented Buttons */}
-      <div className="flex flex-col gap-1.5 mt-3">
-        <label className="text-[11px] text-muted-foreground/80 font-medium select-none">
-          Synthesis Fidelity
+      <div className={`flex flex-col gap-1.5 mt-3 transition-opacity duration-200 ${!isDemographicsEnabled ? "opacity-50" : ""}`}>
+        <label className="text-[11px] text-muted-foreground/80 font-medium select-none flex items-center justify-between">
+          <span>Synthesis Fidelity</span>
+          {!isDemographicsEnabled && (
+            <span className="flex items-center gap-1 text-[10px] text-[#a594fd] font-medium">
+              <Lock className="size-2.5" /> Auto
+            </span>
+          )}
         </label>
-        <div className="relative grid grid-cols-3 gap-1 p-1 rounded-lg border-2 border-border/70 bg-black/40">
+        <div className={`relative grid grid-cols-3 gap-1 p-1 rounded-lg border-2 border-border/70 bg-black/40 ${!isDemographicsEnabled ? "pointer-events-none" : ""}`}>
           {detailLevels.map((lvl) => {
             const isActive = detailLevel === lvl;
             return (
               <motion.button
                 key={lvl}
                 type="button"
+                disabled={!isDemographicsEnabled}
                 onClick={() => setDetailLevel(lvl)}
-                whileTap={{ scale: 0.92 }}
-                className={`relative h-7 rounded-md text-[11px] font-medium cursor-pointer select-none z-10 flex items-center justify-center transition-colors duration-200 ${
+                whileTap={!isDemographicsEnabled ? undefined : { scale: 0.92 }}
+                className={`relative h-7 rounded-md text-[11px] font-medium select-none z-10 flex items-center justify-center transition-colors duration-200 ${
+                  !isDemographicsEnabled ? "cursor-not-allowed" : "cursor-pointer"
+                } ${
                   isActive
                     ? "text-white font-semibold"
                     : "text-muted-foreground hover:text-foreground hover:bg-white/4"
@@ -312,18 +336,34 @@ export function GenerationControlsPanel() {
         )}
       </motion.button>
 
-      {/* Secondary Action: Clear All */}
-      <motion.button
-        type="button"
-        onClick={clearAllFeatures}
-        whileHover={{ scale: 1.01 }}
-        whileTap={{ scale: 0.96 }}
-        transition={{ type: "spring", stiffness: 400, damping: 25 }}
-        className="w-full h-7.5 rounded-md text-[11px] text-muted-foreground hover:text-foreground hover:bg-white/5 flex items-center justify-center gap-1.5 cursor-pointer mt-1.5 transition-colors select-none"
-      >
-        <Trash2 className="size-3.5" />
-        <span>Clear All Features</span>
-      </motion.button>
+      {/* Secondary Action: Clear Action */}
+      {generationMode === "PROMPT_GENERATION" ? (
+        <motion.button
+          type="button"
+          onClick={() => setPromptText("")}
+          disabled={!promptText}
+          whileHover={!promptText ? undefined : { scale: 1.01 }}
+          whileTap={!promptText ? undefined : { scale: 0.96 }}
+          transition={{ type: "spring", stiffness: 400, damping: 25 }}
+          className="w-full h-7.5 rounded-md text-[11px] text-muted-foreground hover:text-foreground hover:bg-white/5 flex items-center justify-center gap-1.5 cursor-pointer mt-1.5 transition-colors select-none disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          <Trash2 className="size-3.5" />
+          <span>Clear Witness Prompt</span>
+        </motion.button>
+      ) : (
+        <motion.button
+          type="button"
+          onClick={clearAllFeatures}
+          disabled={selectedCount === 0}
+          whileHover={selectedCount === 0 ? undefined : { scale: 1.01 }}
+          whileTap={selectedCount === 0 ? undefined : { scale: 0.96 }}
+          transition={{ type: "spring", stiffness: 400, damping: 25 }}
+          className="w-full h-7.5 rounded-md text-[11px] text-muted-foreground hover:text-foreground hover:bg-white/5 flex items-center justify-center gap-1.5 cursor-pointer mt-1.5 transition-colors select-none disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          <Trash2 className="size-3.5" />
+          <span>Clear All Features</span>
+        </motion.button>
+      )}
     </div>
   );
 }
