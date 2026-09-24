@@ -51,6 +51,8 @@ export async function aiFetch<T>(
     "Content-Type": "application/json",
     Accept: "application/json",
     "X-Request-ID": requestId,
+    "bypass-tunnel-reminder": "true",
+    "ngrok-skip-browser-warning": "true",
     ...options.headers,
   };
 

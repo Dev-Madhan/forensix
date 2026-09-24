@@ -4,9 +4,13 @@ import { synthesizeProceduralSketch } from "@/services/ai/forensic-procedural-sy
 import { env } from "@/env";
 import crypto from "crypto";
 
+// Maximum duration for Vercel Serverless Function execution (RTX 4050 GPU generation takes ~12-25s)
+export const maxDuration = 60;
+export const dynamic = "force-dynamic";
+
 /**
  * Next.js server route proxy for forensic sketch synthesis.
- * Strategy 1: Local FastAPI AI microservice (SD 1.5 + ControlNet Lineart) — real GPU
+ * Strategy 1: Local / Tunneled FastAPI AI microservice (SD 1.5 + ControlNet Lineart) — real GPU
  * Strategy 2: Google Gemini / Imagen 3 cloud API (if key set)
  * Strategy 3: High-fidelity forensic procedural SVG synthesizer (always works)
  */
@@ -61,6 +65,8 @@ export async function POST(request: NextRequest) {
           "Content-Type": "application/json",
           "X-AI-Secret": aiSecret,
           "X-Request-ID": requestId,
+          "bypass-tunnel-reminder": "true",
+          "ngrok-skip-browser-warning": "true",
         },
         body: JSON.stringify({
           mode,
@@ -93,6 +99,10 @@ export async function POST(request: NextRequest) {
           // Fetch the actual PNG bytes and convert to base64 data URL for the browser
           const imageAbsoluteUrl = `${aiServiceUrl}${imageRelativeUrl.startsWith("/") ? "" : "/"}${imageRelativeUrl}`;
           const imgRes = await fetch(imageAbsoluteUrl, {
+            headers: {
+              "bypass-tunnel-reminder": "true",
+              "ngrok-skip-browser-warning": "true",
+            },
             signal: AbortSignal.timeout(30_000),
           });
 
@@ -123,6 +133,9 @@ export async function POST(request: NextRequest) {
             });
           }
         }
+      } else {
+        const errText = await fastApiRes.text();
+        console.warn(`[AI Route] FastAPI returned HTTP ${fastApiRes.status}: ${errText}`);
       }
     } catch (fastApiErr) {
       console.warn(
@@ -209,7 +222,10 @@ export async function POST(request: NextRequest) {
         content_type: "image/svg+xml",
       },
       seed: proceduralResult.seed,
-      metadata: proceduralResult.metadata,
+      metadata: {
+        ...proceduralResult.metadata,
+        fallback_notice: "Generated via procedural engine because the local GPU AI worker was unreachable. Connect your tunnel at AI_SERVICE_URL to use your local RTX 4050 model.",
+      },
     });
   } catch (error: unknown) {
     console.error("[AI Route] Unexpected error in sketch route:", error);

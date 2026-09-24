@@ -1,4 +1,4 @@
-﻿# 🔬 Forensix — Project Setup & Run Guide
+# 🔬 Forensix — Project Setup & Run Guide
 
 > **Stack:** Next.js 16 · Prisma · Python FastAPI · SD 1.5 + ControlNet · RTX 4050 6GB
 
@@ -336,6 +336,41 @@ OUTPUT_DIR=./outputs
 SKETCH_PROVIDER=diffusion_local
 LLM_PROVIDER=qwen_local
 ```
+
+---
+
+## 🌐 CONNECT LOCAL GPU MODEL TO VERCEL PRODUCTION
+
+You can run your models locally on your RTX 4050 GPU and have your **Vercel production deployment** send its sketch generation and LLM jobs directly to your computer!
+
+### Why isn't it working by default on Vercel?
+- Vercel runs on cloud servers (AWS/GCP).
+- When Vercel calls `http://localhost:8000`, it refers to Vercel's cloud container, NOT your laptop!
+- To bridge them, your local FastAPI service must be exposed over a secure public HTTPS tunnel.
+
+### Quick Start (One Command):
+
+```powershell
+cd "d:\Madhan Kumar\Web Development Projects\forensix"
+.\start-gpu-worker.ps1
+```
+
+This automated script will:
+1. Verify your RTX 4050 GPU & CUDA status.
+2. Start the FastAPI microservice and pre-warm the SD 1.5 pipeline in VRAM.
+3. Automatically download and launch a secure **Cloudflare HTTPS tunnel**.
+4. Output your public URL: e.g. `https://xxxx.trycloudflare.com`.
+
+### Connect to Vercel:
+
+1. Copy the public tunnel URL printed in your terminal (e.g. `https://your-tunnel.trycloudflare.com`).
+2. Go to your **Vercel Dashboard** -> Open the **forensix** project -> **Settings** -> **Environment Variables**.
+3. Set:
+   - `AI_SERVICE_URL` = `https://your-tunnel.trycloudflare.com`
+   - `AI_SERVICE_SECRET` = `forensix_ai_secret_dev_2026`
+4. Redeploy your latest deployment (or wait a few seconds for runtime environment variables to apply).
+5. Open your live Vercel URL -> The status badge will show **GPU Online** -> Click **Generate Sketch**!
+   Your local RTX 4050 GPU will now generate the forensic sketch and send it straight to your Vercel production app.
 
 ---
 

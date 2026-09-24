@@ -27,6 +27,8 @@ dist/
 Thumbs.db
 Desktop.ini
 *.pem
+*.exe
+ai-service/cloudflared.exe
 
 # IDEs
 .vscode/

@@ -27,6 +27,23 @@ async def lifespan(app: FastAPI):
         f"Starting {settings.APP_NAME} in '{settings.APP_ENV}' mode",
         extra={"endpoint": "startup", "status_code": 200},
     )
+    # Pre-warm local GPU diffusion pipeline in background so first request is instant
+    if settings.SKETCH_PROVIDER == "diffusion_local":
+        import threading
+
+        def _warm_up():
+            try:
+                from app.services.sketch_service import sketch_service
+                if hasattr(sketch_service.provider, "_ensure_pipeline"):
+                    logger.info("Pre-warming local GPU diffusion pipeline into VRAM...")
+                    sketch_service.provider._ensure_pipeline()
+                    logger.info("Local GPU diffusion pipeline pre-warmed and ready for inference!")
+            except Exception as e:
+                logger.warning(f"Could not pre-warm pipeline at startup: {e}")
+
+        warmup_thread = threading.Thread(target=_warm_up, daemon=True, name="gpu-warmup")
+        warmup_thread.start()
+
     yield
     # Shutdown logging
     logger.info(
@@ -49,6 +66,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.ALLOWED_ORIGINS,
+    allow_origin_regex=r"https://.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["*"],

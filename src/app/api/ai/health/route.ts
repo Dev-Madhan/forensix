@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { aiFetch, AIServiceError } from "@/services/ai/client";
 
+export const maxDuration = 10;
+export const dynamic = "force-dynamic";
+
 /**
  * Next.js server route to query AI microservice health & readiness.
  * Complies with Section 24 and Section 40 of the Forensix AI Integration Guide.

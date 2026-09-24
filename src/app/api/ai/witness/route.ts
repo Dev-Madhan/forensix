@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { processWitnessStatement } from "@/services/ai/witness";
 import { AIServiceError } from "@/services/ai/client";
 
+export const maxDuration = 60;
+export const dynamic = "force-dynamic";
+
 /**
  * Next.js server route proxy for witness statement processing.
  * Keeps AI microservice URL and authentication credentials internal to the server.

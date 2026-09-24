@@ -3,6 +3,9 @@ import { searchSuspectRecognition } from "@/services/ai/recognition";
 import { AIServiceError } from "@/services/ai/client";
 import { searchSuspectsByVector, executeNeonQuery } from "@/lib/neon-pgvector";
 
+export const maxDuration = 60;
+export const dynamic = "force-dynamic";
+
 /**
  * Next.js server route proxy for suspect face recognition / database search.
  * Connects InsightFace ArcFace (512D) facial embeddings with Neon PostgreSQL pgvector
