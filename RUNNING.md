@@ -372,6 +372,8 @@ This automated script will:
 5. Open your live Vercel URL -> The status badge will show **GPU Online** -> Click **Generate Sketch**!
    Your local RTX 4050 GPU will now generate the forensic sketch and send it straight to your Vercel production app.
 
+> 📖 **Deep Dive Architecture & Flowcharts:** See [HYBRID_GPU_CLOUD_ARCHITECTURE.md](file:///d:/Madhan%20Kumar/Web%20Development%20Projects/forensix/HYBRID_GPU_CLOUD_ARCHITECTURE.md) for full architectural sequence diagrams, security specs, and troubleshooting.
+
 ---
 
 *Forensix — RTX 4050 6GB · Node v24 · Python 3.11 · Windows 11*

@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 
 export default function SketchPage() {
   return (
-    <main className="flex-1 min-h-[calc(100vh-4rem)] flex flex-col bg-background text-foreground">
+    <main className="flex-1 min-h-[calc(100dvh-4rem)] flex flex-col bg-background text-foreground">
       <SketchStudioWorkbench />
     </main>
   );

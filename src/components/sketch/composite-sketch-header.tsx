@@ -63,7 +63,7 @@ export function CompositeSketchHeader() {
   };
 
   return (
-    <div className="flex items-center justify-between px-5 py-3.5 border-b-2 border-border/60 shrink-0 bg-[#0c0c11]/80 backdrop-blur-md">
+    <div className="flex items-center justify-between px-3 py-2.5 md:px-5 md:py-3.5 border-b-2 border-border/60 shrink-0 bg-[#0c0c11]/80 backdrop-blur-md">
       {/* Left: Title + Status Pill + GPU Worker Badge */}
       <div className="flex items-center gap-3">
         <h2 className="font-heading text-base font-bold text-foreground tracking-tight select-none">
@@ -73,25 +73,22 @@ export function CompositeSketchHeader() {
         <div
           title={
             aiStatus === "online"
-              ? "Local AI GPU Service Connected (Ready for SD 1.5 + ControlNet)"
+              ? "Local AI GPU Service Connected"
               : aiStatus === "offline"
-              ? "Local AI GPU Service Offline (Procedural Fallback Active)"
-              : "Checking AI Service status..."
+              ? "GPU Offline — Procedural Fallback"
+              : "Checking AI Service..."
           }
-          className="flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-mono border border-border/60 bg-black/40 cursor-default select-none"
+          className="cursor-default select-none flex items-center"
         >
           <span
-            className={`size-1.5 rounded-full ${
+            className={`size-2.5 rounded-full border-2 border-[#0c0c11] transition-colors duration-500 ${
               aiStatus === "online"
-                ? "bg-emerald-400 shadow-xs shadow-emerald-400/50 animate-pulse"
+                ? "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.5)]"
                 : aiStatus === "offline"
-                ? "bg-amber-400/80"
-                : "bg-muted-foreground/50"
+                ? "bg-amber-400/70"
+                : "bg-muted-foreground/40 animate-pulse"
             }`}
           />
-          <span className="text-muted-foreground">
-            {aiStatus === "online" ? "GPU Online" : aiStatus === "offline" ? "GPU Offline" : "AI Sync..."}
-          </span>
         </div>
       </div>
 
@@ -106,7 +103,7 @@ export function CompositeSketchHeader() {
           className="h-8 px-2.5 text-xs font-medium border-2 border-border/70 bg-black/30 hover:bg-white/5 rounded-md flex items-center gap-1.5 text-foreground disabled:opacity-35 disabled:cursor-not-allowed cursor-pointer transition-all shadow-sm"
         >
           <Undo2 className="size-3.5" />
-          <span>Undo</span>
+          <span className="hidden sm:inline">Undo</span>
         </Button>
 
         <Button
@@ -118,7 +115,7 @@ export function CompositeSketchHeader() {
           className="h-8 px-2.5 text-xs font-medium border-2 border-border/70 bg-black/30 hover:bg-white/5 rounded-md flex items-center gap-1.5 text-foreground disabled:opacity-35 disabled:cursor-not-allowed cursor-pointer transition-all shadow-sm"
         >
           <Redo2 className="size-3.5" />
-          <span>Redo</span>
+          <span className="hidden sm:inline">Redo</span>
         </Button>
 
         <Button
@@ -130,7 +127,7 @@ export function CompositeSketchHeader() {
           className="h-8 px-2.5 text-xs font-medium border-2 border-border/70 bg-black/30 hover:bg-white/5 rounded-md flex items-center gap-1.5 text-foreground disabled:opacity-35 disabled:cursor-not-allowed cursor-pointer transition-all shadow-sm"
         >
           <Trash2 className="size-3.5" />
-          <span>Clear</span>
+          <span className="hidden sm:inline">Clear</span>
         </Button>
 
         <Button
@@ -141,7 +138,7 @@ export function CompositeSketchHeader() {
           className="h-8 px-2.5 text-xs font-medium border-2 border-border/70 bg-black/30 hover:bg-white/5 rounded-md flex items-center gap-1.5 text-foreground cursor-pointer transition-all shadow-sm"
         >
           <RotateCcw className="size-3.5" />
-          <span>Reset</span>
+          <span className="hidden sm:inline">Reset</span>
         </Button>
       </div>
     </div>

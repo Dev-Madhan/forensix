@@ -321,7 +321,7 @@ export function CompositeCanvasViewport() {
           <div
             className="relative transition-[width,height] duration-500 cubic-bezier(0.16, 1, 0.3, 1)"
             style={{
-              width: isFullscreen ? "min(72vh, 520px)" : "min(54vh, 410px)",
+              width: isFullscreen ? "min(72vh, 520px)" : "clamp(260px, 65vw, 410px)",
               aspectRatio: "4 / 5",
             }}
           >

@@ -107,7 +107,7 @@ export function CompositePromptInput() {
               ? "Dataset Composite mode active. Click to switch to Prompt Generation..."
               : "Describe the criminal with a text based description so that the AI can generate the sketch..."
           }
-          className={`h-8 bg-transparent border-0 outline-none text-xs placeholder:text-muted-foreground/60 focus:outline-none focus:ring-0 focus-visible:outline-none shadow-none px-1 flex-1 min-w-0 ${
+          className={`h-9 md:h-8 bg-transparent border-0 outline-none text-sm md:text-xs placeholder:text-muted-foreground/60 focus:outline-none focus:ring-0 focus-visible:outline-none shadow-none px-1 flex-1 min-w-0 ${
             !isPromptEnabled ? "cursor-pointer text-muted-foreground" : "text-foreground"
           }`}
         />
@@ -139,7 +139,7 @@ export function CompositePromptInput() {
       </div>
 
       {/* Tip under input */}
-      <p className="text-[11px] text-muted-foreground/60 text-center mt-2 font-normal select-none">
+      <p className="hidden sm:block text-[11px] text-muted-foreground/60 text-center mt-2 font-normal select-none">
         Tip: Be specific about facial features, age, ethnicity, and distinguishing characteristics.
       </p>
     </div>

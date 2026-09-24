@@ -19,6 +19,7 @@ export interface FeatureItem {
 export type DetailLevel = "Draft" | "Standard" | "Master";
 export type CameraAngle = "frontal" | "three_quarter" | "profile";
 export type ForensicFilter = "normal" | "darkroom_negative" | "sepia_evidence";
+export type MobileTab = "dataset" | "canvas" | "controls" | "output";
 export type GenerationStatus = "not_generated" | "generating" | "generated";
 
 export interface LLMAnalysisData {
@@ -48,6 +49,10 @@ export interface SketchMetadata {
 }
 
 interface SketchContextType {
+  // Mobile Tab Navigation
+  activeMobileTab: MobileTab;
+  setActiveMobileTab: React.Dispatch<React.SetStateAction<MobileTab>>;
+
   // Generation Mode State Machine
   generationMode: GenerationMode;
   setGenerationMode: React.Dispatch<React.SetStateAction<GenerationMode>>;
@@ -152,6 +157,9 @@ export function SketchProvider({ children }: { children: React.ReactNode }) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [viewMode, setViewMode] = useState<"lineart" | "dataset">("lineart");
   const [searchQuery, setSearchQuery] = useState("");
+
+  // Mobile Tab Navigation
+  const [activeMobileTab, setActiveMobileTab] = useState<MobileTab>("canvas");
 
   // Canvas Navigation
   const [zoom, setZoom] = useState(100);
@@ -463,6 +471,8 @@ export function SketchProvider({ children }: { children: React.ReactNode }) {
         setLlmAnalysis(data.metadata.llm_analysis);
       }
       setGenerationStatus("generated");
+      // Auto-switch to output tab on mobile when sketch is generated
+      setActiveMobileTab("output");
     } catch (err: unknown) {
       console.error("[generateSketch] error:", err);
       const msg = err instanceof Error ? err.message : "Error generating sketch";
@@ -484,6 +494,9 @@ export function SketchProvider({ children }: { children: React.ReactNode }) {
   return (
     <SketchContext.Provider
       value={{
+        activeMobileTab,
+        setActiveMobileTab,
+
         generationMode,
         setGenerationMode,
         isPromptEnabled,

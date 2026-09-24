@@ -82,7 +82,7 @@ export function CompositeFloatingDock() {
       <div
         data-floating-dock="true"
         className={`absolute z-20 flex items-center gap-1 p-1 bg-[#111116]/95 backdrop-blur-xl border-2 border-border/80 rounded-md shadow-2xl select-none transition-all duration-500 cubic-bezier(0.16, 1, 0.3, 1) ${
-          isFullscreen ? "bottom-6 right-6" : "bottom-4 right-4"
+          isFullscreen ? "bottom-6 right-6" : "bottom-4 right-4 md:bottom-4 md:right-4"
         }`}
       >
         {/* Pan Tool Toggle */}

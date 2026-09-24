@@ -81,11 +81,11 @@ export function CompositeOutputPreview() {
       className={`rounded-xl border-2 border-border/80 bg-[#0d0d12]/95 backdrop-blur-2xl shadow-2xl flex flex-col transition-all duration-500 overflow-hidden ${
         isExpanded
           ? "fixed inset-4 z-50 rounded-xl"
-          : "flex-1 min-h-80 max-h-115"
+          : "flex-1 min-h-52 md:min-h-80 md:max-h-115"
       }`}
     >
       {/* Header with Dual View Tabs */}
-      <div className="flex items-center justify-between px-4 py-2 border-b-2 border-border/60 bg-[#0c0c11]/90 shrink-0">
+      <div className="flex items-center justify-between px-3 py-2 md:px-4 border-b-2 border-border/60 bg-[#0c0c11]/90 shrink-0">
         <div className="flex items-center gap-2 sm:gap-3">
 
 
@@ -105,7 +105,7 @@ export function CompositeOutputPreview() {
 
         {/* Right Tools (Available when sketch is generated) */}
         {generatedImageUrl && (
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 flex-wrap">
             {activeTab === "sketch" && (
               <>
                 {/* Generate Variation Button */}
@@ -202,7 +202,7 @@ export function CompositeOutputPreview() {
                     : ""
                 }`}
                 style={{
-                  height: "min(85%, 340px)",
+                  height: "min(70vh, 340px)",
                   aspectRatio: "4 / 5",
                 }}
               >
@@ -265,7 +265,7 @@ export function CompositeOutputPreview() {
           </div>
 
           {/* Key Parameters Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
             <div className="rounded-lg border border-border/60 bg-black/40 p-2.5 space-y-1">
               <span className="text-[10px] text-muted-foreground flex items-center gap-1 font-mono">
                 <PenTool className="size-3 text-[#8579ff]" /> Forensic Style
@@ -295,7 +295,7 @@ export function CompositeOutputPreview() {
           </div>
 
           {/* Morphological Traits & Age Cues */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3">
             {/* Traits */}
             <div className="rounded-lg border border-border/60 bg-black/30 p-3 space-y-2">
               <h5 className="text-[11px] font-semibold text-foreground flex items-center gap-1.5">
@@ -364,7 +364,7 @@ export function CompositeOutputPreview() {
 
       {/* Bottom Footer Info Bar */}
       {generatedImageUrl && (
-        <div className="px-4 py-1.5 border-t border-border/40 bg-[#0a0a0e] flex items-center justify-between text-[10.5px] font-mono text-muted-foreground shrink-0 select-none">
+        <div className="px-3 py-1.5 md:px-4 border-t border-border/40 bg-[#0a0a0e] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1 text-[10.5px] font-mono text-muted-foreground shrink-0 select-none">
           <span className="truncate">
             Style: {sketchStyle} • Perspective: {cameraAngle} • Cohort: {gender} ({ageGroup})
           </span>
