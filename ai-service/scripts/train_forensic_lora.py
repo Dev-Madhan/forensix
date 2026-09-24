@@ -18,10 +18,10 @@ Usage:
     cd ai-service
     .venv/Scripts/python scripts/train_forensic_lora.py ^
         --output_dir models/lora ^
-        --lora_name forensic_sketch_lora_v2.safetensors ^
-        --max_train_steps 2000 ^
-        --rank 64 ^
-        --learning_rate 1e-4 ^
+        --lora_name forensic_sketch_lora_v4.safetensors ^
+        --max_train_steps 1500 ^
+        --rank 32 ^
+        --learning_rate 5e-5 ^
         --batch_size 1 ^
         --gradient_accumulation_steps 4 ^
         --mixed_precision fp16 ^
@@ -271,15 +271,29 @@ class ForensicLoRADataset(Dataset):
 
         # Photo references:
         # - If is_color: retain original RGB color photo (Color Age-Progressed style)
-        # - If monochrome: convert to high-fidelity pencil sketch via Gaussian color dodge
+        # - If monochrome: convert to high-fidelity pencil sketch via Canny Edge Detection
         if sample.get("is_photo_reference") and not sample.get("is_color", False):
-            gray = img.convert("L")
-            inv = ImageOps.invert(gray)
-            blurred = inv.filter(ImageFilter.GaussianBlur(radius=2.5))
-            g = np.asarray(gray, dtype=np.float32)
-            b = np.asarray(blurred, dtype=np.float32)
-            dodge = np.clip((g * 256.0) / (255.0 - b + 1.0), 0, 255).astype(np.uint8)
-            img = Image.fromarray(dodge).convert("RGB")
+            try:
+                import cv2
+                # Convert to cv2 grayscale
+                cv_img = np.array(img)
+                gray = cv2.cvtColor(cv_img, cv2.COLOR_RGB2GRAY)
+                # Canny edge detection
+                edges = cv2.Canny(gray, 50, 150)
+                # Dilate to thicken lines slightly
+                kernel = np.ones((2, 2), np.uint8)
+                edges = cv2.dilate(edges, kernel, iterations=1)
+                # Invert edges (black lines on white background)
+                sketch = cv2.bitwise_not(edges)
+                img = Image.fromarray(sketch).convert("RGB")
+            except ImportError:
+                # Fallback to PIL if cv2 missing
+                from PIL import ImageFilter, ImageEnhance
+                gray = img.convert("L")
+                edges = gray.filter(ImageFilter.FIND_EDGES)
+                enhancer = ImageEnhance.Contrast(edges)
+                edges = enhancer.enhance(2.0)
+                img = ImageOps.invert(edges).convert("RGB")
 
         if sample.get("invert", False):
             img = ImageOps.invert(img)
@@ -432,8 +446,11 @@ def train(args: argparse.Namespace) -> None:
     dataset    = ForensicLoRADataset(resolution=512, max_samples=args.max_samples, seed=args.seed)
     dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True, num_workers=0)
 
-    lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
-        optimizer, T_max=args.max_train_steps, eta_min=1e-6,
+    from transformers import get_cosine_schedule_with_warmup
+    lr_scheduler = get_cosine_schedule_with_warmup(
+        optimizer,
+        num_warmup_steps=100,
+        num_training_steps=args.max_train_steps,
     )
 
     unet, optimizer, dataloader, lr_scheduler = accelerator.prepare(
@@ -561,15 +578,15 @@ def train(args: argparse.Namespace) -> None:
 # ── CLI ───────────────────────────────────────────────────────────────────────
 
 def parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="Forensix Forensic LoRA v3 Training Script (Rank-64, Multimodal Tri-Style)")
+    p = argparse.ArgumentParser(description="Forensix Forensic LoRA v4 Training Script (Rank-32, Perfect Styles)")
     p.add_argument("--sd_model_path",               default=str(SD15_DIR),                       type=str)
     p.add_argument("--output_dir",                  default=str(MODELS_DIR / "lora"),             type=str)
-    p.add_argument("--lora_name",                   default="forensic_sketch_lora_v3.safetensors", type=str)
-    p.add_argument("--rank",                        default=64,   type=int,   help="LoRA rank (32–128 recommended)")
-    p.add_argument("--learning_rate",               default=1e-4, type=float)
+    p.add_argument("--lora_name",                   default="forensic_sketch_lora_v4.safetensors", type=str)
+    p.add_argument("--rank",                        default=32,   type=int,   help="LoRA rank (32 recommended)")
+    p.add_argument("--learning_rate",               default=5e-5, type=float)
     p.add_argument("--batch_size",                  default=1,    type=int)
     p.add_argument("--gradient_accumulation_steps", default=4,    type=int)
-    p.add_argument("--max_train_steps",             default=2000, type=int)
+    p.add_argument("--max_train_steps",             default=1500, type=int)
     p.add_argument("--max_samples",                 default=5000, type=int)
     p.add_argument("--mixed_precision",             default="fp16", type=str, choices=["no", "fp16", "bf16"])
     p.add_argument("--seed",                        default=42,   type=int)

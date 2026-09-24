@@ -45,15 +45,15 @@ export function CompositePromptInput() {
         <div className="flex items-center gap-1.5">
           <span className="text-muted-foreground/70 font-medium">Mode:</span>
           {generationMode === "PROMPT_GENERATION" ? (
-            <span className="px-2 py-0.5 rounded-full bg-[#665AEF]/20 border border-[#665AEF]/40 text-[#a594fd] font-semibold text-[10px] tracking-wide">
+            <span className="text-[#a594fd] font-semibold text-[10px] tracking-wide">
               PROMPT GENERATION
             </span>
           ) : generationMode === "DATASET_COMPOSITE" ? (
-            <span className="px-2 py-0.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-400 font-semibold text-[10px] tracking-wide">
+            <span className="text-amber-400 font-semibold text-[10px] tracking-wide">
               DATASET COMPOSITE
             </span>
           ) : (
-            <span className="px-2 py-0.5 rounded-full bg-white/10 border border-white/15 text-muted-foreground font-semibold text-[10px] tracking-wide">
+            <span className="text-muted-foreground font-semibold text-[10px] tracking-wide">
               IDLE (SELECT MODE)
             </span>
           )}

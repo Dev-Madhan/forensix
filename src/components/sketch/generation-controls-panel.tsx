@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Sparkles, Trash2, PenLine, ChevronDown, Check, User, Globe, Lock } from "lucide-react";
+import { Loader2, Trash2, PenLine, ChevronDown, Check, User, Globe, Lock } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   DropdownMenu,
@@ -11,7 +11,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useSketch, DetailLevel } from "./sketch-context";
-import { ConcentricRings } from "@/components/ui/concentric-rings";
+import { AnimatedButton } from "@/components/ui/animated-button";
+import { cn } from "@/lib/utils";
 
 const SKETCH_STYLES = [
   "Forensic Graphite (Pencil)",
@@ -51,8 +52,10 @@ export function GenerationControlsPanel() {
     promptText,
     setPromptText,
     selectedCount,
+    selectedFeatures,
     generationMode,
     isDemographicsEnabled,
+    generatedImageUrl,
   } = useSketch();
 
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -60,6 +63,41 @@ export function GenerationControlsPanel() {
   const [isEthnicityOpen, setIsEthnicityOpen] = useState(false);
 
   const detailLevels: DetailLevel[] = ["Draft", "Standard", "Master"];
+
+  // Check if prompt is finished
+  const isPromptMode =
+    generationMode === "PROMPT_GENERATION" ||
+    (generationMode === "IDLE" && promptText.trim().length > 0);
+  const isPromptFinished = promptText.trim().length > 0;
+
+  // Check if all core facial datasets are chosen: Face, Eyes, Nose, Mouth
+  const selectedFeatureList = Object.values(selectedFeatures || {});
+  const hasFace = selectedFeatureList.some((f) => f.category === "face");
+  const hasEyes = selectedFeatureList.some((f) => f.category === "eyes");
+  const hasNose = selectedFeatureList.some((f) => f.category === "nose");
+  const hasMouth = selectedFeatureList.some((f) => f.category === "mouth");
+  const allFacialDatasetsFinished =
+    (hasFace && hasEyes && hasNose && hasMouth) || selectedCount >= 4;
+
+  // Check if general controls options are finished
+  const generalControlsFinished = Boolean(
+    sketchStyle && gender && ageGroup && ethnicity && detailLevel
+  );
+
+  // Animation only occurs after all the facial datasets and options in the general controls are finished
+  // OR the prompt is fully finished (or an existing sketch is ready for variation)
+  const isAnimationActive = Boolean(
+    !isGenerating &&
+      (generatedImageUrl ||
+        (isPromptMode
+          ? isPromptFinished
+          : allFacialDatasetsFinished && generalControlsFinished))
+  );
+
+  const canClickGenerate = Boolean(
+    generatedImageUrl ||
+      (isPromptMode ? isPromptFinished : selectedCount > 0)
+  );
 
   return (
     <div className="rounded-xl border-2 border-border/80 bg-[#0d0d12]/90 backdrop-blur-2xl p-4 flex flex-col shadow-2xl shrink-0">
@@ -267,28 +305,21 @@ export function GenerationControlsPanel() {
       </div>
 
       {/* Detail Level Segmented Buttons */}
-      <div className={`flex flex-col gap-1.5 mt-3 transition-opacity duration-200 ${!isDemographicsEnabled ? "opacity-50" : ""}`}>
+      <div className="flex flex-col gap-1.5 mt-3">
         <label className="text-[11px] text-muted-foreground/80 font-medium select-none flex items-center justify-between">
           <span>Synthesis Fidelity</span>
-          {!isDemographicsEnabled && (
-            <span className="flex items-center gap-1 text-[10px] text-[#a594fd] font-medium">
-              <Lock className="size-2.5" /> Auto
-            </span>
-          )}
+          <span className="text-[10px] text-[#c2b5fd] font-mono">{detailLevel}</span>
         </label>
-        <div className={`relative grid grid-cols-3 gap-1 p-1 rounded-lg border-2 border-border/70 bg-black/40 ${!isDemographicsEnabled ? "pointer-events-none" : ""}`}>
+        <div className="relative grid grid-cols-3 gap-1 p-1 rounded-lg border-2 border-border/70 bg-black/40">
           {detailLevels.map((lvl) => {
             const isActive = detailLevel === lvl;
             return (
               <motion.button
                 key={lvl}
                 type="button"
-                disabled={!isDemographicsEnabled}
                 onClick={() => setDetailLevel(lvl)}
-                whileTap={!isDemographicsEnabled ? undefined : { scale: 0.92 }}
-                className={`relative h-7 rounded-md text-[11px] font-medium select-none z-10 flex items-center justify-center transition-colors duration-200 ${
-                  !isDemographicsEnabled ? "cursor-not-allowed" : "cursor-pointer"
-                } ${
+                whileTap={{ scale: 0.92 }}
+                className={`relative h-7 rounded-md text-[11px] font-medium select-none z-10 flex items-center justify-center transition-colors duration-200 cursor-pointer ${
                   isActive
                     ? "text-white font-semibold"
                     : "text-muted-foreground hover:text-foreground hover:bg-white/4"
@@ -314,27 +345,29 @@ export function GenerationControlsPanel() {
       </div>
 
       {/* Primary Action: Generate Sketch */}
-      <motion.button
+      <AnimatedButton
         type="button"
         onClick={generateSketch}
-        disabled={isGenerating}
-        whileHover={isGenerating ? undefined : { scale: 1.015 }}
-        whileTap={isGenerating ? undefined : { scale: 0.95 }}
-        transition={{ type: "spring", stiffness: 450, damping: 20 }}
-        className="w-full h-10 rounded-md bg-[#665AEF] hover:bg-[#5749DF] text-white font-semibold text-xs flex items-center justify-center gap-2 shadow-lg shadow-[#665AEF]/30 border-2 border-[#8579ff]/50 cursor-pointer mt-4 transition-colors active:shadow-md disabled:opacity-50 disabled:cursor-not-allowed select-none"
+        disabled={isGenerating || !canClickGenerate}
+        isAnimated={isAnimationActive}
+        className={cn(
+          "w-full h-10 rounded-md bg-[#665AEF] hover:bg-[#5749DF] text-white font-semibold text-xs flex items-center justify-center gap-2 cursor-pointer mt-4 transition-all duration-200 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed select-none",
+          isAnimationActive
+            ? "shadow-sm shadow-[#665AEF]/30 border border-[#a594fd]/80 ring-1 ring-[#8579ff]/30"
+            : "shadow-xs border border-[#8579ff]/40"
+        )}
       >
         {isGenerating ? (
           <>
-            <ConcentricRings size={16} color="#fff" />
-            <span className="tracking-wide">Synthesizing...</span>
+            <Loader2 className="size-4 animate-spin text-white" />
+            <span className="tracking-wide font-medium">Synthesizing...</span>
           </>
+        ) : generatedImageUrl ? (
+          <span>Generate Next Variation</span>
         ) : (
-          <>
-            <Sparkles className="size-4" />
-            <span>Generate Sketch</span>
-          </>
+          <span>Generate Sketch</span>
         )}
-      </motion.button>
+      </AnimatedButton>
 
       {/* Secondary Action: Clear Action */}
       {generationMode === "PROMPT_GENERATION" ? (
@@ -342,26 +375,24 @@ export function GenerationControlsPanel() {
           type="button"
           onClick={() => setPromptText("")}
           disabled={!promptText}
-          whileHover={!promptText ? undefined : { scale: 1.01 }}
-          whileTap={!promptText ? undefined : { scale: 0.96 }}
-          transition={{ type: "spring", stiffness: 400, damping: 25 }}
-          className="w-full h-7.5 rounded-md text-[11px] text-muted-foreground hover:text-foreground hover:bg-white/5 flex items-center justify-center gap-1.5 cursor-pointer mt-1.5 transition-colors select-none disabled:opacity-40 disabled:cursor-not-allowed"
+          whileTap={!promptText ? undefined : { scale: 0.98 }}
+          transition={{ duration: 0.12 }}
+          className="group w-full h-8 rounded-md border-2 border-white/10 hover:border-red-500/40 bg-white/[0.02] hover:bg-red-500/[0.08] text-[11px] font-medium text-muted-foreground/75 hover:text-red-400 flex items-center justify-center gap-1.5 cursor-pointer mt-2 transition-all duration-200 select-none disabled:opacity-30 disabled:pointer-events-none"
         >
-          <Trash2 className="size-3.5" />
-          <span>Clear Witness Prompt</span>
+          <Trash2 className="size-3 text-muted-foreground/70 group-hover:text-red-400 transition-colors duration-200" />
+          <span className="transition-colors duration-200">Clear Witness Prompt</span>
         </motion.button>
       ) : (
         <motion.button
           type="button"
           onClick={clearAllFeatures}
           disabled={selectedCount === 0}
-          whileHover={selectedCount === 0 ? undefined : { scale: 1.01 }}
-          whileTap={selectedCount === 0 ? undefined : { scale: 0.96 }}
-          transition={{ type: "spring", stiffness: 400, damping: 25 }}
-          className="w-full h-7.5 rounded-md text-[11px] text-muted-foreground hover:text-foreground hover:bg-white/5 flex items-center justify-center gap-1.5 cursor-pointer mt-1.5 transition-colors select-none disabled:opacity-40 disabled:cursor-not-allowed"
+          whileTap={selectedCount === 0 ? undefined : { scale: 0.98 }}
+          transition={{ duration: 0.12 }}
+          className="group w-full h-8 rounded-md border-2 border-white/10 hover:border-red-500/40 bg-white/[0.02] hover:bg-red-500/[0.08] text-[11px] font-medium text-muted-foreground/75 hover:text-red-400 flex items-center justify-center gap-1.5 cursor-pointer mt-2 transition-all duration-200 select-none disabled:opacity-30 disabled:pointer-events-none"
         >
-          <Trash2 className="size-3.5" />
-          <span>Clear All Features</span>
+          <Trash2 className="size-3 text-muted-foreground/70 group-hover:text-red-400 transition-colors duration-200" />
+          <span className="transition-colors duration-200">Clear All Features</span>
         </motion.button>
       )}
     </div>

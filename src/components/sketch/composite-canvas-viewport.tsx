@@ -330,16 +330,6 @@ export function CompositeCanvasViewport() {
         </div>
       </div>
 
-      {/* Minimal Subtle Generation Overlay */}
-      {isGenerating && (
-        <div className="absolute inset-0 bg-[#08080c]/65 backdrop-blur-[2.5px] flex flex-col items-center justify-center gap-3 z-30 transition-all duration-300">
-          <ConcentricRings size={34} color="#8579ff" />
-          <p className="text-xs font-medium text-zinc-300 tracking-wide select-none">
-            Synthesizing composite...
-          </p>
-        </div>
-      )}
-
       {/* Floating Canvas Dock */}
       <CompositeFloatingDock />
     </div>

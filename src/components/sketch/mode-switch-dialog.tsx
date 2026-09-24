@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { AlertTriangle } from "lucide-react";
+
 import {
   Dialog,
   DialogContent,
@@ -27,14 +27,9 @@ export function ModeSwitchDialog() {
     <Dialog open={!!pendingModeSwitch} onOpenChange={(open) => !open && cancelModeSwitch()}>
       <DialogContent className="sm:max-w-md border-2 border-border/90 bg-[#0e0e14]/95 backdrop-blur-2xl shadow-2xl">
         <DialogHeader className="gap-2">
-          <div className="flex items-center gap-3">
-            <div className="size-9 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
-              <AlertTriangle className="size-5" />
-            </div>
             <DialogTitle className="text-base font-semibold text-foreground">
               {targetTitle}
             </DialogTitle>
-          </div>
           <DialogDescription className="text-xs text-muted-foreground/90 mt-1.5 leading-relaxed">
             {pendingModeSwitch.description}
           </DialogDescription>

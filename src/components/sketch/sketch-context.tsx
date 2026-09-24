@@ -126,6 +126,7 @@ interface SketchContextType {
   sketchMetadata: SketchMetadata | null;
   llmAnalysis: LLMAnalysisData | null;
   generateSketch: () => Promise<void>;
+  generateVariation: () => Promise<void>;
 }
 
 const SketchContext = createContext<SketchContextType | undefined>(undefined);
@@ -450,6 +451,11 @@ export function SketchProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const generateVariation = async () => {
+    // Re-synthesizes with a fresh random seed using the identical prompt & feature attributes
+    await generateSketch();
+  };
+
   return (
     <SketchContext.Provider
       value={{
@@ -524,6 +530,7 @@ export function SketchProvider({ children }: { children: React.ReactNode }) {
         sketchMetadata,
         llmAnalysis,
         generateSketch,
+        generateVariation,
       }}
     >
       {children}

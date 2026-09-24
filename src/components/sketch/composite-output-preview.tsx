@@ -18,10 +18,11 @@ import {
   FileText,
   Clock,
   Layers,
+  Sparkles,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ConcentricRings } from "@/components/ui/concentric-rings";
+import { Blocks } from "loading-dev";
 
 export function CompositeOutputPreview() {
   const {
@@ -38,6 +39,7 @@ export function CompositeOutputPreview() {
     setForensicFilter,
     sketchMetadata,
     llmAnalysis,
+    generateVariation,
   } = useSketch();
 
   const [isExpanded, setIsExpanded] = useState(false);
@@ -106,6 +108,20 @@ export function CompositeOutputPreview() {
           <div className="flex items-center gap-1.5">
             {activeTab === "sketch" && (
               <>
+                {/* Generate Variation Button */}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={generateVariation}
+                  disabled={isGenerating}
+                  className="h-7 px-2.5 text-[11px] font-medium border border-[#665AEF]/50 bg-[#665AEF]/15 hover:bg-[#665AEF]/30 text-[#8579ff] hover:text-white rounded cursor-pointer transition-colors flex items-center gap-1 shadow-sm"
+                  title="Generate another variation with the same prompt"
+                >
+                  <Sparkles className="size-3" />
+                  <span>Variation</span>
+                </Button>
+
                 {/* UV Filter Button */}
                 <Button
                   type="button"
@@ -163,13 +179,18 @@ export function CompositeOutputPreview() {
             }}
           />
 
-          {/* Minimal Subtle Generating Overlay */}
+          {/* Clean, Refined Minimalist Loading State */}
           {isGenerating ? (
-            <div className="flex flex-col items-center justify-center gap-3 z-20 text-center px-4">
-              <ConcentricRings size={32} color="#8579ff" />
-              <p className="text-xs font-medium text-zinc-400 tracking-wide select-none">
-                Synthesizing composite...
-              </p>
+            <div className="flex flex-col items-center justify-center gap-3 z-20 text-center px-4 select-none">
+              <Blocks size={24} color="#8579ff" />
+              <div className="space-y-1">
+                <p className="text-xs font-medium text-zinc-300 tracking-wide">
+                  Synthesizing sketch...
+                </p>
+                <p className="text-[11px] text-zinc-500">
+                  Forensic artist diffusion pass
+                </p>
+              </div>
             </div>
           ) : generatedImageUrl ? (
             /* Render Output Sketch */

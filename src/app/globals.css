@@ -334,19 +334,27 @@
 
 /* Custom scrollbar utilities */
 .custom-scrollbar::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+  width: 6px;
+  height: 6px;
 }
+
 .custom-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 10px;
 }
+
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.12);
-  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 10px;
+  border: 1px solid transparent; /* adds visual padding if background-clip is used, but keep it simple */
+  background-clip: content-box;
 }
+
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(102, 90, 239, 0.5);
+  background: rgba(102, 90, 239, 0.8);
 }
+
+
 
 .no-scrollbar::-webkit-scrollbar {
   display: none;

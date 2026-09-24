@@ -39,6 +39,7 @@
     "framer-motion": "^13.1.1",
     "gsap": "^3.15.0",
     "jose": "^6.2.10",
+    "loading-dev": "^0.3.4",
     "lucide-react": "^1.37.0",
     "maplibre-gl": "^6.7.0",
     "motion": "^13.1.1",

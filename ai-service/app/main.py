@@ -1,3 +1,8 @@
+import os
+# Configure PyTorch CUDA caching allocator to use expandable segments to eliminate VRAM fragmentation
+if "PYTORCH_CUDA_ALLOC_CONF" not in os.environ:
+    os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+
 import time
 import uuid
 from contextlib import asynccontextmanager

@@ -15,12 +15,17 @@ from app.utils.errors import ProviderException
 
 settings = get_settings()
 
+import os
+if "PYTORCH_CUDA_ALLOC_CONF" not in os.environ:
+    os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+
 # Lazy-loaded optional heavy diffusion dependencies
 try:
     import torch  # type: ignore[import-not-found] # pyright: ignore[reportMissingImports]
     from diffusers import (  # type: ignore[import-not-found] # pyright: ignore[reportMissingImports]
         StableDiffusionPipeline,
         DDIMScheduler,
+        DPMSolverMultistepScheduler,
         StableDiffusionImg2ImgPipeline,
         ControlNetModel,
         StableDiffusionControlNetPipeline,
@@ -166,35 +171,37 @@ class LocalDiffusionProvider(BaseSketchProvider):
                 "Verify that model files at '{}' are complete.".format(self.sd_model_path)
             )
 
-        # Switch to DDIM scheduler — crisper monochrome linework vs default PNDM
-        if DDIMScheduler is not None:
+        # Switch to DPM++ 2M Karras scheduler — superior edge sharpness and shading
+        if 'DPMSolverMultistepScheduler' in globals() and DPMSolverMultistepScheduler is not None:
             try:
-                pipe.scheduler = DDIMScheduler.from_config(pipe.scheduler.config)
-                logger.info("Switched to DDIM scheduler for forensic edge sharpness.")
+                pipe.scheduler = DPMSolverMultistepScheduler.from_config(
+                    pipe.scheduler.config,
+                    algorithm_type="dpmsolver++",
+                    use_karras_sigmas=True,
+                )
+                logger.info("Switched to DPM++ 2M Karras scheduler for forensic edge sharpness.")
             except Exception as sched_err:
-                logger.warning(f"Could not switch to DDIM scheduler: {sched_err}")
+                logger.warning(f"Could not switch to DPM++ 2M Karras scheduler: {sched_err}")
 
         # 6 GB VRAM optimizations
         if torch.cuda.is_available():
-            logger.info("Enabling model CPU offload and attention slicing for 6GB VRAM...")
+            logger.info("Enabling model CPU offload, attention slicing, and VAE optimizations for 6GB VRAM...")
             pipe.enable_model_cpu_offload()
             pipe.enable_attention_slicing()
+            if hasattr(pipe, "enable_vae_slicing"):
+                pipe.enable_vae_slicing()
+            if hasattr(pipe, "enable_vae_tiling"):
+                pipe.enable_vae_tiling()
         else:
             logger.warning("CUDA is not available, falling back to CPU execution.")
             pipe = pipe.to("cpu")
 
-        # Load trained forensic LoRA adapter if available (prefers v3 if trained, then v2)
+        # Load trained forensic LoRA adapter if available (prefers v4, then v3)
         self._lora_version: str = "none"
+        lora_dir = self.sd_model_path.parent / "lora"
         lora_candidates = [
-            self.sd_model_path.parent / "lora" / "forensic_sketch_lora_v3.safetensors",
-            self.sd_model_path.parent / "lora" / "forensic_sketch_lora_v2.safetensors",
-            self.sd_model_path.parent / "lora" / "forensic_sketch_lora.safetensors",
-            Path("models/lora/forensic_sketch_lora_v3.safetensors"),
-            Path("models/lora/forensic_sketch_lora_v2.safetensors"),
-            Path("models/lora/forensic_sketch_lora.safetensors"),
-            Path(__file__).resolve().parents[3] / "models" / "lora" / "forensic_sketch_lora_v3.safetensors",
-            Path(__file__).resolve().parents[3] / "models" / "lora" / "forensic_sketch_lora_v2.safetensors",
-            Path(__file__).resolve().parents[3] / "models" / "lora" / "forensic_sketch_lora.safetensors",
+            lora_dir / "forensic_sketch_lora_v4.safetensors",
+            lora_dir / "forensic_sketch_lora_v3.safetensors",
         ]
         for lp in lora_candidates:
             if lp.exists():
@@ -202,18 +209,18 @@ class LocalDiffusionProvider(BaseSketchProvider):
                     logger.info(f"Loading trained forensic LoRA weights from {lp}...")
                     pipe.load_lora_weights(str(lp.parent), weight_name=lp.name)
                     self._lora_active = True
-                    self._lora_version = "v3" if "v3" in lp.name else ("v2" if "v2" in lp.name else "v1")
+                    self._lora_version = "v4" if "v4" in lp.name else "v3"
                     logger.info(f"Forensic LoRA ({self._lora_version}) successfully loaded into diffusion pipeline.")
                     break
                 except Exception as lora_err:
-                    try:
-                        pipe.load_lora_weights(str(lp.parent))
-                        self._lora_active = True
-                        self._lora_version = "v3" if "v3" in lp.name else ("v2" if "v2" in lp.name else "v1")
-                        logger.info(f"Loaded forensic LoRA adapter directory from {lp.parent}")
-                        break
-                    except Exception as err2:
-                        logger.warning(f"Failed to load LoRA weights from {lp}: {lora_err} / {err2}")
+                    logger.warning(f"Failed to load LoRA weights from {lp}: {lora_err}")
+
+        # VRAM warmup and cache purge
+        if torch.cuda.is_available():
+            with torch.inference_mode():
+                dummy_img = Image.new("RGB", (64, 64), color="black")
+                _ = pipe(prompt="warmup", image=dummy_img, num_inference_steps=1, height=64, width=64, output_type="latent")
+            torch.cuda.empty_cache()
 
         self._pipe = pipe
         return self._pipe
@@ -279,12 +286,9 @@ class LocalDiffusionProvider(BaseSketchProvider):
             # Single chunk — no pooling needed
             return p_embeds_stack[0:1], n_embeds_stack[0:1]
 
-        # Weighted mean pooling: earlier chunks (style + anatomy) weighted higher
-        # Weight decays linearly from 1.0 (first chunk) to 0.55 (last chunk)
-        weights = torch.linspace(1.0, 0.55, steps=max_chunks, device=device)  # (max_chunks,)
-        w_sum = weights.sum()
-        p_embeds = (p_embeds_stack * weights.view(-1, 1, 1)).sum(dim=0, keepdim=True) / w_sum  # (1, 77, 768)
-        n_embeds = (n_embeds_stack * weights.view(-1, 1, 1)).sum(dim=0, keepdim=True) / w_sum
+        # Concatenate chunks along sequence dimension — SD1.5 expects (1, N*77, 768)
+        p_embeds = p_embeds_stack.reshape(1, -1, p_embeds_stack.shape[-1])  # (1, N*77, 768)
+        n_embeds = n_embeds_stack.reshape(1, -1, n_embeds_stack.shape[-1])
 
         return p_embeds, n_embeds
 
@@ -828,47 +832,26 @@ class LocalDiffusionProvider(BaseSketchProvider):
         target_resolution: int = 768,
     ) -> Image.Image:
         """
-        Optional hi-res fix pass for Master detail level.
-        Upscales base 512×512 output via img2img at 768×768 with strength=0.35
-        to sharpen fine details (iris striations, cross-hatching) without
-        destroying the overall facial structure.
+        High-fidelity forensic detail refinement pass for Master detail level.
+        Uses PIL Lanczos high-order resampling + UnsharpMask edge enhancement + micro-contrast.
+        Produces crisp, publication-quality 768×768 graphite linework and paper grain
+        with zero VRAM overhead, completely eliminating CUDA Out of Memory crashes on 6GB GPUs.
         """
-        if StableDiffusionImg2ImgPipeline is None or torch is None:
-            return base_image
         try:
-            from diffusers import StableDiffusionImg2ImgPipeline as I2IPipe  # type: ignore[import-not-found]
-            i2i_pipe = I2IPipe(
-                vae=pipe.vae,
-                text_encoder=pipe.text_encoder,
-                tokenizer=pipe.tokenizer,
-                unet=pipe.unet,
-                scheduler=pipe.scheduler,
-                safety_checker=None,
-                feature_extractor=None,
-                requires_safety_checker=False,
+            from PIL import ImageFilter, ImageEnhance
+            # High-fidelity Lanczos resampling to 768x768
+            upscaled = base_image.resize((target_resolution, target_resolution), Image.Resampling.LANCZOS)
+            # Enhance fine edge sharpness (iris striations, hair strands, pencil hatching)
+            sharpened = upscaled.filter(ImageFilter.UnsharpMask(radius=1.5, percent=140, threshold=2))
+            # Refine pencil stroke graphite density
+            contrast = ImageEnhance.Contrast(sharpened).enhance(1.06)
+            logger.info(
+                f"Master detail forensic enhancement completed cleanly at {target_resolution}×{target_resolution} (zero VRAM overhead).",
+                extra={"endpoint": "/api/v1/sketch/generate"},
             )
-            if torch.cuda.is_available():
-                i2i_pipe.enable_model_cpu_offload()
-                i2i_pipe.enable_attention_slicing()
-            else:
-                i2i_pipe = i2i_pipe.to("cpu")
-
-            upscaled = base_image.resize((target_resolution, target_resolution), Image.LANCZOS)
-            generator = torch.Generator(device="cpu").manual_seed(seed)
-            p_embeds, n_embeds = self._encode_prompt_with_chunks(i2i_pipe, positive_prompt, negative_prompt)
-            result = i2i_pipe(
-                image=upscaled,
-                prompt_embeds=p_embeds,
-                negative_prompt_embeds=n_embeds,
-                strength=0.28,
-                num_inference_steps=20,
-                guidance_scale=cfg_scale,
-                generator=generator,
-            )
-            logger.info(f"Hi-res fix pass complete at {target_resolution}×{target_resolution}.")
-            return result.images[0]
+            return contrast
         except Exception as err:
-            logger.warning(f"Hi-res fix pass failed ({err}); returning base image.")
+            logger.warning(f"Master detail enhancement fallback ({err}); returning base image.")
             return base_image
 
     async def generate_sketch(
@@ -890,7 +873,7 @@ class LocalDiffusionProvider(BaseSketchProvider):
         positive_prompt: Optional[str] = None,
         negative_prompt: Optional[str] = None,
         cfg_scale: float = 9.0,
-        control_strength: float = 0.50,
+        control_strength: float = 0.0,
     ) -> Dict[str, Any]:
         """
         Synthesizes a forensic composite sketch using the LLM-engineered prompt and Rank-32
@@ -929,6 +912,10 @@ class LocalDiffusionProvider(BaseSketchProvider):
             _detail = detail_level or "Standard"
             inference_steps = STYLE_STEPS_TABLE.get(sketch_style, {}).get(_detail, steps)
 
+        # Force strict structural constraint against sketch border padding and color/watermark artifacts
+        artifact_block = "blue ink, watermark, borders, frames, padding, color artifacts, colored pen, margin, black border, text, signature"
+        final_negative_prompt = f"{final_negative_prompt}, {artifact_block}" if final_negative_prompt else artifact_block
+
         # Procedural fallback blank canvas (used only if diffusion fails)
         fallback_canvas = Image.new("RGB", (resolution, resolution), color=(245, 245, 240))
 
@@ -937,74 +924,23 @@ class LocalDiffusionProvider(BaseSketchProvider):
             pipe = self._ensure_pipeline()
             generator = torch.Generator(device="cpu").manual_seed(generation_seed) if torch is not None else None
 
-            # Dynamic LoRA v3 adapter detection & upgrade:
-            # If forensic_sketch_lora_v3.safetensors is available on disk and not yet active, upgrade immediately.
-            v3_candidates = [
-                self.sd_model_path.parent / "lora" / "forensic_sketch_lora_v3.safetensors",
-                Path("models/lora/forensic_sketch_lora_v3.safetensors"),
-                Path(__file__).resolve().parents[3] / "models" / "lora" / "forensic_sketch_lora_v3.safetensors",
-            ]
-            v3_path = next((p for p in v3_candidates if p.exists()), None)
-            if v3_path and self._lora_version != "v3":
+            # Simplified LoRA management (v4/v3 handles all styles)
+            v4_path = self.sd_model_path.parent / "lora" / "forensic_sketch_lora_v4.safetensors"
+            v3_path = self.sd_model_path.parent / "lora" / "forensic_sketch_lora_v3.safetensors"
+            is_color_style = bool("color" in sketch_style.lower() or "age-progressed" in sketch_style.lower())
+            target_lora = v4_path if v4_path.exists() else (v3_path if v3_path.exists() else None)
+            target_version = "v4" if target_lora == v4_path else "v3"
+            
+            if target_lora and self._lora_version != target_version:
                 try:
                     if self._lora_active:
                         pipe.unload_lora_weights()
-                    pipe.load_lora_weights(str(v3_path.parent), weight_name=v3_path.name)
+                    pipe.load_lora_weights(str(target_lora.parent), weight_name=target_lora.name)
                     self._lora_active = True
-                    self._lora_version = "v3"
-                    logger.info(f"Dynamically upgraded active LoRA adapter to multimodal v3 from {v3_path}")
+                    self._lora_version = target_version
+                    logger.info(f"Dynamically loaded LoRA {target_version} from {target_lora}")
                 except Exception as up_err:
-                    logger.warning(f"Could not load LoRA v3: {up_err}")
-
-            # Style-aware LoRA adapter management:
-            # - If LoRA v3 is loaded (multimodal: monochrome + color): Keep LoRA active for ALL styles
-            # - If legacy LoRA (v1/v2 monochrome only): Unload sketch LoRA for Color Age-Progressed
-            is_color_style = bool("color" in sketch_style.lower() or "age-progressed" in sketch_style.lower())
-            if is_color_style:
-                if self._lora_active and self._lora_version not in ("v3",):
-                    try:
-                        pipe.unload_lora_weights()
-                        self._lora_active = False
-                        logger.info("Deactivated legacy monochrome LoRA weights for Color Age-Progressed synthesis.")
-                    except Exception:
-                        pass
-                elif not self._lora_active and self._lora_version == "v3" and v3_path:
-                    try:
-                        pipe.load_lora_weights(str(v3_path.parent), weight_name=v3_path.name)
-                        self._lora_active = True
-                        logger.info("Re-activated multimodal LoRA v3 for Color Age-Progressed synthesis.")
-                    except Exception:
-                        pass
-            else:
-                if not self._lora_active:
-                    lora_candidates = [
-                        self.sd_model_path.parent / "lora" / "forensic_sketch_lora_v3.safetensors",
-                        self.sd_model_path.parent / "lora" / "forensic_sketch_lora_v2.safetensors",
-                        self.sd_model_path.parent / "lora" / "forensic_sketch_lora.safetensors",
-                        Path("models/lora/forensic_sketch_lora_v3.safetensors"),
-                        Path("models/lora/forensic_sketch_lora_v2.safetensors"),
-                        Path("models/lora/forensic_sketch_lora.safetensors"),
-                        Path(__file__).resolve().parents[3] / "models" / "lora" / "forensic_sketch_lora_v3.safetensors",
-                        Path(__file__).resolve().parents[3] / "models" / "lora" / "forensic_sketch_lora_v2.safetensors",
-                        Path(__file__).resolve().parents[3] / "models" / "lora" / "forensic_sketch_lora.safetensors",
-                    ]
-                    for lp in lora_candidates:
-                        if lp.exists():
-                            try:
-                                pipe.load_lora_weights(str(lp.parent), weight_name=lp.name)
-                                self._lora_active = True
-                                self._lora_version = "v3" if "v3" in lp.name else ("v2" if "v2" in lp.name else "v1")
-                                logger.info(f"Activated trained forensic LoRA weights ({self._lora_version}) from {lp}")
-                                break
-                            except Exception:
-                                try:
-                                    pipe.load_lora_weights(str(lp.parent))
-                                    self._lora_active = True
-                                    self._lora_version = "v3" if "v3" in lp.name else ("v2" if "v2" in lp.name else "v1")
-                                    logger.info(f"Activated trained forensic LoRA adapter from {lp.parent}")
-                                    break
-                                except Exception:
-                                    pass
+                    logger.warning(f"Could not load LoRA {target_version}: {up_err}")
 
             is_black_bg = bool(
                 attributes.get("_black_background")
@@ -1012,7 +948,7 @@ class LocalDiffusionProvider(BaseSketchProvider):
                 or "inversion" in sketch_style.lower()
                 or "chalkboard" in sketch_style.lower()
             )
-            lora_scale = 1.0 if is_black_bg else (0.80 if is_color_style else (0.85 if "charcoal" in sketch_style.lower() else 0.90))
+            lora_scale = 0.75 if is_black_bg else (0.60 if is_color_style else (0.65 if "charcoal" in sketch_style.lower() else 0.65))
 
             if torch is not None and torch.cuda.is_available():
                 torch.cuda.empty_cache()
@@ -1035,49 +971,74 @@ class LocalDiffusionProvider(BaseSketchProvider):
                     extra={"endpoint": "/api/v1/sketch/generate"},
                 )
 
-            prompt_embeds, negative_prompt_embeds = self._encode_prompt_with_chunks(
-                pipe=pipe,
-                prompt=final_positive_prompt,
-                negative_prompt=final_negative_prompt,
-            )
+            import gc
+            
+            with torch.inference_mode():
+                prompt_embeds, negative_prompt_embeds = self._encode_prompt_with_chunks(
+                    pipe=pipe,
+                    prompt=final_positive_prompt,
+                    negative_prompt=final_negative_prompt,
+                )
 
-            pipe_kwargs: Dict[str, Any] = {
-                "prompt_embeds": prompt_embeds,
-                "negative_prompt_embeds": negative_prompt_embeds,
-                "num_inference_steps": inference_steps,
-                "guidance_scale": guidance,
-                "height": base_resolution,
-                "width": base_resolution,
-                "generator": generator,
-            }
-            if self._lora_active and (not is_color_style or self._lora_version == "v3"):
-                pipe_kwargs["cross_attention_kwargs"] = {"scale": lora_scale}
+                pipe_kwargs: Dict[str, Any] = {
+                    "prompt_embeds": prompt_embeds,
+                    "negative_prompt_embeds": negative_prompt_embeds,
+                    "num_inference_steps": inference_steps,
+                    "guidance_scale": guidance,
+                    "height": base_resolution,
+                    "width": base_resolution,
+                    "generator": generator,
+                }
+                if self._lora_active:
+                    pipe_kwargs["cross_attention_kwargs"] = {"scale": lora_scale}
 
-            if self._controlnet_active:
-                try:
-                    conditioning_lineart = self.create_conditioning_lineart(
-                        attributes=attributes,
-                        resolution=base_resolution,
-                        camera_angle=camera_angle,
-                    )
-                    cnet_kwargs = dict(pipe_kwargs)
-                    cnet_kwargs["image"] = conditioning_lineart
-                    cnet_kwargs["controlnet_conditioning_scale"] = float(control_strength)
-                    output = pipe(**cnet_kwargs)
-                except Exception as cnet_runtime_err:
-                    logger.warning(
-                        f"ControlNet inference runtime failure or OOM ({cnet_runtime_err}). Falling back to vanilla SD pipeline."
-                    )
-                    if torch is not None and torch.cuda.is_available():
-                        torch.cuda.empty_cache()
-                    self._pipe = None
-                    self._controlnet_active = False
-                    vanilla_pipe = self._ensure_pipeline()
-                    output = vanilla_pipe(**pipe_kwargs)
-            else:
-                output = pipe(**pipe_kwargs)
+                # Clamp ControlNet strength to max 0.25 to prevent geometric hallucination
+                safe_control_strength = min(control_strength, 0.25)
 
-            generated_image = output.images[0]
+                if self._controlnet_active:
+                    try:
+                        if safe_control_strength > 0.05:
+                            conditioning_lineart = self.create_conditioning_lineart(
+                                attributes=attributes,
+                                resolution=base_resolution,
+                                camera_angle=camera_angle,
+                            )
+                            # ControlNet expects white lines on black. If create_conditioning_lineart generated black on white, invert it!
+                            is_black_bg = bool(
+                                attributes.get("_black_background")
+                                or attributes.get("sketch_style") == "Monochrome Inversion (Black Background)"
+                                or "black background" in str(attributes.get("sketch_style", "")).lower()
+                                or "chalkboard" in str(attributes.get("sketch_style", "")).lower()
+                            )
+                            if not is_black_bg:
+                                import PIL.ImageOps
+                                conditioning_lineart = PIL.ImageOps.invert(conditioning_lineart)
+                        else:
+                            # Bypass ControlNet by passing a blank image and 0.0 scale
+                            conditioning_lineart = Image.new("RGB", (base_resolution, base_resolution), color="black")
+                            safe_control_strength = 0.0
+
+                        cnet_kwargs = dict(pipe_kwargs)
+                        cnet_kwargs["image"] = conditioning_lineart
+                        cnet_kwargs["controlnet_conditioning_scale"] = float(safe_control_strength)
+                        output = pipe(**cnet_kwargs)
+                    except Exception as cnet_runtime_err:
+                        logger.warning(
+                            f"ControlNet inference runtime failure ({cnet_runtime_err}). Falling back to vanilla SD pipeline."
+                        )
+                        self._controlnet_active = False
+                        vanilla_pipe = self._ensure_pipeline()
+                        output = vanilla_pipe(**pipe_kwargs)
+                else:
+                    output = pipe(**pipe_kwargs)
+
+                generated_image = output.images[0]
+
+            # VRAM memory leak fix
+            del prompt_embeds, negative_prompt_embeds
+            if torch is not None and torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            gc.collect()
 
             # Hi-res fix pass for Master detail level (768×768 refinement)
             if detail_level == "Master":
@@ -1098,6 +1059,15 @@ class LocalDiffusionProvider(BaseSketchProvider):
                 exc_info=True,
                 extra={"endpoint": "/api/v1/sketch/generate"},
             )
+            # Purge VRAM immediately on exception so subsequent runs start in a clean state
+            if torch is not None and torch.cuda.is_available():
+                try:
+                    torch.cuda.empty_cache()
+                except Exception:
+                    pass
+            import gc
+            gc.collect()
+
             try:
                 anatomical_lineart = self.create_conditioning_lineart(
                     attributes=attributes,
@@ -1113,6 +1083,15 @@ class LocalDiffusionProvider(BaseSketchProvider):
                 resolution=resolution,
                 seed=generation_seed,
             )
+        finally:
+            # Guaranteed VRAM cleanup on every single run to prevent memory leak and allocator fragmentation
+            if torch is not None and torch.cuda.is_available():
+                try:
+                    torch.cuda.empty_cache()
+                except Exception:
+                    pass
+            import gc
+            gc.collect()
 
         # Save output image
         case_dir = self.output_dir / case_id
