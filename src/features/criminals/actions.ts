@@ -25,10 +25,13 @@ export async function createCriminal(data: unknown) {
   }
 
   try {
+    const createPayload = { ...result.data };
+    if (!createPayload.criminalId || createPayload.criminalId.trim() === "") {
+      delete createPayload.criminalId;
+    }
+
     const criminal = await prisma.criminal.create({
-      data: {
-        ...result.data,
-      },
+      data: createPayload,
     });
 
     await prisma.auditLog.create({

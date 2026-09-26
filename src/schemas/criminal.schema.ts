@@ -2,10 +2,14 @@ import { z } from "zod";
 import { CriminalStatus } from "@prisma/client";
 
 export const CreateCriminalSchema = z.object({
+  criminalId: z.string().optional(),
   firstName: z.string().min(1, "First name is required").max(100),
   lastName: z.string().min(1, "Last name is required").max(100),
   alias: z.string().optional(),
-  dateOfBirth: z.string().optional().transform((str) => (str ? new Date(str) : undefined)),
+  dateOfBirth: z
+    .union([z.string(), z.date()])
+    .optional()
+    .transform((val) => (val ? new Date(val) : undefined)),
   gender: z.string().optional(),
   nationality: z.string().optional(),
   address: z.string().optional(),
@@ -13,6 +17,7 @@ export const CreateCriminalSchema = z.object({
   status: z.nativeEnum(CriminalStatus).default(CriminalStatus.ACTIVE),
   lastKnownLocation: z.string().optional(),
   mugshotUrl: z.string().optional(),
+  demographics: z.record(z.string(), z.any()).optional(),
 });
 
 export type CreateCriminalInput = z.infer<typeof CreateCriminalSchema>;
