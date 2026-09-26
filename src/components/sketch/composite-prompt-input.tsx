@@ -2,7 +2,6 @@
 
 import React from "react";
 import { Sparkles, Send, Loader2, Lock, ArrowLeftRight } from "lucide-react";
-import { motion } from "motion/react";
 import { useSketch } from "./sketch-context";
 import { ModeSwitchDialog } from "./mode-switch-dialog";
 
@@ -112,8 +111,8 @@ export function CompositePromptInput() {
           }`}
         />
 
-        {/* Right: Theme Send Button with Jelly Spring */}
-        <motion.button
+        {/* Right: Theme Send Button */}
+        <button
           type="button"
           onClick={(e) => {
             e.stopPropagation();
@@ -124,10 +123,7 @@ export function CompositePromptInput() {
             }
           }}
           disabled={isGenerating}
-          whileHover={isGenerating ? undefined : { scale: 1.08 }}
-          whileTap={isGenerating ? undefined : { scale: 0.9 }}
-          transition={{ type: "spring", stiffness: 450, damping: 20 }}
-          className="size-8 rounded-md bg-[#665AEF] hover:bg-[#5749DF] text-white flex items-center justify-center shrink-0 shadow-md shadow-[#665AEF]/35 border-2 border-[#8579ff]/50 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-colors select-none"
+          className="size-8 rounded-md bg-[#665AEF] text-white flex items-center justify-center shrink-0 shadow-md shadow-[#665AEF]/35 border-2 border-[#8579ff]/50 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed transition-opacity duration-150 hover:opacity-90 active:opacity-75 select-none"
           aria-label="Generate sketch from description"
         >
           {isGenerating ? (
@@ -135,7 +131,7 @@ export function CompositePromptInput() {
           ) : (
             <Send className="size-3.5" />
           )}
-        </motion.button>
+        </button>
       </div>
 
       {/* Tip under input */}

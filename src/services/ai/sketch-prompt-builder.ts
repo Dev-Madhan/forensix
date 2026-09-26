@@ -195,6 +195,60 @@ const TOKEN_DESCRIPTORS: Record<string, string> = {
   knit_beanie_cap: "knit beanie hat, woolen beanie pulled down over head",
   hoodie_pulled_up_hood: "hood pulled up over head, hoodie with drawn hood",
   flat_cap_newsboy: "flat cap, newsboy cap, tweed flat cap",
+
+  // Female & Inclusive Face Contours
+  soft_oval_face_shape: "soft oval face shape, gentle feminine cranial contours, smooth curved jawline",
+  vline_petite_face_shape: "v-line face shape, high angular cheekbones, slender feminine jawline tapering to delicate chin",
+  delicate_tapered_jawline: "delicate tapered jawline, slender feminine jaw with soft continuous curve to chin",
+  chiseled_feminine_jawline: "chiseled high cheekbone jawline contour, sculpted midface with slim mandible",
+  petite_rounded_chin: "petite rounded chin, compact delicate mental apex with smooth contours",
+  delicate_heart_chin: "delicate heart-shaped chin, tapered apex with smooth feminine transition to jawline",
+  high_sculpted_cheekbones: "high sculpted cheekbones, prominent elevated zygomatic arches with delicate lower cheek shadow",
+  apple_cheeks_fullness: "youthful apple cheeks, soft rounded anterior cheek fullness, feminine facial flesh",
+
+  // Eyes (Female & Inclusive)
+  cat_eye_canthal_tilt: "cat-eye shape, positive canthal tilt, elongated tapered outer eye corner, winged lashline",
+  doe_eyes_large_round: "doe eyes, large expressive round eyes, wide open palpebral aperture with prominent radiant iris",
+  hooded_eyelids: "hooded eyelids, soft natural skin fold draping over upper eyelid crease",
+  monolid_epicanthic_fold: "monolid eyes, smooth continuous upper eyelid without crease, epicanthic fold",
+
+  // Eyebrows (Female & Groomed)
+  feathered_soft_arched_brows: "feathered soft arched eyebrows, delicate micro-stroke brow texture, natural gentle arch",
+  high_glamour_arched_brows: "high glamour arched eyebrows, sculpted defined arch with clean sharp tail",
+  soft_straight_brows: "soft straight youthful eyebrows, gentle horizontal brow contour, rounded tail",
+  s_shaped_feminine_brows: "s-shaped curved feminine eyebrows, soft inner dip rising into elegant arched peak",
+
+  // Nose (Female & Piercings)
+  petite_button_nose: "petite button nose, small delicate bridge, slightly elevated compact rounded tip",
+  slender_sculpted_nose: "slender sculpted nose, thin straight nasal bridge with defined alar wings",
+  septum_ring_piercing: "wearing septum ring piercing, circular metallic barbell through nasal septum",
+
+  // Mouth & Lips (Female & Defined)
+  defined_cupids_bow_lips: "defined Cupid's bow lips, sharp twin peaks on upper vermilion, full pouty lips",
+  pillowy_plump_full_lips: "pillowy plump full lips, voluminous cushions with soft natural vertical creases",
+  petite_rosebud_lips: "petite rosebud lips, compact horizontal mouth width, pronounced central pout",
+  soft_natural_lips: "soft natural lips, delicate vermilion definition with balanced feminine contours",
+
+  // Hairstyles (Female & Inclusive)
+  sleek_chin_length_bob_hair: "sleek chin-length bob hairstyle, sharp blunt jawline bob, face-framing hair",
+  textured_pixie_crop_hair: "textured pixie crop hairstyle, chic short feminine crop, wispy brow fringe and soft sideburns",
+  high_sleek_ponytail_hair: "high sleek ponytail hairstyle, hair pulled back into high ponytail, exposed temples and neck",
+  curtain_bangs_layered_hair: "curtain bangs layered hairstyle, center-parted face-framing fringe sweeping outward with soft layers",
+  sleek_straight_center_part_hair: "sleek straight long hair, clean center part, glossy straight strands falling past shoulders",
+  shoulder_length_wavy_lob_hair: "shoulder-length wavy lob hairstyle, textured long bob with loose effortless waves",
+  blunt_fringe_bangs_long_hair: "blunt fringe bangs with long hair, horizontal brow-skimming bangs and flowing hair",
+  afro_puffs_space_buns_hair: "afro puffs space buns hairstyle, twin voluminous spherical textured afro puffs on crown",
+  box_braids_cornrows_hair: "box braids cornrows hairstyle, neat geometric scalp partings with long braided cords",
+  textured_dreadlocks_hair: "textured dreadlocks hairstyle, defined loc cords framing face and shoulders",
+  widows_peak_hairline: "widow's peak hairline, distinct V-shaped downward frontal hairline point",
+
+  // Beauty Marks & Piercings
+  monroe_lip_beauty_mark: "Monroe beauty mark, small dark circular mole situated above the upper left lip",
+  cheek_beauty_mark: "cheek beauty mark, small dark mole on the upper zygomatic cheekbone",
+  delicate_soft_facial_freckles: "delicate soft freckles, fine ephelides dusting across nasal bridge and under-eye area",
+  nostril_stud_piercing: "wearing nose stud piercing, small metallic stud on nostril alar rim",
+  lip_labret_piercing: "wearing lip labret piercing, small metallic stud centered below lower lip",
+  eyebrow_ring_piercing: "wearing eyebrow piercing, dual-ball curved barbell through outer eyebrow arch",
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

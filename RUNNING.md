@@ -37,40 +37,62 @@ forensix/
 
 ## 🚀 FIRST-TIME SETUP (Run Once)
 
-### Step 1 — Install Next.js Dependencies
+> 💡 Open a single PowerShell window at the **project root (`forensix`)**.
+
+### ⚡ All-in-One Setup (Copy & Paste Everything):
 
 ```powershell
-cd "d:\Madhan Kumar\Web Development Projects\forensix"
+# 1. Install frontend dependencies & generate database client
+pnpm install
+pnpm db:generate
+
+# 2. Setup Python environment and dependencies
+cd ai-service
+python -m venv .venv
+.\.venv\Scripts\pip install --upgrade pip
+.\.venv\Scripts\pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
+.\.venv\Scripts\pip install -r requirements.txt
+
+# 3. Verify CUDA / GPU status
+.\.venv\Scripts\python -c "import torch; print('CUDA:', torch.cuda.is_available()); print('GPU:', torch.cuda.get_device_name(0))"
+
+# 4. Return to project root
+cd ..
+```
+
+<details>
+<summary><b>Or view step-by-step instructions</b></summary>
+
+#### Step 1 — Install Next.js Dependencies
+*📍 Working Directory: `forensix` (Project Root)*
+```powershell
 pnpm install
 ```
 
-### Step 2 — Generate Prisma Client
-
+#### Step 2 — Generate Prisma Client
+*📍 Working Directory: `forensix` (Project Root)*
 ```powershell
-cd "d:\Madhan Kumar\Web Development Projects\forensix"
 pnpm db:generate
 ```
 
-### Step 3 — Create Python Virtual Environment
-
+#### Step 3 — Create Python Virtual Environment
+*📍 Working Directory: `forensix\ai-service`*
 ```powershell
-cd "d:\Madhan Kumar\Web Development Projects\forensix\ai-service"
+cd ai-service
 python -m venv .venv
 ```
 
-### Step 4 — Install Python Dependencies (with CUDA support)
-
+#### Step 4 — Install Python Dependencies (with CUDA support)
+*📍 Working Directory: `forensix\ai-service`*
 ```powershell
-cd "d:\Madhan Kumar\Web Development Projects\forensix\ai-service"
 .\.venv\Scripts\pip install --upgrade pip
 .\.venv\Scripts\pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
 .\.venv\Scripts\pip install -r requirements.txt
 ```
 
-### Step 5 — Verify CUDA / GPU Works
-
+#### Step 5 — Verify CUDA / GPU Works
+*📍 Working Directory: `forensix\ai-service`*
 ```powershell
-cd "d:\Madhan Kumar\Web Development Projects\forensix\ai-service"
 .\.venv\Scripts\python -c "import torch; print('CUDA:', torch.cuda.is_available()); print('GPU:', torch.cuda.get_device_name(0))"
 ```
 
@@ -80,16 +102,24 @@ CUDA: True
 GPU: NVIDIA GeForce RTX 4050 Laptop GPU
 ```
 
+#### Step 6 — Return to Root
+```powershell
+cd ..
+```
+
+</details>
+
 ---
 
 ## 📦 MODEL DOWNLOAD (Run Once — Already Downloaded)
 
-> ✅ Your models are already at `ai-service/models/`. Skip unless re-downloading.
+> ✅ Your models are already downloaded at `ai-service/models/`. Skip unless re-downloading.
+> If needed, run these inside the `ai-service` folder (`cd ai-service`):
 
 ### Download Stable Diffusion 1.5
 
 ```powershell
-cd "d:\Madhan Kumar\Web Development Projects\forensix\ai-service"
+cd ai-service
 .\.venv\Scripts\python -c "
 from huggingface_hub import snapshot_download
 snapshot_download(
@@ -105,7 +135,7 @@ print('SD 1.5 downloaded!')
 ### Download ControlNet Lineart
 
 ```powershell
-cd "d:\Madhan Kumar\Web Development Projects\forensix\ai-service"
+cd ai-service
 .\.venv\Scripts\python -c "
 from huggingface_hub import snapshot_download
 snapshot_download(
@@ -120,7 +150,7 @@ print('ControlNet Lineart downloaded!')
 ### Download Qwen 2.5 7B LLM
 
 ```powershell
-cd "d:\Madhan Kumar\Web Development Projects\forensix\ai-service"
+cd ai-service
 .\.venv\Scripts\python -c "
 from huggingface_hub import hf_hub_download
 hf_hub_download(
@@ -136,44 +166,100 @@ print('Qwen 2.5 downloaded!')
 
 ## ▶️ DAILY STARTUP — Run the Project
 
-> Open **2 separate PowerShell terminals**.
+> 💡 Open **3 separate PowerShell terminals**, all starting at the `forensix` project root.
 
-### Terminal 1 — Start AI Service (GPU Model Server)
+### 📋 Quick Reference:
+| Terminal | Window Name | Starting Location | Command |
+|---|---|---|---|
+| **Terminal 1** | AI Service (GPU) | `forensix` (Root) | `cd ai-service; .\.venv\Scripts\uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload` |
+| **Terminal 2** | Ngrok Tunnel | `forensix` (Root) | `ngrok http 8000 --url https://concerned-dominoes-debtor.ngrok-free.dev` |
+| **Terminal 3** | Frontend (Next.js) | `forensix` (Root) | `pnpm dev` |
+
+---
+
+### 🖥️ Terminal 1 — Start AI Service (GPU Model Server)
+*📍 Location: `forensix` (Project Root)*
+
+Starts the FastAPI backend with SD 1.5 + ControlNet on your RTX 4050 GPU:
 
 ```powershell
-cd "d:\Madhan Kumar\Web Development Projects\forensix\ai-service"
-.\.venv\Scripts\uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+cd ai-service; .\.venv\Scripts\uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-Wait for:
+Wait until you see:
 ```
 INFO:     Application startup complete.
-INFO:     Uvicorn running on http://0.0.0.0:8000
 ```
 
-### Terminal 2 — Start Next.js Frontend
+> ⚠️ First startup takes ~30–60s as PyTorch loads SD 1.5 + ControlNet weights into your GPU VRAM.
+
+---
+
+### 🌐 Terminal 2 — Start Ngrok Permanent Tunnel (Connects Your GPU to Vercel)
+*📍 Location: `forensix` (Project Root)*
+
+This creates a **permanent public HTTPS URL** that bridges your local AI service to the internet:
 
 ```powershell
-cd "d:\Madhan Kumar\Web Development Projects\forensix"
+ngrok http 8000 --url https://concerned-dominoes-debtor.ngrok-free.dev
+```
+
+> ⚠️ The port must be **8000** (matching the AI service). Using any other port (e.g. 80) will cause 502 errors.
+
+When connected, you'll see a dashboard like:
+```
+Session Status    online
+Account           your-account
+Forwarding        https://concerned-dominoes-debtor.ngrok-free.dev -> http://localhost:8000
+```
+
+> ✅ **This URL never changes!** Your Vercel `AI_SERVICE_URL` is already set to `https://concerned-dominoes-debtor.ngrok-free.dev`. No need to update Vercel ever again — just start the tunnel.
+
+---
+
+### 🖥️ Terminal 3 — Start Next.js Frontend
+*📍 Location: `forensix` (Project Root)*
+
+```powershell
 pnpm dev
 ```
 
-Wait for:
+Wait until you see:
 ```
 ▲ Next.js 16.x.x
 - Local: http://localhost:3000
 ```
 
-### ✅ Open in browser: http://localhost:3000
+### ✅ Open in browser: [http://localhost:3000](http://localhost:3000)
+
+---
+
+### 🤖 Alternative: All-in-One Script (Optional)
+
+If you prefer one command instead of 3 terminals, the script auto-detects your `NGROK_DOMAIN` from `.env`:
+
+```powershell
+.\start-gpu-worker.ps1
+```
+
+This starts the Qwen LLM (port 8001), FastAPI (port 8000), and the ngrok tunnel automatically.
 
 ---
 
 ## 🔎 Verify Everything is Running
 
-### Check AI Service is healthy
+### Check AI Service is healthy (local)
 
 ```powershell
 Invoke-WebRequest -Uri "http://localhost:8000/api/v1/health" -UseBasicParsing | Select-Object StatusCode, Content
+```
+
+Expected: `StatusCode: 200` · `{"status":"ok","service":"criminal-eye-ai"}`
+
+### Check Ngrok Tunnel is healthy (public)
+
+```powershell
+Invoke-WebRequest -Uri "https://concerned-dominoes-debtor.ngrok-free.dev/api/v1/health" -Headers @{"ngrok-skip-browser-warning"="true"} -UseBasicParsing | Select-Object StatusCode, Content
 ```
 
 Expected: `StatusCode: 200` · `{"status":"ok","service":"criminal-eye-ai"}`
@@ -209,8 +295,8 @@ Status: completed
 ## 🗄️ Database Commands
 
 ```powershell
+# From project root:
 # Push schema changes to Neon (cloud Postgres)
-cd "d:\Madhan Kumar\Web Development Projects\forensix"
 pnpm db:push
 
 # Open Prisma Studio (visual database browser)
@@ -239,7 +325,8 @@ pnpm db:generate
 
 ```
 Terminal 1 (AI Service):  Ctrl + C
-Terminal 2 (Next.js):     Ctrl + C
+Terminal 2 (Ngrok Tunnel): Ctrl + C
+Terminal 3 (Next.js):     Ctrl + C
 ```
 
 ---
@@ -248,18 +335,18 @@ Terminal 2 (Next.js):     Ctrl + C
 
 ### AI Service won't start — module not found
 ```powershell
-cd "d:\Madhan Kumar\Web Development Projects\forensix\ai-service"
+cd ai-service
 .\.venv\Scripts\pip install -r requirements.txt
 ```
 
 ### CUDA not available (running on CPU — very slow)
 ```powershell
-cd "d:\Madhan Kumar\Web Development Projects\forensix\ai-service"
+cd ai-service
 .\.venv\Scripts\pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124 --force-reinstall
 ```
 
 ### Sketch shows basic SVG instead of real image
-The AI service is not running. Start Terminal 1 first.
+The AI service is not running. Start Terminal 1 first, then Terminal 2.
 
 ### Port 8000 already in use
 ```powershell
@@ -273,9 +360,19 @@ netstat -ano | findstr :3000
 taskkill /PID <PID_FROM_ABOVE> /F
 ```
 
+### Next.js health check returns 502
+This means `AI_SERVICE_URL` points to the ngrok tunnel but ngrok is not running or is on the wrong port.
+1. Make sure Terminal 2 is running `ngrok http 8000` (not port 80 or any other port).
+2. Make sure Terminal 1 (AI Service) is running and healthy on port 8000.
+
+### Ngrok shows "ERR_NGROK_3200" or auth error
+```powershell
+ngrok config add-authtoken <YOUR_AUTHTOKEN>
+```
+
 ### Next.js install errors
 ```powershell
-cd "d:\Madhan Kumar\Web Development Projects\forensix"
+# From project root:
 pnpm install
 pnpm dev
 ```
@@ -313,8 +410,11 @@ GOOGLE_CLIENT_SECRET="..."
 GITHUB_CLIENT_ID="..."
 GITHUB_CLIENT_SECRET="..."
 
-AI_SERVICE_URL=http://localhost:8000
+AI_SERVICE_URL=https://concerned-dominoes-debtor.ngrok-free.dev
 AI_SERVICE_SECRET=forensix_ai_secret_dev_2026
+
+# Permanent Ngrok Static Domain (auto-detected by start-gpu-worker.ps1)
+NGROK_DOMAIN=concerned-dominoes-debtor.ngrok-free.dev
 
 # Optional — enables Gemini Imagen 3 cloud generation
 # GEMINI_API_KEY=your_key_here
@@ -335,45 +435,64 @@ OUTPUT_DIR=./outputs
 
 SKETCH_PROVIDER=diffusion_local
 LLM_PROVIDER=qwen_local
+
+# Permanent Ngrok Static Domain
+AI_SERVICE_URL=https://concerned-dominoes-debtor.ngrok-free.dev
+NGROK_DOMAIN=concerned-dominoes-debtor.ngrok-free.dev
 ```
 
 ---
 
-## 🌐 CONNECT LOCAL GPU MODEL TO VERCEL PRODUCTION
+## 🌐 CONNECT LOCAL GPU & LLM TO VERCEL PRODUCTION
 
-You can run your models locally on your RTX 4050 GPU and have your **Vercel production deployment** send its sketch generation and LLM jobs directly to your computer!
+> ✅ **Already configured!** Your Vercel project uses the permanent ngrok domain `https://concerned-dominoes-debtor.ngrok-free.dev`. You only need to start the AI Service (Terminal 1) and Ngrok Tunnel (Terminal 2) to go online.
 
-### Why isn't it working by default on Vercel?
-- Vercel runs on cloud servers (AWS/GCP).
-- When Vercel calls `http://localhost:8000`, it refers to Vercel's cloud container, NOT your laptop!
-- To bridge them, your local FastAPI service must be exposed over a secure public HTTPS tunnel.
+### How it works:
+1. **Your RTX 4050 GPU** runs the AI models locally (SD 1.5, ControlNet, Qwen 2.5 7B LLM) on port 8000.
+2. **Ngrok** creates a permanent HTTPS tunnel from `https://concerned-dominoes-debtor.ngrok-free.dev` → `localhost:8000`.
+3. **Vercel** has `AI_SERVICE_URL=https://concerned-dominoes-debtor.ngrok-free.dev` saved permanently. Every API call from Vercel goes through ngrok straight to your GPU.
 
-### Quick Start (One Command):
+### ❓ Why isn't it connected by default on Vercel?
+1. **Local vs Cloud**: Vercel runs on cloud servers in AWS data centers. When Vercel tries to call `http://localhost:8000`, `localhost` points to Vercel's empty cloud container, NOT your laptop!
+2. **Ngrok bridges this gap**: Your permanent ngrok domain routes Vercel's requests through the internet to your PC.
+3. **When your PC is off**, the tunnel is down and Vercel's status badge shows **Amber (Offline)**. Start Terminal 1 + Terminal 2 to go back online.
 
+---
+
+### 📋 Vercel Environment Variables (Already Set — No Changes Needed):
+
+| Variable | Value |
+|---|---|
+| `AI_SERVICE_URL` | `https://concerned-dominoes-debtor.ngrok-free.dev` |
+| `AI_SERVICE_SECRET` | `forensix_ai_secret_dev_2026` |
+
+---
+
+### 💡 Alternative Tunnel Providers (Optional)
+
+If you ever want to use a different provider instead of ngrok:
+
+#### Cloudflare Named Tunnel (Permanent Free Domain with Custom Domain)
+1. Sign up for free at [Cloudflare Zero Trust](https://one.dash.cloudflare.com/) -> **Networks** -> **Tunnels** -> **Create a tunnel**.
+2. Name it `forensix-ai` and copy the tunnel token.
+3. Save the token in `ai-service\.env`:
+   ```env
+   CLOUDFLARE_TUNNEL_TOKEN=eyJhIjoi...
+   ```
+4. Point the public hostname in Cloudflare to `http://localhost:8000` (e.g. `ai.yourdomain.com`).
+5. Set `AI_SERVICE_URL=https://ai.yourdomain.com` in Vercel **ONCE**.
+
+#### Localtunnel with Fixed Subdomain
 ```powershell
-cd "d:\Madhan Kumar\Web Development Projects\forensix"
-.\start-gpu-worker.ps1
+.\start-gpu-worker.ps1 -TunnelProvider localtunnel -Subdomain forensix-gpu-madhan
 ```
+Sets your URL permanently to `https://forensix-gpu-madhan.loca.lt`!
 
-This automated script will:
-1. Verify your RTX 4050 GPU & CUDA status.
-2. Start the FastAPI microservice and pre-warm the SD 1.5 pipeline in VRAM.
-3. Automatically download and launch a secure **Cloudflare HTTPS tunnel**.
-4. Output your public URL: e.g. `https://xxxx.trycloudflare.com`.
+---
 
-### Connect to Vercel:
-
-1. Copy the public tunnel URL printed in your terminal (e.g. `https://your-tunnel.trycloudflare.com`).
-2. Go to your **Vercel Dashboard** -> Open the **forensix** project -> **Settings** -> **Environment Variables**.
-3. Set:
-   - `AI_SERVICE_URL` = `https://your-tunnel.trycloudflare.com`
-   - `AI_SERVICE_SECRET` = `forensix_ai_secret_dev_2026`
-4. Redeploy your latest deployment (or wait a few seconds for runtime environment variables to apply).
-5. Open your live Vercel URL -> The status badge will show **GPU Online** -> Click **Generate Sketch**!
-   Your local RTX 4050 GPU will now generate the forensic sketch and send it straight to your Vercel production app.
-
-> 📖 **Deep Dive Architecture & Flowcharts:** See [HYBRID_GPU_CLOUD_ARCHITECTURE.md](file:///d:/Madhan%20Kumar/Web%20Development%20Projects/forensix/HYBRID_GPU_CLOUD_ARCHITECTURE.md) for full architectural sequence diagrams, security specs, and troubleshooting.
+> 📖 **Deep Dive Architecture & Flowcharts:** See [HYBRID_GPU_CLOUD_ARCHITECTURE.md](./HYBRID_GPU_CLOUD_ARCHITECTURE.md) for full architectural sequence diagrams, security specs, and troubleshooting.
 
 ---
 
 *Forensix — RTX 4050 6GB · Node v24 · Python 3.11 · Windows 11*
+

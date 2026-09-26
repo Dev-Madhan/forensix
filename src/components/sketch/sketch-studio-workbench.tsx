@@ -21,7 +21,7 @@ export function SketchStudioWorkbench() {
         <CompositeSketchWorkspace />
 
         {/* Right Column: Selected Features & Generation Controls */}
-        <div className="w-[280px] sm:w-[300px] lg:w-[310px] shrink-0 h-full flex flex-col gap-3 overflow-hidden">
+        <div className="w-70 sm:w-75 lg:w-77.5 shrink-0 h-full flex flex-col gap-3 overflow-hidden">
           <SelectedFeaturesPanel />
           <GenerationControlsPanel />
         </div>

@@ -196,6 +196,60 @@ TOKEN_FORENSIC_MAP: Dict[str, str] = {
     "wearing_necktie":           "(wearing formal collared shirt with knotted necktie:1.1)",
     "bangs_hair":                "(straight blunt fringe bangs:1.2), hair covering forehead",
     "pointy_nose":               "(slender elongated sharp pointed nasal tip:1.2)",
+
+    # ── Female & Universal Contours ──────────────────────────────────────────
+    "soft_oval_face_shape":            "(soft oval face shape:1.35), delicate feminine cranial contour, smooth rounded jawline taper",
+    "vline_petite_face_shape":         "(v-line face shape:1.4), high angular cheekbones, slender feminine jawline tapering to delicate chin",
+    "delicate_tapered_jawline":        "(delicate tapered jawline:1.3), slender feminine jaw with soft continuous curve to chin",
+    "chiseled_feminine_jawline":       "(chiseled high cheekbone jawline contour:1.35), sculpted midface with slim mandible",
+    "petite_rounded_chin":             "(petite rounded chin:1.3), compact delicate mental apex with smooth contours",
+    "delicate_heart_chin":             "(delicate heart-shaped chin:1.3), tapered apex with smooth feminine transition to jawline",
+    "high_sculpted_cheekbones":        "(high sculpted cheekbones:1.4), prominent elevated zygomatic arches with delicate lower cheek shadow",
+    "apple_cheeks_fullness":           "(youthful apple cheeks:1.35), soft rounded anterior cheek fullness, feminine facial flesh",
+
+    # ── Eyes (Female & Inclusive) ───────────────────────────────────────────
+    "cat_eye_canthal_tilt":            "(cat-eye shape:1.4), positive canthal tilt, elongated tapered outer eye corner, winged lashline",
+    "doe_eyes_large_round":            "(doe eyes:1.4), large expressive round eyes, wide open palpebral aperture with prominent radiant iris",
+    "hooded_eyelids":                  "(hooded eyelids:1.3), soft natural skin fold draping over upper eyelid crease",
+    "monolid_epicanthic_fold":         "(monolid eyes:1.4), smooth continuous upper eyelid without crease, epicanthic fold",
+
+    # ── Eyebrows (Female & Groomed) ──────────────────────────────────────────
+    "feathered_soft_arched_brows":     "(feathered soft arched eyebrows:1.35), delicate micro-stroke brow texture, natural gentle arch",
+    "high_glamour_arched_brows":       "(high glamour arched eyebrows:1.4), sculpted defined arch with clean sharp tail",
+    "soft_straight_brows":             "(soft straight youthful eyebrows:1.3), gentle horizontal brow contour, rounded tail",
+    "s_shaped_feminine_brows":         "(s-shaped curved feminine eyebrows:1.35), soft inner dip rising into elegant arched peak",
+
+    # ── Nose (Female & Piercings) ───────────────────────────────────────────
+    "petite_button_nose":              "(petite button nose:1.4), small delicate bridge, slightly elevated compact rounded tip",
+    "slender_sculpted_nose":           "(slender sculpted nose:1.35), thin straight nasal bridge with defined alar wings",
+    "septum_ring_piercing":            "(wearing septum ring piercing:1.35), circular metallic barbell through nasal septum",
+
+    # ── Mouth & Lips (Female & Defined) ─────────────────────────────────────
+    "defined_cupids_bow_lips":         "(defined Cupid's bow lips:1.45), sharp twin peaks on upper vermilion, full pouty lips",
+    "pillowy_plump_full_lips":         "(pillowy plump full lips:1.4), voluminous cushions with soft natural vertical creases",
+    "petite_rosebud_lips":             "(petite rosebud lips:1.35), compact horizontal mouth width, pronounced central pout",
+    "soft_natural_lips":               "(soft natural lips:1.3), delicate vermilion definition with balanced feminine contours",
+
+    # ── Hairstyles (Female & Inclusive) ─────────────────────────────────────
+    "sleek_chin_length_bob_hair":      "(sleek chin-length bob hairstyle:1.4), sharp blunt jawline bob, face-framing hair",
+    "textured_pixie_crop_hair":        "(textured pixie crop hairstyle:1.4), chic short feminine crop, wispy brow fringe and soft sideburns",
+    "high_sleek_ponytail_hair":        "(high sleek ponytail hairstyle:1.45), hair pulled back into high ponytail, exposed temples and neck",
+    "curtain_bangs_layered_hair":      "(curtain bangs layered hairstyle:1.4), center-parted face-framing fringe sweeping outward with soft layers",
+    "sleek_straight_center_part_hair": "(sleek straight long hair:1.4), clean center part, glossy straight strands falling past shoulders",
+    "shoulder_length_wavy_lob_hair":   "(shoulder-length wavy lob hairstyle:1.4), textured long bob with loose effortless waves",
+    "blunt_fringe_bangs_long_hair":    "(blunt fringe bangs with long hair:1.4), horizontal brow-skimming bangs and flowing hair",
+    "afro_puffs_space_buns_hair":      "(afro puffs space buns hairstyle:1.45), twin voluminous spherical textured afro puffs on crown",
+    "box_braids_cornrows_hair":        "(box braids cornrows hairstyle:1.45), neat geometric scalp partings with long braided cords",
+    "textured_dreadlocks_hair":        "(textured dreadlocks hairstyle:1.4), defined loc cords framing face and shoulders",
+    "widows_peak_hairline":            "(widow's peak hairline:1.3), distinct V-shaped downward frontal hairline point",
+
+    # ── Beauty Marks & Piercings ─────────────────────────────────────────────
+    "monroe_lip_beauty_mark":          "(Monroe beauty mark:1.35), small dark circular mole situated above the upper left lip",
+    "cheek_beauty_mark":               "(cheek beauty mark:1.35), small dark mole on the upper zygomatic cheekbone",
+    "delicate_soft_facial_freckles":   "(delicate soft freckles:1.3), fine ephelides dusting across nasal bridge and under-eye area",
+    "nostril_stud_piercing":           "(wearing nose stud piercing:1.35), small metallic stud on nostril alar rim",
+    "lip_labret_piercing":             "(wearing lip labret piercing:1.35), small metallic stud centered below lower lip",
+    "eyebrow_ring_piercing":           "(wearing eyebrow piercing:1.35), dual-ball curved barbell through outer eyebrow arch",
 }
 
 

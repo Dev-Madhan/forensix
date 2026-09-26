@@ -77,7 +77,11 @@ export function MobileControlsView() {
   const [hoveredStyle, setHoveredStyle] = useState<string | null>(null);
   const [isEthnicityOpen, setIsEthnicityOpen] = useState(false);
 
-  const detailLevels: DetailLevel[] = ["Draft", "Standard", "Master"];
+  const detailOptions: { value: DetailLevel; label: string }[] = [
+    { value: "Draft", label: "Draft (Fast)" },
+    { value: "Standard", label: "Standard" },
+    { value: "Master", label: "High Detail" },
+  ];
   const featureList = Object.values(selectedFeatures);
 
   const isPromptMode =
@@ -133,7 +137,7 @@ export function MobileControlsView() {
                 <Inbox className="size-8 stroke-[1.5]" />
               </div>
               <p className="text-xs font-semibold text-foreground/90">No features selected</p>
-              <p className="text-[11px] text-muted-foreground/70 mt-1 leading-relaxed max-w-[220px]">
+              <p className="text-[11px] text-muted-foreground/70 mt-1 leading-relaxed max-w-55">
                 Select features from the Dataset tab to build the suspect profile.
               </p>
             </div>
@@ -347,20 +351,22 @@ export function MobileControlsView() {
             </div>
           </div>
 
-          {/* Detail Level */}
+          {/* Detail Level / Sketch Quality */}
           <div className="flex flex-col gap-1.5">
             <label className="text-[11px] text-muted-foreground/80 font-medium select-none flex items-center justify-between">
-              <span>Synthesis Fidelity</span>
-              <span className="text-[10px] text-[#c2b5fd] font-mono">{detailLevel}</span>
+              <span>Sketch Quality</span>
+              <span className="text-[10px] text-[#c2b5fd] font-mono">
+                {detailLevel === "Master" ? "High Detail" : detailLevel === "Draft" ? "Draft (Fast)" : "Standard"}
+              </span>
             </label>
             <div className="relative grid grid-cols-3 gap-1 p-1 rounded-lg border-2 border-border/70 bg-black/40">
-              {detailLevels.map((lvl) => {
-                const isActive = detailLevel === lvl;
+              {detailOptions.map(({ value, label }) => {
+                const isActive = detailLevel === value;
                 return (
                   <motion.button
-                    key={lvl}
+                    key={value}
                     type="button"
-                    onClick={() => setDetailLevel(lvl)}
+                    onClick={() => setDetailLevel(value)}
                     whileTap={{ scale: 0.92 }}
                     className={`relative h-9 rounded-lg text-xs font-medium select-none z-10 flex items-center justify-center transition-colors cursor-pointer active:scale-95 ${
                       isActive
@@ -375,7 +381,7 @@ export function MobileControlsView() {
                         transition={{ type: "spring", stiffness: 450, damping: 24, mass: 0.7 }}
                       />
                     )}
-                    <span className="relative z-10">{lvl}</span>
+                    <span className="relative z-10">{label}</span>
                   </motion.button>
                 );
               })}
@@ -417,7 +423,7 @@ export function MobileControlsView() {
             onClick={() => setPromptText("")}
             disabled={!promptText}
             whileTap={!promptText ? undefined : { scale: 0.98 }}
-            className="group w-full h-9 rounded-lg border-2 border-white/10 hover:border-red-500/40 bg-white/[0.02] hover:bg-red-500/[0.08] text-[11px] font-medium text-muted-foreground/75 hover:text-red-400 flex items-center justify-center gap-1.5 cursor-pointer mt-2 transition-all select-none disabled:opacity-30 disabled:pointer-events-none"
+            className="group w-full h-9 rounded-lg border-2 border-white/10 hover:border-red-500/40 bg-white/2 hover:bg-red-500/8 text-[11px] font-medium text-muted-foreground/75 hover:text-red-400 flex items-center justify-center gap-1.5 cursor-pointer mt-2 transition-all select-none disabled:opacity-30 disabled:pointer-events-none"
           >
             <Trash2 className="size-3" />
             <span>Clear Prompt</span>
@@ -428,7 +434,7 @@ export function MobileControlsView() {
             onClick={clearAllFeatures}
             disabled={selectedCount === 0}
             whileTap={selectedCount === 0 ? undefined : { scale: 0.98 }}
-            className="group w-full h-9 rounded-lg border-2 border-white/10 hover:border-red-500/40 bg-white/[0.02] hover:bg-red-500/[0.08] text-[11px] font-medium text-muted-foreground/75 hover:text-red-400 flex items-center justify-center gap-1.5 cursor-pointer mt-2 transition-all select-none disabled:opacity-30 disabled:pointer-events-none"
+            className="group w-full h-9 rounded-lg border-2 border-white/10 hover:border-red-500/40 bg-white/2 hover:bg-red-500/8 text-[11px] font-medium text-muted-foreground/75 hover:text-red-400 flex items-center justify-center gap-1.5 cursor-pointer mt-2 transition-all select-none disabled:opacity-30 disabled:pointer-events-none"
           >
             <Trash2 className="size-3" />
             <span>Clear All Features</span>

@@ -12,7 +12,7 @@ export async function GET() {
   try {
     const health = await aiFetch<{ status: string; service: string }>(
       "/api/v1/health",
-      { method: "GET", timeoutMs: 5000 }
+      { method: "GET", timeoutMs: 8000 }
     );
     return NextResponse.json(health, { status: 200 });
   } catch (error: unknown) {

@@ -42,7 +42,7 @@ const AnimatedButton: React.FC<AnimatedButtonProps> = ({
       // Set a CSS variable `--shine` that adapts or can be overridden via className
       className={cn(
         "group inline-flex items-center justify-center px-6 py-2 rounded-md relative overflow-hidden bg-background border border-border",
-        "text-foreground font-medium transition-colors duration-[var(--vng-transition-speed,150ms)] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 select-none",
+        "text-foreground font-medium transition-colors duration-(--vng-transition-speed,150ms) focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 select-none",
         "[--shine:rgba(255,255,255,.75)] dark:[--shine:rgba(255,255,255,.75)]",
         className,
       )}

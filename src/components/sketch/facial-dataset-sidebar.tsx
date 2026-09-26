@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
+import { motion } from "motion/react";
 import { cn } from "@/lib/utils";
 import {
   Search,
@@ -57,6 +58,8 @@ export function FacialDatasetSidebar() {
     generationMode,
     isSidebarEnabled,
     requestModeChange,
+    gender,
+    setGender,
   } = useSketch();
 
   const handleFeatureClick = (item: FeatureItem) => {
@@ -66,6 +69,41 @@ export function FacialDatasetSidebar() {
       toggleFeature(item);
     }
   };
+
+  // Gender Switcher filter: "all" | "male" | "female"
+  const [genderFilter, setGenderFilter] = useState<"all" | "male" | "female">("all");
+
+  // Calculate total counts per gender
+  const { allCount, maleCount, femaleCount } = useMemo(() => {
+    let all = 0;
+    let male = 0;
+    let female = 0;
+    for (const cat of FACIAL_DATASET) {
+      for (const sub of cat.subcategories) {
+        for (const item of sub.items) {
+          all++;
+          if (!item.gender || item.gender === "all" || item.gender === "male") male++;
+          if (!item.gender || item.gender === "all" || item.gender === "female") female++;
+        }
+      }
+    }
+    return { allCount: all, maleCount: male, femaleCount: female };
+  }, []);
+
+  const handleGenderSwitch = (target: "all" | "male" | "female") => {
+    setGenderFilter(target);
+    if (target === "male") setGender("Male");
+    if (target === "female") setGender("Female");
+  };
+
+  const genderTabs = useMemo(
+    () => [
+      { id: "all" as const, label: "All", count: allCount },
+      { id: "male" as const, label: "♂ Male", count: maleCount },
+      { id: "female" as const, label: "♀ Female", count: femaleCount },
+    ],
+    [allCount, maleCount, femaleCount]
+  );
 
   // Accordions open by default: FACE and EYES
   const [openCategories, setOpenCategories] = useState<Record<string, boolean>>({
@@ -120,11 +158,13 @@ export function FacialDatasetSidebar() {
 
   const resetFilters = () => {
     setFilterSelectedOnly(false);
+    setGenderFilter("all");
     selectAllCategories();
   };
 
   const isFilterActive =
     filterSelectedOnly ||
+    genderFilter !== "all" ||
     Object.values(activeCategoryFilters).some((enabled) => !enabled);
 
   const activeCategoryCount = Object.values(activeCategoryFilters).filter(Boolean).length;
@@ -136,7 +176,7 @@ export function FacialDatasetSidebar() {
     }));
   };
 
-  // Filter dataset by search query, selected status, and category visibility
+  // Filter dataset by gender, search query, selected status, and category visibility
   const filteredDataset = useMemo(() => {
     // 1. Filter by category visibility
     const visibleCategories = FACIAL_DATASET.filter(
@@ -149,14 +189,26 @@ export function FacialDatasetSidebar() {
       .map((category) => {
         const filteredSub = category.subcategories
           .map((sub) => {
+            // When female filter is selected, omit facial hair (beard/moustache)
+            if (genderFilter === "female" && (sub.id === "beard" || sub.id === "moustache")) {
+              return null;
+            }
+
             let items = sub.items;
 
-            // 2. Filter by "selected only"
+            // 2. Filter by gender
+            if (genderFilter !== "all") {
+              items = items.filter(
+                (item) => !item.gender || item.gender === "all" || item.gender === genderFilter
+              );
+            }
+
+            // 3. Filter by "selected only"
             if (filterSelectedOnly) {
               items = items.filter((item) => isFeatureSelected(item.id));
             }
 
-            // 3. Filter by search query
+            // 4. Filter by search query
             if (query) {
               items = items.filter(
                 (item) =>
@@ -188,7 +240,7 @@ export function FacialDatasetSidebar() {
         };
       })
       .filter((category) => category.subcategories.length > 0);
-  }, [searchQuery, filterSelectedOnly, activeCategoryFilters, isFeatureSelected]);
+  }, [searchQuery, filterSelectedOnly, activeCategoryFilters, isFeatureSelected, genderFilter]);
 
   // Icons mapping for category headers
   const renderCategoryIcon = (iconName: string) => {
@@ -208,18 +260,24 @@ export function FacialDatasetSidebar() {
     }
   };
 
-  // Modal filtered items
+  // Modal filtered items (supports gender filtering and search)
   const modalFilteredItems = useMemo(() => {
     if (!viewAllSubcategory) return [];
-    if (!modalSearch.trim()) return viewAllSubcategory.items;
+    let items = viewAllSubcategory.items;
+    if (genderFilter !== "all") {
+      items = items.filter(
+        (item) => !item.gender || item.gender === "all" || item.gender === genderFilter
+      );
+    }
+    if (!modalSearch.trim()) return items;
     const q = modalSearch.toLowerCase().trim();
-    return viewAllSubcategory.items.filter(
+    return items.filter(
       (item) =>
         item.name.toLowerCase().includes(q) ||
         item.description.toLowerCase().includes(q) ||
         item.token.toLowerCase().includes(q)
     );
-  }, [viewAllSubcategory, modalSearch]);
+  }, [viewAllSubcategory, modalSearch, genderFilter]);
 
   // === COLLAPSED ICON-RAIL VIEW ===
   if (sidebarCollapsed) {
@@ -317,6 +375,51 @@ export function FacialDatasetSidebar() {
             </Tooltip>
           </div>
 
+          {/* Gender Filter Segmented Control Bar */}
+          <div className="relative grid grid-cols-3 gap-1 p-1 bg-black/50 rounded-lg border-2 border-border/70 shadow-inner">
+            {genderTabs.map((tab) => {
+              const isActive = genderFilter === tab.id;
+              return (
+                <motion.button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => handleGenderSwitch(tab.id)}
+                  whileTap={{ scale: 0.94 }}
+                  className={cn(
+                    "relative py-1.5 px-2 rounded-md text-xs font-medium select-none z-10 flex items-center justify-center gap-1.5 cursor-pointer transition-colors duration-200",
+                    isActive
+                      ? "text-white font-semibold"
+                      : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+                  )}
+                >
+                  {isActive && (
+                    <motion.div
+                      layoutId="sidebar_gender_filter_pill"
+                      className="absolute inset-0 rounded-md bg-[#665AEF] shadow-md shadow-[#665AEF]/35 border-2 border-[#8579ff]/50 -z-10"
+                      transition={{
+                        type: "spring",
+                        stiffness: 450,
+                        damping: 24,
+                        mass: 0.7,
+                      }}
+                    />
+                  )}
+                  <span className="relative z-10">{tab.label}</span>
+                  <span
+                    className={cn(
+                      "relative z-10 px-1 py-0.2 rounded-full text-[9px] font-mono transition-colors duration-200",
+                      isActive
+                        ? "bg-white/20 text-white font-bold"
+                        : "bg-surface/80 text-muted-foreground"
+                    )}
+                  >
+                    {tab.count}
+                  </span>
+                </motion.button>
+              );
+            })}
+          </div>
+
           {/* Search features input with filter button */}
           <div className="flex items-center gap-1.5">
             <div className="relative flex-1">
@@ -325,7 +428,13 @@ export function FacialDatasetSidebar() {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search features..."
+                placeholder={
+                  genderFilter === "female"
+                    ? "Search female features..."
+                    : genderFilter === "male"
+                    ? "Search male features..."
+                    : "Search features..."
+                }
                 className="h-8.5 pl-8 pr-7 text-xs bg-black/50 border-2 border-border/70 rounded-md placeholder:text-muted-foreground/60 focus-visible:ring-[#665AEF]/50 focus-visible:border-[#665AEF]"
               />
               {searchQuery && (
@@ -385,6 +494,47 @@ export function FacialDatasetSidebar() {
                       Reset
                     </button>
                   )}
+                </div>
+
+                {/* Filter by Gender Target */}
+                <div className="space-y-1.5">
+                  <span className="text-[10px] font-semibold tracking-wider uppercase text-muted-foreground">
+                    Gender Target
+                  </span>
+                  <div className="relative grid grid-cols-3 gap-1 p-1 bg-black/40 rounded-lg border-2 border-border/70">
+                    {genderTabs.map((tab) => {
+                      const isActive = genderFilter === tab.id;
+                      return (
+                        <motion.button
+                          key={tab.id}
+                          type="button"
+                          onClick={() => handleGenderSwitch(tab.id)}
+                          whileTap={{ scale: 0.94 }}
+                          className={cn(
+                            "relative py-1 text-xs font-medium rounded-md select-none z-10 text-center cursor-pointer transition-colors duration-200 flex items-center justify-center gap-1",
+                            isActive
+                              ? "text-white font-semibold"
+                              : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+                          )}
+                        >
+                          {isActive && (
+                            <motion.div
+                              layoutId="popover_gender_filter_pill"
+                              className="absolute inset-0 rounded-md bg-[#665AEF] shadow-sm shadow-[#665AEF]/35 border border-[#8579ff]/50 -z-10"
+                              transition={{
+                                type: "spring",
+                                stiffness: 450,
+                                damping: 24,
+                                mass: 0.7,
+                              }}
+                            />
+                          )}
+                          <span className="relative z-10">{tab.id === "all" ? "All" : tab.id === "male" ? "Male" : "Female"}</span>
+                          <span className="relative z-10 text-[9px] opacity-80 font-mono">({tab.count})</span>
+                        </motion.button>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 {/* Filter by Status: All vs Selected Only */}
@@ -511,6 +661,25 @@ export function FacialDatasetSidebar() {
           {isFilterActive && (
             <div className="flex items-center gap-1.5 flex-wrap pt-1">
               <span className="text-[10px] text-muted-foreground">Filters:</span>
+              {genderFilter !== "all" && (
+                <span
+                  className={cn(
+                    "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium border-2",
+                    genderFilter === "female"
+                      ? "bg-rose-500/20 text-rose-200 border-rose-500/50"
+                      : "bg-sky-500/20 text-sky-200 border-sky-500/50"
+                  )}
+                >
+                  {genderFilter === "female" ? "♀ Female only" : "♂ Male only"}
+                  <button
+                    type="button"
+                    onClick={() => handleGenderSwitch("all")}
+                    className="hover:text-white cursor-pointer ml-0.5"
+                  >
+                    <X className="size-2.5" />
+                  </button>
+                </span>
+              )}
               {filterSelectedOnly && (
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-[#665AEF]/20 text-[#c2b5fd] border-2 border-[#665AEF]/50">
                   Selected only
@@ -691,6 +860,20 @@ export function FacialDatasetSidebar() {
                                       </span>
                                     )}
 
+                                    {/* Gender indicator badge */}
+                                    {item.gender && item.gender !== "all" && (
+                                      <span
+                                        className={cn(
+                                          "absolute bottom-0.5 right-0.5 z-10 px-0.8 py-0.2 rounded text-[7.5px] font-mono leading-none border shadow-xs pointer-events-none",
+                                          item.gender === "female"
+                                            ? "bg-rose-950/90 text-rose-300 border-rose-500/50"
+                                            : "bg-sky-950/90 text-sky-300 border-sky-500/50"
+                                        )}
+                                      >
+                                        {item.gender === "female" ? "♀" : "♂"}
+                                      </span>
+                                    )}
+
                                     {/* Evidence Card thumbnail */}
                                     <div className="relative size-full flex items-center justify-center overflow-hidden rounded-sm bg-[#FAFAFA] border border-[#E5E7EB] shadow-2xs">
                                       <FacialFeatureIcon
@@ -699,8 +882,16 @@ export function FacialDatasetSidebar() {
                                       />
                                     </div>
                                   </TooltipTrigger>
-                                  <TooltipContent side="top" sideOffset={6} className="px-2 py-0.5 text-[11px] font-medium bg-[#191924] text-white border border-border/80 rounded-md shadow-lg">
-                                    {item.name}
+                                  <TooltipContent side="top" sideOffset={6} className="px-2 py-0.5 text-[11px] font-medium bg-[#191924] text-white border border-border/80 rounded-md shadow-lg flex items-center gap-1.5">
+                                    <span>{item.name}</span>
+                                    {item.gender && item.gender !== "all" && (
+                                      <span className={cn(
+                                        "text-[9px] px-1 py-0.2 rounded font-mono",
+                                        item.gender === "female" ? "bg-rose-500/30 text-rose-300" : "bg-sky-500/30 text-sky-300"
+                                      )}>
+                                        {item.gender === "female" ? "♀ Female" : "♂ Male"}
+                                      </span>
+                                    )}
                                   </TooltipContent>
                                 </Tooltip>
                               );
@@ -748,15 +939,51 @@ export function FacialDatasetSidebar() {
               </div>
             </div>
 
-            {/* Filter in Modal */}
-            <div className="relative mt-3">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
-              <Input
-                value={modalSearch}
-                onChange={(e) => setModalSearch(e.target.value)}
-                placeholder={`Search ${viewAllSubcategory?.label.toLowerCase()} variants...`}
-                className="h-8.5 pl-8 text-xs bg-black/40 border-2 border-border/70 rounded-md"
-              />
+            {/* Filter Controls in Modal: Gender Switcher + Search Bar */}
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 mt-3">
+              <div className="relative grid grid-cols-3 gap-1 p-0.5 bg-black/40 rounded-lg border-2 border-border/70 shrink-0">
+                {genderTabs.map((tab) => {
+                  const isActive = genderFilter === tab.id;
+                  return (
+                    <motion.button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => handleGenderSwitch(tab.id)}
+                      whileTap={{ scale: 0.94 }}
+                      className={cn(
+                        "relative py-1 px-2.5 rounded-md text-xs font-medium select-none z-10 transition-colors duration-200 cursor-pointer text-center flex items-center justify-center gap-1",
+                        isActive
+                          ? "text-white font-semibold"
+                          : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+                      )}
+                    >
+                      {isActive && (
+                        <motion.div
+                          layoutId="modal_gender_filter_pill"
+                          className="absolute inset-0 rounded-md bg-[#665AEF] shadow-sm shadow-[#665AEF]/35 border border-[#8579ff]/50 -z-10"
+                          transition={{
+                            type: "spring",
+                            stiffness: 450,
+                            damping: 24,
+                            mass: 0.7,
+                          }}
+                        />
+                      )}
+                      <span className="relative z-10">{tab.label}</span>
+                    </motion.button>
+                  );
+                })}
+              </div>
+
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground pointer-events-none" />
+                <Input
+                  value={modalSearch}
+                  onChange={(e) => setModalSearch(e.target.value)}
+                  placeholder={`Search ${viewAllSubcategory?.label.toLowerCase()} variants...`}
+                  className="h-8.5 pl-8 text-xs bg-black/40 border-2 border-border/70 rounded-md"
+                />
+              </div>
             </div>
           </DialogHeader>
 
@@ -813,14 +1040,26 @@ export function FacialDatasetSidebar() {
                       )}>
                         {item.name}
                       </span>
-                      <span className={cn(
-                        "text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded transition-colors shrink-0",
-                        isSelected
-                          ? "bg-[#665AEF]/25 text-[#c2b5fd] border border-[#665AEF]/40 font-semibold"
-                          : "bg-surface/80 text-muted-foreground/80 border border-border/50"
-                      )}>
-                        {item.subcategory.replace("_", " ")}
-                      </span>
+                      <div className="flex items-center gap-1 shrink-0">
+                        {item.gender && item.gender !== "all" && (
+                          <span className={cn(
+                            "text-[9px] font-mono px-1.5 py-0.5 rounded border transition-colors",
+                            item.gender === "female"
+                              ? "bg-rose-500/15 text-rose-300 border-rose-500/30"
+                              : "bg-sky-500/15 text-sky-300 border-sky-500/30"
+                          )}>
+                            {item.gender === "female" ? "♀" : "♂"}
+                          </span>
+                        )}
+                        <span className={cn(
+                          "text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded transition-colors",
+                          isSelected
+                            ? "bg-[#665AEF]/25 text-[#c2b5fd] border border-[#665AEF]/40 font-semibold"
+                            : "bg-surface/80 text-muted-foreground/80 border border-border/50"
+                        )}>
+                          {item.subcategory.replace("_", " ")}
+                        </span>
+                      </div>
                     </div>
                     <p className={cn(
                       "text-[11px] leading-snug line-clamp-2 transition-colors",

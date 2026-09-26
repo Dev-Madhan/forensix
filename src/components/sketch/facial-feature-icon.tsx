@@ -3782,6 +3782,536 @@ export function FacialFeatureIcon({
         </svg>
       );
 
+
+    case "face_soft_oval":
+      return (
+        <svg viewBox="0 0 100 100" className={className} fill="none">
+          <rect x="2" y="2" width="96" height="96" rx="10" fill="#FAFAFA" stroke="#E5E7EB" strokeWidth="1.5" />
+          <g className="forensic-feature" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M50 16 C34 16 26 28 26 48 C26 68 35 81 50 85 C65 81 74 68 74 48 C74 28 66 16 50 16 Z" fill="#F1F5F9" stroke="#1E293B" strokeWidth="2.2" />
+            <path d="M30 38 C28 50 31 64 38 73" stroke="#94A3B8" strokeWidth="1.2" strokeDasharray="1.5 2" fill="none" />
+            <path d="M70 38 C72 50 69 64 62 73" stroke="#94A3B8" strokeWidth="1.2" strokeDasharray="1.5 2" fill="none" />
+            <path d="M44 80 C47 82 53 82 56 80" stroke="#CBD5E1" strokeWidth="1.2" fill="none" />
+          </g>
+        </svg>
+      );
+
+    case "face_vline":
+      return (
+        <svg viewBox="0 0 100 100" className={className} fill="none">
+          <rect x="2" y="2" width="96" height="96" rx="10" fill="#FAFAFA" stroke="#E5E7EB" strokeWidth="1.5" />
+          <g className="forensic-feature" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M50 16 C36 16 28 26 28 42 C28 52 35 68 50 86 C65 68 72 52 72 42 C72 26 64 16 50 16 Z" fill="#F1F5F9" stroke="#1E293B" strokeWidth="2.2" />
+            <path d="M32 46 L50 82 L68 46" stroke="#94A3B8" strokeWidth="1.2" strokeDasharray="1.5 2" fill="none" />
+            <circle cx="50" cy="83" r="2" fill="#1E293B" />
+          </g>
+        </svg>
+      );
+
+    case "jaw_delicate":
+      return (
+        <svg viewBox="0 0 100 100" className={className} fill="none">
+          <rect x="2" y="2" width="96" height="96" rx="10" fill="#FAFAFA" stroke="#E5E7EB" strokeWidth="1.5" />
+          <g className="forensic-feature" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M26 36 C28 54 36 72 50 78 C64 72 72 54 74 36" stroke="#1E293B" strokeWidth="2.2" fill="none" />
+            <path d="M32 46 C36 60 42 70 50 75 C58 70 64 60 68 46" stroke="#94A3B8" strokeWidth="1.2" strokeDasharray="1.5 2" fill="none" />
+            <path d="M46 76 C48 78 52 78 54 76" stroke="#64748B" strokeWidth="1.4" fill="none" />
+          </g>
+        </svg>
+      );
+
+    case "jaw_chiseled_fem":
+      return (
+        <svg viewBox="0 0 100 100" className={className} fill="none">
+          <rect x="2" y="2" width="96" height="96" rx="10" fill="#FAFAFA" stroke="#E5E7EB" strokeWidth="1.5" />
+          <g className="forensic-feature" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M24 34 C26 48 32 58 35 64 L50 79 L65 64 C68 58 74 48 76 34" stroke="#1E293B" strokeWidth="2.2" fill="none" />
+            <line x1="28" y1="46" x2="35" y2="64" stroke="#64748B" strokeWidth="1.4" />
+            <line x1="72" y1="46" x2="65" y2="64" stroke="#64748B" strokeWidth="1.4" />
+            <path d="M36 64 L50 75 L64 64" stroke="#94A3B8" strokeWidth="1.2" strokeDasharray="1.5 2" fill="none" />
+          </g>
+        </svg>
+      );
+
+    case "chin_petite":
+      return (
+        <svg viewBox="0 0 100 100" className={className} fill="none">
+          <rect x="2" y="2" width="96" height="96" rx="10" fill="#FAFAFA" stroke="#E5E7EB" strokeWidth="1.5" />
+          <g className="forensic-feature" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M34 44 C36 60 42 74 50 77 C58 74 64 60 66 44" fill="none" stroke="#1E293B" strokeWidth="2.2" />
+            <ellipse cx="50" cy="68" rx="6" ry="5" fill="#F1F5F9" stroke="#94A3B8" strokeWidth="1.2" strokeDasharray="1.5 2" />
+            <path d="M46 74 C48 76 52 76 54 74" stroke="#1E293B" strokeWidth="1.6" fill="none" />
+          </g>
+        </svg>
+      );
+
+    case "chin_heart":
+      return (
+        <svg viewBox="0 0 100 100" className={className} fill="none">
+          <rect x="2" y="2" width="96" height="96" rx="10" fill="#FAFAFA" stroke="#E5E7EB" strokeWidth="1.5" />
+          <g className="forensic-feature" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M30 42 C34 56 42 72 50 79 C58 72 66 56 70 42" fill="none" stroke="#1E293B" strokeWidth="2.2" />
+            <path d="M46 72 C48 75 50 77 50 79 C50 77 52 75 54 72" stroke="#64748B" strokeWidth="1.6" fill="none" />
+            <circle cx="50" cy="74" r="1.5" fill="#CBD5E1" />
+          </g>
+        </svg>
+      );
+
+    case "cheeks_high_fem":
+      return (
+        <svg viewBox="0 0 100 100" className={className} fill="none">
+          <rect x="2" y="2" width="96" height="96" rx="10" fill="#FAFAFA" stroke="#E5E7EB" strokeWidth="1.5" />
+          <g className="forensic-feature" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M22 42 C28 34 38 34 44 42" stroke="#1E293B" strokeWidth="2.0" fill="none" />
+            <path d="M78 42 C72 34 62 34 56 42" stroke="#1E293B" strokeWidth="2.0" fill="none" />
+            <path d="M26 48 C32 44 40 46 42 54" stroke="#94A3B8" strokeWidth="1.2" strokeDasharray="1.5 2" fill="none" />
+            <path d="M74 48 C68 44 60 46 58 54" stroke="#94A3B8" strokeWidth="1.2" strokeDasharray="1.5 2" fill="none" />
+            <ellipse cx="34" cy="45" rx="7" ry="4" fill="#F1F5F9" opacity={0.6} />
+            <ellipse cx="66" cy="45" rx="7" ry="4" fill="#F1F5F9" opacity={0.6} />
+          </g>
+        </svg>
+      );
+
+    case "cheeks_apples":
+      return (
+        <svg viewBox="0 0 100 100" className={className} fill="none">
+          <rect x="2" y="2" width="96" height="96" rx="10" fill="#FAFAFA" stroke="#E5E7EB" strokeWidth="1.5" />
+          <g className="forensic-feature" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="34" cy="50" r="12" fill="#F1F5F9" stroke="#1E293B" strokeWidth="1.8" />
+            <circle cx="66" cy="50" r="12" fill="#F1F5F9" stroke="#1E293B" strokeWidth="1.8" />
+            <circle cx="34" cy="50" r="7" stroke="#94A3B8" strokeWidth="1.2" strokeDasharray="2 2" fill="none" />
+            <circle cx="66" cy="50" r="7" stroke="#94A3B8" strokeWidth="1.2" strokeDasharray="2 2" fill="none" />
+            <path d="M28 47 Q34 43 40 47" stroke="#CBD5E1" strokeWidth="1.2" fill="none" />
+            <path d="M60 47 Q66 43 72 47" stroke="#CBD5E1" strokeWidth="1.2" fill="none" />
+          </g>
+        </svg>
+      );
+
+    case "eye_cat_eye":
+      return (
+        <svg viewBox="0 0 100 100" className={className} fill="none">
+          <rect x="2" y="2" width="96" height="96" rx="10" fill="#FAFAFA" stroke="#E5E7EB" strokeWidth="1.5" />
+          <g className="forensic-feature" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M18 54 C26 40 54 36 82 42" stroke="#1E293B" strokeWidth="2.6" fill="none" />
+            <path d="M18 54 C30 64 56 64 78 44" stroke="#1E293B" strokeWidth="1.6" fill="none" />
+            <path d="M78 44 L84 41" stroke="#1E293B" strokeWidth="2.4" />
+            <circle cx="48" cy="49" r="10" fill="#0F172A" />
+            <circle cx="48" cy="49" r="4.5" fill="#334155" />
+            <circle cx="51" cy="46" r="2" fill="#FFFFFF" />
+            <path d="M24 38 C38 32 60 30 76 34" stroke="#94A3B8" strokeWidth="1.2" strokeDasharray="1.5 2" fill="none" />
+          </g>
+        </svg>
+      );
+
+    case "eye_doe":
+      return (
+        <svg viewBox="0 0 100 100" className={className} fill="none">
+          <rect x="2" y="2" width="96" height="96" rx="10" fill="#FAFAFA" stroke="#E5E7EB" strokeWidth="1.5" />
+          <g className="forensic-feature" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M20 52 C28 32 68 32 80 52" stroke="#1E293B" strokeWidth="2.4" fill="none" />
+            <path d="M20 52 C30 70 70 70 80 52" stroke="#1E293B" strokeWidth="1.8" fill="none" />
+            <circle cx="50" cy="51" r="14" fill="#0F172A" />
+            <circle cx="50" cy="51" r="6" fill="#475569" />
+            <circle cx="54" cy="47" r="3" fill="#FFFFFF" />
+            <circle cx="45" cy="54" r="1.5" fill="#FFFFFF" opacity={0.7} />
+            <path d="M26 34 C40 28 60 28 74 34" stroke="#94A3B8" strokeWidth="1.2" fill="none" />
+          </g>
+        </svg>
+      );
+
+    case "eye_hooded":
+      return (
+        <svg viewBox="0 0 100 100" className={className} fill="none">
+          <rect x="2" y="2" width="96" height="96" rx="10" fill="#FAFAFA" stroke="#E5E7EB" strokeWidth="1.5" />
+          <g className="forensic-feature" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M20 50 C32 38 68 38 80 50" stroke="#64748B" strokeWidth="1.6" fill="none" />
+            <path d="M18 46 C32 40 68 40 82 48" stroke="#1E293B" strokeWidth="2.4" fill="none" />
+            <path d="M22 52 C34 62 66 62 78 52" stroke="#1E293B" strokeWidth="1.8" fill="none" />
+            <circle cx="50" cy="49" r="10" fill="#0F172A" />
+            <circle cx="53" cy="47" r="2" fill="#FFFFFF" />
+          </g>
+        </svg>
+      );
+
+    case "eye_monolid":
+      return (
+        <svg viewBox="0 0 100 100" className={className} fill="none">
+          <rect x="2" y="2" width="96" height="96" rx="10" fill="#FAFAFA" stroke="#E5E7EB" strokeWidth="1.5" />
+          <g className="forensic-feature" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M18 52 C28 42 68 40 82 48" stroke="#1E293B" strokeWidth="2.4" fill="none" />
+            <path d="M18 52 C30 60 68 60 82 48" stroke="#1E293B" strokeWidth="1.8" fill="none" />
+            <circle cx="50" cy="50" r="10" fill="#0F172A" />
+            <circle cx="53" cy="47" r="2" fill="#FFFFFF" />
+            <path d="M18 52 C24 48 32 48 40 48" stroke="#CBD5E1" strokeWidth="1.0" fill="none" />
+          </g>
+        </svg>
+      );
+
+    case "brow_feathered":
+      return (
+        <svg viewBox="0 0 100 100" className={className} fill="none">
+          <rect x="2" y="2" width="96" height="96" rx="10" fill="#FAFAFA" stroke="#E5E7EB" strokeWidth="1.5" />
+          <g className="forensic-feature" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M18 54 C32 44 56 42 80 50" stroke="#1E293B" strokeWidth="2.0" fill="none" />
+            <line x1="22" y1="56" x2="24" y2="48" stroke="#1E293B" strokeWidth="1.4" />
+            <line x1="28" y1="54" x2="31" y2="46" stroke="#1E293B" strokeWidth="1.4" />
+            <line x1="36" y1="52" x2="40" y2="44" stroke="#1E293B" strokeWidth="1.4" />
+            <line x1="45" y1="49" x2="50" y2="43" stroke="#1E293B" strokeWidth="1.4" />
+            <line x1="55" y1="47" x2="62" y2="44" stroke="#1E293B" strokeWidth="1.3" />
+            <line x1="66" y1="48" x2="74" y2="48" stroke="#1E293B" strokeWidth="1.2" />
+          </g>
+        </svg>
+      );
+
+    case "brow_high_glam":
+      return (
+        <svg viewBox="0 0 100 100" className={className} fill="none">
+          <rect x="2" y="2" width="96" height="96" rx="10" fill="#FAFAFA" stroke="#E5E7EB" strokeWidth="1.5" />
+          <g className="forensic-feature" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M18 58 L52 38 L82 56 L54 44 Z" fill="#1E293B" stroke="#1E293B" strokeWidth="1.2" />
+            <path d="M18 58 C34 46 52 38 52 38 C52 38 68 46 82 56" stroke="#0F172A" strokeWidth="1.8" fill="none" />
+          </g>
+        </svg>
+      );
+
+    case "brow_soft_straight":
+      return (
+        <svg viewBox="0 0 100 100" className={className} fill="none">
+          <rect x="2" y="2" width="96" height="96" rx="10" fill="#FAFAFA" stroke="#E5E7EB" strokeWidth="1.5" />
+          <g className="forensic-feature" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M18 50 L64 48 C72 49 78 52 82 54" stroke="#1E293B" strokeWidth="3.2" strokeLinecap="round" fill="none" />
+            <path d="M22 51 L62 49" stroke="#64748B" strokeWidth="1.2" strokeLinecap="round" fill="none" />
+          </g>
+        </svg>
+      );
+
+    case "brow_s_shaped":
+      return (
+        <svg viewBox="0 0 100 100" className={className} fill="none">
+          <rect x="2" y="2" width="96" height="96" rx="10" fill="#FAFAFA" stroke="#E5E7EB" strokeWidth="1.5" />
+          <g className="forensic-feature" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M18 54 C24 57 32 54 44 44 C56 34 68 38 82 54" stroke="#1E293B" strokeWidth="2.4" fill="none" />
+            <path d="M22 56 C30 58 40 50 50 42 C60 36 70 42 78 54" stroke="#64748B" strokeWidth="1.2" fill="none" />
+          </g>
+        </svg>
+      );
+
+    case "nose_button":
+      return (
+        <svg viewBox="0 0 100 100" className={className} fill="none">
+          <rect x="2" y="2" width="96" height="96" rx="10" fill="#FAFAFA" stroke="#E5E7EB" strokeWidth="1.5" />
+          <g className="forensic-feature" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="48" y1="24" x2="48" y2="54" stroke="#94A3B8" strokeWidth="1.4" strokeDasharray="1.5 2" />
+            <line x1="52" y1="24" x2="52" y2="54" stroke="#94A3B8" strokeWidth="1.4" strokeDasharray="1.5 2" />
+            <circle cx="50" cy="62" r="7" fill="#F1F5F9" stroke="#1E293B" strokeWidth="2.2" />
+            <path d="M38 64 C40 60 44 60 46 63" stroke="#1E293B" strokeWidth="1.8" fill="none" />
+            <path d="M62 64 C60 60 56 60 54 63" stroke="#1E293B" strokeWidth="1.8" fill="none" />
+            <ellipse cx="50" cy="60" rx="3" ry="2" fill="#FFFFFF" />
+          </g>
+        </svg>
+      );
+
+    case "nose_slender_sculpted":
+      return (
+        <svg viewBox="0 0 100 100" className={className} fill="none">
+          <rect x="2" y="2" width="96" height="96" rx="10" fill="#FAFAFA" stroke="#E5E7EB" strokeWidth="1.5" />
+          <g className="forensic-feature" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="47" y1="22" x2="47" y2="60" stroke="#1E293B" strokeWidth="1.8" />
+            <line x1="53" y1="22" x2="53" y2="60" stroke="#64748B" strokeWidth="1.2" />
+            <path d="M43 68 C45 62 47 62 50 63 C53 62 55 62 57 68" stroke="#1E293B" strokeWidth="2.2" fill="none" />
+            <path d="M37 66 C39 63 42 64 44 67" stroke="#1E293B" strokeWidth="1.6" fill="none" />
+            <path d="M63 66 C61 63 58 64 56 67" stroke="#1E293B" strokeWidth="1.6" fill="none" />
+          </g>
+        </svg>
+      );
+
+    case "nose_septum":
+      return (
+        <svg viewBox="0 0 100 100" className={className} fill="none">
+          <rect x="2" y="2" width="96" height="96" rx="10" fill="#FAFAFA" stroke="#E5E7EB" strokeWidth="1.5" />
+          <g className="forensic-feature" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M38 58 C44 56 56 56 62 58" stroke="#64748B" strokeWidth="1.6" fill="none" />
+            <path d="M44 60 C46 64 54 64 56 60" stroke="#1E293B" strokeWidth="2.0" fill="none" />
+            <path d="M45 64 A 6 6 0 1 0 55 64" stroke="#CBD5E1" strokeWidth="2.2" fill="none" />
+            <circle cx="44.5" cy="63.5" r="1.5" fill="#475569" />
+            <circle cx="55.5" cy="63.5" r="1.5" fill="#475569" />
+          </g>
+        </svg>
+      );
+
+    case "mouth_cupid_bow":
+      return (
+        <svg viewBox="0 0 100 100" className={className} fill="none">
+          <rect x="2" y="2" width="96" height="96" rx="10" fill="#FAFAFA" stroke="#E5E7EB" strokeWidth="1.5" />
+          <g className="forensic-feature" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M22 50 C32 44 42 38 47 43 L50 46 L53 43 C58 38 68 44 78 50 C68 56 58 53 50 53 C42 53 32 56 22 50 Z" fill="#F1F5F9" stroke="#1E293B" strokeWidth="2.0" />
+            <path d="M24 51 C34 68 66 68 76 51 C66 62 34 62 24 51 Z" fill="#E2E8F0" stroke="#1E293B" strokeWidth="2.0" />
+            <line x1="22" y1="50" x2="78" y2="50" stroke="#0F172A" strokeWidth="1.6" />
+          </g>
+        </svg>
+      );
+
+    case "mouth_pillowy_plump":
+      return (
+        <svg viewBox="0 0 100 100" className={className} fill="none">
+          <rect x="2" y="2" width="96" height="96" rx="10" fill="#FAFAFA" stroke="#E5E7EB" strokeWidth="1.5" />
+          <g className="forensic-feature" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M20 48 C30 38 44 38 50 42 C56 38 70 38 80 48 C70 54 58 52 50 52 C42 52 30 54 20 48 Z" fill="#F1F5F9" stroke="#1E293B" strokeWidth="2.2" />
+            <path d="M22 50 C30 72 70 72 78 50 C68 64 32 64 22 50 Z" fill="#E2E8F0" stroke="#1E293B" strokeWidth="2.2" />
+            <line x1="20" y1="49" x2="80" y2="49" stroke="#0F172A" strokeWidth="1.6" />
+            <line x1="42" y1="54" x2="42" y2="60" stroke="#94A3B8" strokeWidth="1.0" />
+            <line x1="50" y1="54" x2="50" y2="62" stroke="#94A3B8" strokeWidth="1.0" />
+            <line x1="58" y1="54" x2="58" y2="60" stroke="#94A3B8" strokeWidth="1.0" />
+          </g>
+        </svg>
+      );
+
+    case "mouth_rosebud":
+      return (
+        <svg viewBox="0 0 100 100" className={className} fill="none">
+          <rect x="2" y="2" width="96" height="96" rx="10" fill="#FAFAFA" stroke="#E5E7EB" strokeWidth="1.5" />
+          <g className="forensic-feature" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M30 48 C36 40 44 40 50 44 C56 40 64 40 70 48 C64 52 56 50 50 50 C44 50 36 52 30 48 Z" fill="#F1F5F9" stroke="#1E293B" strokeWidth="2.0" />
+            <path d="M32 50 C36 68 64 68 68 50 C62 60 38 60 32 50 Z" fill="#E2E8F0" stroke="#1E293B" strokeWidth="2.0" />
+            <line x1="30" y1="49" x2="70" y2="49" stroke="#0F172A" strokeWidth="1.6" />
+          </g>
+        </svg>
+      );
+
+    case "mouth_delicate_natural":
+      return (
+        <svg viewBox="0 0 100 100" className={className} fill="none">
+          <rect x="2" y="2" width="96" height="96" rx="10" fill="#FAFAFA" stroke="#E5E7EB" strokeWidth="1.5" />
+          <g className="forensic-feature" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M24 50 C32 44 44 44 50 46 C56 44 68 44 76 50 C68 52 58 51 50 51 C42 51 32 52 24 50 Z" fill="#F1F5F9" stroke="#1E293B" strokeWidth="1.8" />
+            <path d="M26 51 C34 62 66 62 74 51 C66 57 34 57 26 51 Z" fill="#E2E8F0" stroke="#1E293B" strokeWidth="1.8" />
+            <line x1="24" y1="50" x2="76" y2="50" stroke="#0F172A" strokeWidth="1.4" />
+          </g>
+        </svg>
+      );
+
+    case "hair_bob":
+      return (
+        <svg viewBox="0 0 100 100" className={className} fill="none">
+          <rect x="2" y="2" width="96" height="96" rx="10" fill="#FAFAFA" stroke="#E5E7EB" strokeWidth="1.5" />
+          <g className="forensic-feature" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M20 70 C16 45 25 15 50 15 C75 15 84 45 80 70 L72 70 C74 50 72 38 68 34 C64 30 56 30 50 30 C44 30 36 30 32 34 C28 38 26 50 28 70 Z" fill="#1E293B" stroke="#0F172A" strokeWidth="2.0" />
+            <line x1="50" y1="16" x2="50" y2="30" stroke="#64748B" strokeWidth="1.4" />
+            <path d="M22 66 C22 40 32 20 48 18" stroke="#94A3B8" strokeWidth="1.2" fill="none" />
+            <path d="M78 66 C78 40 68 20 52 18" stroke="#94A3B8" strokeWidth="1.2" fill="none" />
+          </g>
+        </svg>
+      );
+
+    case "hair_pixie":
+      return (
+        <svg viewBox="0 0 100 100" className={className} fill="none">
+          <rect x="2" y="2" width="96" height="96" rx="10" fill="#FAFAFA" stroke="#E5E7EB" strokeWidth="1.5" />
+          <g className="forensic-feature" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M26 48 C24 30 32 16 50 16 C68 16 76 30 74 48 C72 44 68 40 62 42 C56 38 46 36 38 42 C32 40 28 44 26 48 Z" fill="#1E293B" stroke="#0F172A" strokeWidth="2.0" />
+            <path d="M34 26 L40 36 M46 22 L50 34 M58 24 L56 36" stroke="#94A3B8" strokeWidth="1.4" />
+          </g>
+        </svg>
+      );
+
+    case "hair_ponytail":
+      return (
+        <svg viewBox="0 0 100 100" className={className} fill="none">
+          <rect x="2" y="2" width="96" height="96" rx="10" fill="#FAFAFA" stroke="#E5E7EB" strokeWidth="1.5" />
+          <g className="forensic-feature" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M28 50 C26 30 34 18 50 18 C66 18 74 30 72 50 C68 42 62 34 50 34 C38 34 32 42 28 50 Z" fill="#1E293B" stroke="#0F172A" strokeWidth="2.0" />
+            <ellipse cx="50" cy="14" rx="6" ry="3" fill="#475569" stroke="#0F172A" strokeWidth="1.4" />
+            <path d="M50 12 C56 6 70 8 76 22 C82 36 84 56 82 72 C78 72 76 50 72 34 C68 22 58 16 50 12 Z" fill="#1E293B" stroke="#0F172A" strokeWidth="1.8" />
+          </g>
+        </svg>
+      );
+
+    case "hair_curtain_bangs":
+      return (
+        <svg viewBox="0 0 100 100" className={className} fill="none">
+          <rect x="2" y="2" width="96" height="96" rx="10" fill="#FAFAFA" stroke="#E5E7EB" strokeWidth="1.5" />
+          <g className="forensic-feature" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M22 74 C18 48 24 16 50 16 C76 16 82 48 78 74 C74 72 72 52 68 42 C62 32 54 26 50 28 C46 26 38 32 32 42 C28 52 26 72 22 74 Z" fill="#1E293B" stroke="#0F172A" strokeWidth="2.0" />
+            <path d="M48 26 C42 34 34 42 28 50" stroke="#94A3B8" strokeWidth="1.6" fill="none" />
+            <path d="M52 26 C58 34 66 42 72 50" stroke="#94A3B8" strokeWidth="1.6" fill="none" />
+          </g>
+        </svg>
+      );
+
+    case "hair_sleek_straight":
+      return (
+        <svg viewBox="0 0 100 100" className={className} fill="none">
+          <rect x="2" y="2" width="96" height="96" rx="10" fill="#FAFAFA" stroke="#E5E7EB" strokeWidth="1.5" />
+          <g className="forensic-feature" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M20 84 L22 50 C24 24 34 16 50 16 C66 16 76 24 78 50 L80 84 L72 84 L70 50 C68 36 62 30 50 30 C38 30 32 36 30 50 L28 84 Z" fill="#1E293B" stroke="#0F172A" strokeWidth="2.0" />
+            <line x1="50" y1="16" x2="50" y2="30" stroke="#64748B" strokeWidth="1.6" />
+            <line x1="24" y1="46" x2="24" y2="82" stroke="#94A3B8" strokeWidth="1.0" />
+            <line x1="76" y1="46" x2="76" y2="82" stroke="#94A3B8" strokeWidth="1.0" />
+          </g>
+        </svg>
+      );
+
+    case "hair_shoulder_lob":
+      return (
+        <svg viewBox="0 0 100 100" className={className} fill="none">
+          <rect x="2" y="2" width="96" height="96" rx="10" fill="#FAFAFA" stroke="#E5E7EB" strokeWidth="1.5" />
+          <g className="forensic-feature" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M20 78 C16 66 22 54 22 40 C24 20 34 16 50 16 C66 16 76 20 78 40 C78 54 84 66 80 78 C74 76 72 60 70 48 C66 34 60 28 50 28 C40 28 34 34 30 48 C28 60 26 76 20 78 Z" fill="#1E293B" stroke="#0F172A" strokeWidth="2.0" />
+            <path d="M21 54 C25 62 23 70 20 76" stroke="#94A3B8" strokeWidth="1.4" fill="none" />
+            <path d="M79 54 C75 62 77 70 80 76" stroke="#94A3B8" strokeWidth="1.4" fill="none" />
+          </g>
+        </svg>
+      );
+
+    case "hair_blunt_bangs":
+      return (
+        <svg viewBox="0 0 100 100" className={className} fill="none">
+          <rect x="2" y="2" width="96" height="96" rx="10" fill="#FAFAFA" stroke="#E5E7EB" strokeWidth="1.5" />
+          <g className="forensic-feature" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M22 80 L22 46 C24 20 34 16 50 16 C66 16 76 20 78 46 L78 80 L70 80 L70 46 C70 42 66 40 50 40 C34 40 30 42 30 46 L30 80 Z" fill="#1E293B" stroke="#0F172A" strokeWidth="2.0" />
+            <rect x="30" y="32" width="40" height="12" fill="#1E293B" stroke="#0F172A" strokeWidth="1.4" />
+            <line x1="30" y1="44" x2="70" y2="44" stroke="#0F172A" strokeWidth="2.0" />
+          </g>
+        </svg>
+      );
+
+    case "hair_afro_puffs":
+      return (
+        <svg viewBox="0 0 100 100" className={className} fill="none">
+          <rect x="2" y="2" width="96" height="96" rx="10" fill="#FAFAFA" stroke="#E5E7EB" strokeWidth="1.5" />
+          <g className="forensic-feature" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="26" cy="28" r="16" fill="#1E293B" stroke="#0F172A" strokeWidth="2.0" />
+            <circle cx="74" cy="28" r="16" fill="#1E293B" stroke="#0F172A" strokeWidth="2.0" />
+            <path d="M30 46 C32 26 40 22 50 22 C60 22 68 26 70 46 C64 36 58 32 50 32 C42 32 36 36 30 46 Z" fill="#1E293B" stroke="#0F172A" strokeWidth="2.0" />
+            <circle cx="26" cy="28" r="10" stroke="#64748B" strokeWidth="1.2" strokeDasharray="2 2" fill="none" />
+            <circle cx="74" cy="28" r="10" stroke="#64748B" strokeWidth="1.2" strokeDasharray="2 2" fill="none" />
+          </g>
+        </svg>
+      );
+
+    case "hair_box_braids":
+      return (
+        <svg viewBox="0 0 100 100" className={className} fill="none">
+          <rect x="2" y="2" width="96" height="96" rx="10" fill="#FAFAFA" stroke="#E5E7EB" strokeWidth="1.5" />
+          <g className="forensic-feature" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M26 38 C28 22 36 18 50 18 C64 18 72 22 74 38" stroke="#1E293B" strokeWidth="2.0" fill="none" />
+            <line x1="24" y1="36" x2="22" y2="82" stroke="#1E293B" strokeWidth="2.4" strokeDasharray="2 2" />
+            <line x1="30" y1="34" x2="28" y2="84" stroke="#1E293B" strokeWidth="2.4" strokeDasharray="2 2" />
+            <line x1="38" y1="30" x2="36" y2="84" stroke="#1E293B" strokeWidth="2.4" strokeDasharray="2 2" />
+            <line x1="62" y1="30" x2="64" y2="84" stroke="#1E293B" strokeWidth="2.4" strokeDasharray="2 2" />
+            <line x1="70" y1="34" x2="72" y2="84" stroke="#1E293B" strokeWidth="2.4" strokeDasharray="2 2" />
+            <line x1="76" y1="36" x2="78" y2="82" stroke="#1E293B" strokeWidth="2.4" strokeDasharray="2 2" />
+          </g>
+        </svg>
+      );
+
+    case "hair_dreadlocks":
+      return (
+        <svg viewBox="0 0 100 100" className={className} fill="none">
+          <rect x="2" y="2" width="96" height="96" rx="10" fill="#FAFAFA" stroke="#E5E7EB" strokeWidth="1.5" />
+          <g className="forensic-feature" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M26 40 C28 20 38 16 50 16 C62 16 72 20 74 40" stroke="#1E293B" strokeWidth="2.4" fill="none" />
+            <path d="M22 38 Q20 58 22 80" stroke="#1E293B" strokeWidth="3.2" strokeLinecap="round" />
+            <path d="M30 34 Q28 58 30 82" stroke="#1E293B" strokeWidth="3.2" strokeLinecap="round" />
+            <path d="M40 28 Q42 54 38 80" stroke="#1E293B" strokeWidth="3.0" strokeLinecap="round" />
+            <path d="M60 28 Q58 54 62 80" stroke="#1E293B" strokeWidth="3.0" strokeLinecap="round" />
+            <path d="M70 34 Q72 58 70 82" stroke="#1E293B" strokeWidth="3.2" strokeLinecap="round" />
+            <path d="M78 38 Q80 58 78 80" stroke="#1E293B" strokeWidth="3.2" strokeLinecap="round" />
+          </g>
+        </svg>
+      );
+
+    case "other_hairline_widows_peak":
+      return (
+        <svg viewBox="0 0 100 100" className={className} fill="none">
+          <rect x="2" y="2" width="96" height="96" rx="10" fill="#FAFAFA" stroke="#E5E7EB" strokeWidth="1.5" />
+          <g className="forensic-feature" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M20 50 C30 42 42 36 50 46 C58 36 70 42 80 50" stroke="#1E293B" strokeWidth="2.4" fill="none" />
+            <path d="M20 50 C26 24 38 18 50 18 C62 18 74 24 80 50" stroke="#94A3B8" strokeWidth="1.2" strokeDasharray="2 2" fill="none" />
+            <circle cx="50" cy="46" r="2" fill="#1E293B" />
+          </g>
+        </svg>
+      );
+
+    case "mark_monroe_spot":
+      return (
+        <svg viewBox="0 0 100 100" className={className} fill="none">
+          <rect x="2" y="2" width="96" height="96" rx="10" fill="#FAFAFA" stroke="#E5E7EB" strokeWidth="1.5" />
+          <g className="forensic-feature" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M30 58 C38 52 62 52 70 58" stroke="#94A3B8" strokeWidth="1.5" fill="none" />
+            <path d="M32 59 C40 70 60 70 68 59" stroke="#94A3B8" strokeWidth="1.5" fill="none" />
+            <circle cx="36" cy="46" r="3.2" fill="#0F172A" />
+            <circle cx="36" cy="46" r="4.2" stroke="#64748B" strokeWidth="0.8" strokeDasharray="1 1" fill="none" />
+          </g>
+        </svg>
+      );
+
+    case "mark_cheek_spot":
+      return (
+        <svg viewBox="0 0 100 100" className={className} fill="none">
+          <rect x="2" y="2" width="96" height="96" rx="10" fill="#FAFAFA" stroke="#E5E7EB" strokeWidth="1.5" />
+          <g className="forensic-feature" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M24 46 C32 38 48 40 52 50" stroke="#CBD5E1" strokeWidth="1.5" strokeDasharray="2 2" fill="none" />
+            <circle cx="38" cy="44" r="3.5" fill="#0F172A" />
+            <circle cx="38" cy="44" r="5" stroke="#94A3B8" strokeWidth="0.8" fill="none" />
+          </g>
+        </svg>
+      );
+
+    case "mark_soft_freckles":
+      return (
+        <svg viewBox="0 0 100 100" className={className} fill="none">
+          <rect x="2" y="2" width="96" height="96" rx="10" fill="#FAFAFA" stroke="#E5E7EB" strokeWidth="1.5" />
+          <g className="forensic-feature" strokeLinecap="round" strokeLinejoin="round" fill="#78350F" opacity={0.75}>
+            <circle cx="48" cy="44" r="1.1" /><circle cx="52" cy="45" r="1.2" /><circle cx="46" cy="48" r="1.0" />
+            <circle cx="54" cy="49" r="1.3" /><circle cx="50" cy="51" r="1.1" /><circle cx="44" cy="53" r="1.0" />
+            <circle cx="56" cy="53" r="1.2" /><circle cx="38" cy="50" r="1.2" /><circle cx="34" cy="52" r="1.0" />
+            <circle cx="62" cy="50" r="1.2" /><circle cx="66" cy="52" r="1.0" /><circle cx="36" cy="46" r="0.9" />
+            <circle cx="64" cy="46" r="0.9" />
+          </g>
+        </svg>
+      );
+
+    case "mark_nose_stud":
+      return (
+        <svg viewBox="0 0 100 100" className={className} fill="none">
+          <rect x="2" y="2" width="96" height="96" rx="10" fill="#FAFAFA" stroke="#E5E7EB" strokeWidth="1.5" />
+          <g className="forensic-feature" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M42 42 L42 60 C42 66 58 66 58 60" stroke="#94A3B8" strokeWidth="1.8" fill="none" />
+            <path d="M36 62 C38 58 42 58 44 61" stroke="#64748B" strokeWidth="1.6" fill="none" />
+            <path d="M64 62 C62 58 58 58 56 61" stroke="#64748B" strokeWidth="1.6" fill="none" />
+            <circle cx="62" cy="59" r="3.2" fill="#E2E8F0" stroke="#0F172A" strokeWidth="1.4" />
+            <circle cx="61.5" cy="58" r="1" fill="#FFFFFF" />
+          </g>
+        </svg>
+      );
+
+    case "mark_lip_labret":
+      return (
+        <svg viewBox="0 0 100 100" className={className} fill="none">
+          <rect x="2" y="2" width="96" height="96" rx="10" fill="#FAFAFA" stroke="#E5E7EB" strokeWidth="1.5" />
+          <g className="forensic-feature" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M26 50 C36 44 64 44 74 50" stroke="#94A3B8" strokeWidth="1.6" fill="none" />
+            <path d="M28 51 C36 64 64 64 72 51" stroke="#94A3B8" strokeWidth="1.6" fill="none" />
+            <circle cx="50" cy="72" r="3" fill="#E2E8F0" stroke="#0F172A" strokeWidth="1.4" />
+            <circle cx="49" cy="71" r="0.9" fill="#FFFFFF" />
+          </g>
+        </svg>
+      );
+
+    case "mark_eyebrow_ring":
+      return (
+        <svg viewBox="0 0 100 100" className={className} fill="none">
+          <rect x="2" y="2" width="96" height="96" rx="10" fill="#FAFAFA" stroke="#E5E7EB" strokeWidth="1.5" />
+          <g className="forensic-feature" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M18 52 C32 42 56 42 80 50" stroke="#1E293B" strokeWidth="2.8" strokeLinecap="round" fill="none" />
+            <path d="M68 40 L68 56" stroke="#94A3B8" strokeWidth="2.0" />
+            <circle cx="68" cy="40" r="2.4" fill="#0F172A" />
+            <circle cx="68" cy="56" r="2.4" fill="#0F172A" />
+          </g>
+        </svg>
+      );
+
     default:
       return (
         <svg viewBox="0 0 100 100" className={className} fill="none">

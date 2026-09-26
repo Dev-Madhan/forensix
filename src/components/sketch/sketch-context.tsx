@@ -14,6 +14,7 @@ export interface FeatureItem {
   svgType: string;
   description: string;
   token: string;
+  gender?: "male" | "female" | "all";
 }
 
 export type DetailLevel = "Draft" | "Standard" | "Master";

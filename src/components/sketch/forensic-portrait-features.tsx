@@ -138,6 +138,34 @@ export function ForensicEyesLayer({
         irisRadius = 6.6;
         pupilRadius = 2.8;
         break;
+      case "eye_cat_eye":
+        palpebralUpper = "M -20 2 C -10 -9 11 -13 22 -3";
+        palpebralLower = "M -20 2 C -10 9 10 9 22 -3";
+        creaseUpper = "M -17 -7 C -9 -14 10 -15 20 -7";
+        irisRadius = 6.8;
+        pupilRadius = 2.8;
+        break;
+      case "eye_doe":
+        palpebralUpper = "M -20 0 C -10 -15 10 -15 20 0";
+        palpebralLower = "M -20 0 C -10 13 10 13 20 0";
+        creaseUpper = "M -18 -11 C -9 -18 9 -18 18 -11";
+        irisRadius = 8.2;
+        pupilRadius = 3.6;
+        break;
+      case "eye_hooded":
+        palpebralUpper = "M -21 0 C -11 -9 11 -9 21 0";
+        palpebralLower = "M -21 0 C -11 8 11 8 21 0";
+        creaseUpper = "M -20 -4 C -10 -7 10 -7 20 -4";
+        irisRadius = 6.5;
+        pupilRadius = 2.7;
+        break;
+      case "eye_monolid":
+        palpebralUpper = "M -20 0 C -11 -8 11 -8 20 0";
+        palpebralLower = "M -20 0 C -11 7 11 7 20 0";
+        creaseUpper = "M -16 -4 C -8 -7 8 -7 16 -4";
+        irisRadius = 6.4;
+        pupilRadius = 2.6;
+        break;
       case "eye_almond":
       default:
         palpebralUpper = "M -20 0 C -11 -10 11 -10 20 0";
@@ -331,6 +359,49 @@ export function ForensicCheeksLayer({
             className="opacity-85"
           />
           <circle cx={cx + 36.5} cy={243} r="1.4" fill="#0F172A" stroke="#94A3B8" strokeWidth="0.8" />
+        </g>
+      )}
+
+      {cheekId === "cheeks_apple" && (
+        <g id="forensic-cheeks-apple">
+          {/* Soft rounded apple of the cheek highlights & contour */}
+          <path
+            d={`M ${(lckX + 16).toFixed(2)} ${(ckY + 4).toFixed(2)} C ${(lckX + 12).toFixed(2)} ${(ckY + 18).toFixed(2)}, ${(cx - 24).toFixed(2)} ${(ckY + 28).toFixed(2)}, ${(cx - 16).toFixed(2)} ${(ckY + 16).toFixed(2)}`}
+            fill="none"
+            stroke="#E2E8F0"
+            strokeWidth="1.2"
+            strokeLinecap="round"
+            className="opacity-70"
+          />
+          <path
+            d={`M ${(ckX - 16).toFixed(2)} ${(ckY + 4).toFixed(2)} C ${(ckX - 12).toFixed(2)} ${(ckY + 18).toFixed(2)}, ${(cx + 24).toFixed(2)} ${(ckY + 28).toFixed(2)}, ${(cx + 16).toFixed(2)} ${(ckY + 16).toFixed(2)}`}
+            fill="none"
+            stroke="#E2E8F0"
+            strokeWidth="1.2"
+            strokeLinecap="round"
+            className="opacity-70"
+          />
+        </g>
+      )}
+
+      {cheekId === "cheeks_sculpted_zygomatic" && (
+        <g id="forensic-cheeks-sculpted">
+          <path
+            d={`M ${(lckX + 10).toFixed(2)} ${(ckY - 4).toFixed(2)} C ${(lckX + 28).toFixed(2)} ${(ckY - 6).toFixed(2)}, ${(cx - 22).toFixed(2)} ${(ckY + 8).toFixed(2)}, ${(cx - 18).toFixed(2)} ${(ckY + 18).toFixed(2)}`}
+            fill="none"
+            stroke="#FFFFFF"
+            strokeWidth="1.4"
+            strokeLinecap="round"
+            className="opacity-80"
+          />
+          <path
+            d={`M ${(ckX - 10).toFixed(2)} ${(ckY - 4).toFixed(2)} C ${(ckX - 28).toFixed(2)} ${(ckY - 6).toFixed(2)}, ${(cx + 22).toFixed(2)} ${(ckY + 8).toFixed(2)}, ${(cx + 18).toFixed(2)} ${(ckY + 18).toFixed(2)}`}
+            fill="none"
+            stroke="#FFFFFF"
+            strokeWidth="1.4"
+            strokeLinecap="round"
+            className="opacity-80"
+          />
         </g>
       )}
     </g>
@@ -530,10 +601,10 @@ export function ForensicEyebrowsLayer({
   let browY = 127;
   let strokeWidth = 1.6;
 
-  if (browShape === "brow_high_set") browY = 122;
+  if (browShape === "brow_high_set" || browShape === "brow_high_glam") browY = 121;
   else if (browShape === "brow_low_set") browY = 132;
   else if (browShape === "brow_thick") strokeWidth = 2.2;
-  else if (browShape === "brow_thin") strokeWidth = 1.2;
+  else if (browShape === "brow_thin" || browShape === "brow_feathered") strokeWidth = 1.25;
 
   const leftBrowX = 160 - intercanthal;
   const rightBrowX = 160 + intercanthal;
@@ -550,6 +621,14 @@ export function ForensicEyebrowsLayer({
         return "M -22 3 C -11 -5 9 -5 22 4";
       case "brow_low_set":
         return "M -22 2 C -11 -2 9 -2 22 2";
+      case "brow_feathered":
+        return "M -22 3 C -10 -4 9 -5 21 3";
+      case "brow_high_glam":
+        return "M -22 4 C -10 -8 8 -9 22 5";
+      case "brow_soft_straight":
+        return "M -22 1 C -10 0 10 0 22 1";
+      case "brow_s_shaped":
+        return "M -22 4 C -13 0 5 -7 22 4";
       case "brow_straight":
       default:
         return "M -22 2 C -10 -2 10 -2 22 2";
@@ -1381,6 +1460,71 @@ export function ForensicNoseLayer({
             <line x1={cx + 3} y1={223} x2={cx + 3.5} y2={234} stroke="#94A3B8" strokeWidth="0.9" strokeDasharray="1.5 2" className="opacity-40" />
           </g>
         );
+
+      case "nose_button":
+        return (
+          <g id="forensic-nose-button">
+            {/* Slender Glabella & Narrow Upper Bridge */}
+            <line x1={cx - 2.5} y1={168} x2={cx - 2.5} y2={202} stroke="#94A3B8" strokeWidth="0.9" strokeDasharray="1.5 2" className="opacity-50" />
+            <line x1={cx + 2.5} y1={168} x2={cx + 2.5} y2={202} stroke="#FFFFFF" strokeWidth="1.2" className="opacity-90" />
+            {/* Petite rounded button tip */}
+            <path d={`M ${cx - 4.5} 205 C ${cx - 2} 203, ${cx + 2} 203, ${cx + 4.5} 205`} fill="none" stroke="#94A3B8" strokeWidth="1.0" className="opacity-70" />
+            <path d={`M ${cx - 4.5} 210 C ${cx - 2} 213, ${cx + 2} 213, ${cx + 4.5} 210`} fill="none" stroke="#FFFFFF" strokeWidth="1.5" strokeLinecap="round" />
+            {/* Delicate petite alar wings */}
+            <path d={`M ${cx - 10} 208 C ${cx - 13} 211, ${cx - 12} 215, ${cx - 8} 217`} fill="none" stroke="#FFFFFF" strokeWidth="1.3" strokeLinecap="round" />
+            <path d={`M ${cx + 10} 208 C ${cx + 13} 211, ${cx + 12} 215, ${cx + 8} 217`} fill="none" stroke="#FFFFFF" strokeWidth="1.3" strokeLinecap="round" />
+            {/* Small nostril apertures */}
+            <ellipse cx={cx - 6} cy={215.5} rx={2.2} ry={1.2} fill="#0F172A" />
+            <ellipse cx={cx + 6} cy={215.5} rx={2.2} ry={1.2} fill="#0F172A" />
+            {/* Central columella */}
+            <path d={`M ${cx - 2} 215 C ${cx - 1} 218, ${cx + 1} 218, ${cx + 2} 215`} fill="none" stroke="#FFFFFF" strokeWidth="1.3" strokeLinecap="round" />
+            {/* Philtrum columns */}
+            <line x1={cx - 2.5} y1={221} x2={cx - 3} y2={234} stroke="#94A3B8" strokeWidth="0.8" strokeDasharray="1.5 2" className="opacity-40" />
+            <line x1={cx + 2.5} y1={221} x2={cx + 3} y2={234} stroke="#94A3B8" strokeWidth="0.8" strokeDasharray="1.5 2" className="opacity-40" />
+          </g>
+        );
+
+      case "nose_slender_sculpted":
+        return (
+          <g id="forensic-nose-slender">
+            {/* Sleek straight sculpted bridge */}
+            <line x1={cx - 2.5} y1={162} x2={cx - 2.5} y2={204} stroke="#94A3B8" strokeWidth="1.0" strokeDasharray="1.5 2" className="opacity-50" />
+            <line x1={cx + 2.5} y1={162} x2={cx + 2.5} y2={204} stroke="#FFFFFF" strokeWidth="1.4" className="opacity-95" />
+            {/* Defined refined supratip */}
+            <path d={`M ${cx - 5} 205 C ${cx - 2.5} 203.5, ${cx + 2.5} 203.5, ${cx + 5} 205`} fill="none" stroke="#94A3B8" strokeWidth="1.0" className="opacity-70" />
+            <path d={`M ${cx - 5} 211 C ${cx - 2.5} 214, ${cx + 2.5} 214, ${cx + 5} 211`} fill="none" stroke="#FFFFFF" strokeWidth="1.6" strokeLinecap="round" />
+            {/* Slender alar contours */}
+            <path d={`M ${cx - 11} 208 C ${cx - 14} 211, ${cx - 13} 216, ${cx - 8.5} 218`} fill="none" stroke="#FFFFFF" strokeWidth="1.3" strokeLinecap="round" />
+            <path d={`M ${cx + 11} 208 C ${cx + 14} 211, ${cx + 13} 216, ${cx + 8.5} 218`} fill="none" stroke="#FFFFFF" strokeWidth="1.3" strokeLinecap="round" />
+            {/* Nostrils */}
+            <ellipse cx={cx - 6.5} cy={216} rx={2.5} ry={1.3} fill="#0F172A" />
+            <ellipse cx={cx + 6.5} cy={216} rx={2.5} ry={1.3} fill="#0F172A" />
+            {/* Central Columella */}
+            <path d={`M ${cx - 2.5} 216 C ${cx - 1} 219, ${cx + 1} 219, ${cx + 2.5} 216`} fill="none" stroke="#FFFFFF" strokeWidth="1.4" strokeLinecap="round" />
+            {/* Philtrum */}
+            <line x1={cx - 2.5} y1={222} x2={cx - 3} y2={234} stroke="#94A3B8" strokeWidth="0.8" strokeDasharray="1.5 2" className="opacity-40" />
+            <line x1={cx + 2.5} y1={222} x2={cx + 3} y2={234} stroke="#94A3B8" strokeWidth="0.8" strokeDasharray="1.5 2" className="opacity-40" />
+          </g>
+        );
+
+      case "nose_septum":
+        return (
+          <g id="forensic-nose-septum">
+            {/* Standard straight nose bridge */}
+            <line x1={cx - 3.5} y1={166} x2={cx - 3.5} y2={202} stroke="#94A3B8" strokeWidth="1.0" strokeDasharray="1.5 2" className="opacity-50" />
+            <line x1={cx + 3.5} y1={166} x2={cx + 3.5} y2={202} stroke="#FFFFFF" strokeWidth="1.3" className="opacity-90" />
+            <path d={`M ${cx - 6} 212 C ${cx - 3} 215, ${cx + 3} 215, ${cx + 6} 212`} fill="none" stroke="#FFFFFF" strokeWidth="1.6" strokeLinecap="round" />
+            <path d={`M ${cx - 14} 208 C ${cx - 17} 212, ${cx - 16} 217, ${cx - 10} 219`} fill="none" stroke="#FFFFFF" strokeWidth="1.4" strokeLinecap="round" />
+            <path d={`M ${cx + 14} 208 C ${cx + 17} 212, ${cx + 16} 217, ${cx + 10} 219`} fill="none" stroke="#FFFFFF" strokeWidth="1.4" strokeLinecap="round" />
+            <ellipse cx={cx - 7} cy={216.5} rx={3} ry={1.5} fill="#0F172A" />
+            <ellipse cx={cx + 7} cy={216.5} rx={3} ry={1.5} fill="#0F172A" />
+            <path d={`M ${cx - 3} 216.5 C ${cx - 1.5} 219.5, ${cx + 1.5} 219.5, ${cx + 3} 216.5`} fill="none" stroke="#FFFFFF" strokeWidth="1.5" strokeLinecap="round" />
+            {/* Septum Ring Horseshoe */}
+            <circle cx={cx} cy={221} r="4.2" fill="none" stroke="#E2E8F0" strokeWidth="1.6" />
+            <circle cx={cx - 3.5} cy={223.5} r="1.3" fill="#FFFFFF" stroke="#94A3B8" strokeWidth="0.6" />
+            <circle cx={cx + 3.5} cy={223.5} r="1.3" fill="#FFFFFF" stroke="#94A3B8" strokeWidth="0.6" />
+          </g>
+        );
     }
   };
 
@@ -1432,6 +1576,26 @@ export function ForensicMouthLayer({
       break;
     case "mouth_downturned":
       commissureDrop = 2.5;
+      break;
+    case "mouth_cupid_bow":
+      mouthHalfW = 19;
+      upperLipThick = 5.2;
+      lowerLipThick = 6.2;
+      break;
+    case "mouth_pillowy_plump":
+      mouthHalfW = 22;
+      upperLipThick = 7.5;
+      lowerLipThick = 9.5;
+      break;
+    case "mouth_rosebud":
+      mouthHalfW = 15;
+      upperLipThick = 5.5;
+      lowerLipThick = 6.5;
+      break;
+    case "mouth_delicate_natural":
+      mouthHalfW = 18;
+      upperLipThick = 3.8;
+      lowerLipThick = 4.8;
       break;
     case "mouth_medium":
     default:
@@ -2524,6 +2688,259 @@ export function ForensicHairLayer({
         );
       })()}
 
+      {/* 11. Sleek Chin Bob */}
+      {(hairId === "hair_bob") && (() => {
+        const topY = crownY - 8;
+        const pWidth = crWidth + 8;
+        return (
+          <g id="forensic-hair-bob">
+            {/* Outer Volumetric Bob mass curving cleanly down to chin (Y=250) */}
+            <path
+              d={`M ${cx - pWidth + 2} 248 C ${cx - pWidth - 8} 190, ${cx - pWidth} 130, ${cx - pWidth + 8} ${topY + 12} C ${cx - 36} ${topY - 2}, ${cx - 14} ${topY}, ${cx} ${topY} C ${cx + 14} ${topY}, ${cx + 36} ${topY - 2}, ${cx + pWidth - 8} ${topY + 12} C ${cx + pWidth} 130, ${cx + pWidth + 8} 190, ${cx + pWidth - 2} 248 C ${cx + pWidth - 14} 252, ${cx + 38} 250, ${cx + 42} 220 C ${cx + 44} 170, ${cx + 40} 120, ${cx + 10} 108 C ${cx + 4} 106, ${cx - 4} 106, ${cx - 10} 108 C ${cx - 40} 120, ${cx - 44} 170, ${cx - 42} 220 C ${cx - 38} 250, ${cx - pWidth + 14} 252, ${cx - pWidth + 2} 248 Z`}
+              fill="rgba(16, 19, 29, 0.72)"
+              stroke="#FFFFFF"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            {/* Center parting */}
+            <line x1={cx} y1={topY} x2={cx} y2={106} stroke="#FFFFFF" strokeWidth="1.2" strokeLinecap="round" />
+            {/* Smooth sleek bob strand lines */}
+            <path d={`M ${cx - 12} 108 C ${cx - 36} 134, ${cx - 44} 184, ${cx - 38} 242`} fill="none" stroke="#CBD5E1" strokeWidth="1.1" strokeLinecap="round" />
+            <path d={`M ${cx + 12} 108 C ${cx + 36} 134, ${cx + 44} 184, ${cx + 38} 242`} fill="none" stroke="#CBD5E1" strokeWidth="1.1" strokeLinecap="round" />
+          </g>
+        );
+      })()}
+
+      {/* 12. Textured Pixie Crop */}
+      {(hairId === "hair_pixie") && (() => {
+        const topY = crownY - 12;
+        const pWidth = crWidth + 4;
+        return (
+          <g id="forensic-hair-pixie">
+            <path
+              d={`M ${cx - pWidth} 160 C ${cx - pWidth - 2} 120, ${cx - 44} ${topY + 6}, ${cx - 16} ${topY} C ${cx} ${topY - 2}, ${cx + 20} ${topY}, ${cx + pWidth - 2} ${topY + 8} C ${cx + pWidth + 4} 120, ${cx + pWidth} 160, ${cx + pWidth - 6} 165 C ${cx + 48} 128, ${cx + 36} 102, ${cx + 14} 98 C ${cx} 96, ${cx - 16} 98, ${cx - 38} 104 C ${cx - 48} 124, ${cx - pWidth + 4} 162, ${cx - pWidth} 160 Z`}
+              fill="rgba(16, 19, 29, 0.68)"
+              stroke="#FFFFFF"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            {/* Feathered pixie top texture wisps */}
+            <path d={`M ${cx - 18} 98 C ${cx - 10} 86, ${cx - 4} 78, ${cx + 2} 74`} fill="none" stroke="#E2E8F0" strokeWidth="1.2" strokeLinecap="round" />
+            <path d={`M ${cx - 6} 96 C ${cx + 4} 84, ${cx + 12} 78, ${cx + 18} 74`} fill="none" stroke="#E2E8F0" strokeWidth="1.2" strokeLinecap="round" />
+            <path d={`M ${cx - 32} 104 C ${cx - 24} 92, ${cx - 16} 84, ${cx - 8} 80`} fill="none" stroke="#CBD5E1" strokeWidth="1.1" strokeLinecap="round" />
+          </g>
+        );
+      })()}
+
+      {/* 13. High Sleek Ponytail */}
+      {(hairId === "hair_ponytail") && (() => {
+        const topY = crownY - 6;
+        const pWidth = crWidth + 2;
+        return (
+          <g id="forensic-hair-ponytail">
+            {/* Sleek pulled back crown mass */}
+            <path
+              d={`M ${cx - pWidth} 168 C ${cx - pWidth - 2} 124, ${cx - 42} ${topY + 6}, ${cx} ${topY} C ${cx + 42} ${topY + 6}, ${cx + pWidth + 2} 124, ${cx + pWidth} 168 C ${cx + 48} 136, ${cx + 42} 108, ${cx} 94 C ${cx - 42} 108, ${cx - 48} 136, ${cx - pWidth} 168 Z`}
+              fill="rgba(16, 19, 29, 0.75)"
+              stroke="#FFFFFF"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            {/* High knot/scrunchie */}
+            <ellipse cx={cx + 18} cy={topY - 14} rx="6" ry="4" fill="#0A0E17" stroke="#FFFFFF" strokeWidth="1.4" />
+            {/* Cascading ponytail fountain */}
+            <path
+              d={`M ${cx + 16} ${topY - 16} C ${cx + 34} ${topY - 28}, ${cx + 64} ${topY - 12}, ${cx + 68} ${topY + 36} C ${cx + 72} 140, ${cx + 68} 210, ${cx + 64} 260 C ${cx + 56} 260, ${cx + 58} 200, ${cx + 56} 140 C ${cx + 52} ${topY + 12}, ${cx + 32} ${topY - 6}, ${cx + 18} ${topY - 12}`}
+              fill="rgba(16, 19, 29, 0.72)"
+              stroke="#FFFFFF"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            {/* Stream lines */}
+            <path d={`M ${cx + 24} ${topY - 14} C ${cx + 48} ${topY - 6}, ${cx + 62} 140, ${cx + 60} 240`} fill="none" stroke="#CBD5E1" strokeWidth="1.1" strokeLinecap="round" />
+          </g>
+        );
+      })()}
+
+      {/* 14. Curtain Bangs & Layers */}
+      {(hairId === "hair_curtain_bangs") && (() => {
+        const topY = crownY - 8;
+        const pWidth = crWidth + 10;
+        return (
+          <g id="forensic-hair-curtain-bangs">
+            {/* Long layered hair base */}
+            <path
+              d={`M ${cx - pWidth} 310 C ${cx - pWidth - 4} 220, ${cx - pWidth} 130, ${cx} ${topY} C ${cx + pWidth} 130, ${cx + pWidth + 4} 220, ${cx + pWidth} 310 C ${cx + pWidth - 14} 312, ${cx + 46} 260, ${cx + 44} 190 C ${cx + 42} 130, ${cx + 28} 104, ${cx} 96 C ${cx - 28} 104, ${cx - 42} 130, ${cx - 44} 190 C ${cx - 46} 260, ${cx - pWidth + 14} 312, ${cx - pWidth} 310 Z`}
+              fill="rgba(16, 19, 29, 0.7)"
+              stroke="#FFFFFF"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            {/* Center parted curtain bangs sweeping over forehead */}
+            <path d={`M ${cx} 94 C ${cx - 16} 102, ${cx - 34} 122, ${cx - 42} 154`} fill="none" stroke="#FFFFFF" strokeWidth="1.5" strokeLinecap="round" />
+            <path d={`M ${cx} 94 C ${cx + 16} 102, ${cx + 34} 122, ${cx + 42} 154`} fill="none" stroke="#FFFFFF" strokeWidth="1.5" strokeLinecap="round" />
+            <path d={`M ${cx - 2} 96 C ${cx - 22} 112, ${cx - 40} 138, ${cx - 48} 176`} fill="none" stroke="#CBD5E1" strokeWidth="1.2" strokeLinecap="round" />
+            <path d={`M ${cx + 2} 96 C ${cx + 22} 112, ${cx + 40} 138, ${cx + 48} 176`} fill="none" stroke="#CBD5E1" strokeWidth="1.2" strokeLinecap="round" />
+          </g>
+        );
+      })()}
+
+      {/* 15. Sleek Straight (Center Part) */}
+      {(hairId === "hair_sleek_straight") && (() => {
+        const topY = crownY - 6;
+        const pWidth = crWidth + 8;
+        return (
+          <g id="forensic-hair-sleek-straight">
+            <path
+              d={`M ${cx - pWidth} 330 C ${cx - pWidth - 2} 220, ${cx - pWidth} 130, ${cx} ${topY} C ${cx + pWidth} 130, ${cx + pWidth + 2} 220, ${cx + pWidth} 330 C ${cx + pWidth - 14} 332, ${cx + 48} 250, ${cx + 44} 180 C ${cx + 42} 124, ${cx + 18} 104, ${cx} 102 C ${cx - 18} 104, ${cx - 42} 124, ${cx - 44} 180 C ${cx - 48} 250, ${cx - pWidth + 14} 332, ${cx - pWidth} 330 Z`}
+              fill="rgba(16, 19, 29, 0.72)"
+              stroke="#FFFFFF"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            {/* Center Part */}
+            <line x1={cx} y1={topY} x2={cx} y2={102} stroke="#FFFFFF" strokeWidth="1.2" strokeLinecap="round" />
+            {/* Long sleek vertical fall lines */}
+            <line x1={cx - 36} y1={128} x2={cx - 48} y2={320} stroke="#CBD5E1" strokeWidth="1.1" strokeLinecap="round" />
+            <line x1={cx + 36} y1={128} x2={cx + 48} y2={320} stroke="#CBD5E1" strokeWidth="1.1" strokeLinecap="round" />
+            <line x1={cx - pWidth + 10} y1={160} x2={cx - pWidth + 6} y2={320} stroke="#94A3B8" strokeWidth="0.9" strokeLinecap="round" className="opacity-60" />
+            <line x1={cx + pWidth - 10} y1={160} x2={cx + pWidth - 6} y2={320} stroke="#94A3B8" strokeWidth="0.9" strokeLinecap="round" className="opacity-60" />
+          </g>
+        );
+      })()}
+
+      {/* 16. Shoulder Lob (Wavy) */}
+      {(hairId === "hair_shoulder_lob") && (() => {
+        const topY = crownY - 8;
+        const pWidth = crWidth + 12;
+        return (
+          <g id="forensic-hair-shoulder-lob">
+            <path
+              d={`M ${cx - pWidth} 280 C ${cx - pWidth - 8} 220, ${cx - pWidth + 4} 160, ${cx - pWidth} 120 C ${cx - 42} ${topY}, ${cx} ${topY} C ${cx + 42} ${topY}, ${cx + pWidth} 120 C ${cx + pWidth - 4} 160, ${cx + pWidth + 8} 220, ${cx + pWidth} 280 C ${cx + pWidth - 16} 282, ${cx + 46} 240, ${cx + 42} 180 C ${cx + 40} 124, ${cx + 12} 104, ${cx} 102 C ${cx - 12} 104, ${cx - 40} 124, ${cx - 42} 180 C ${cx - 46} 240, ${cx - pWidth + 16} 282, ${cx - pWidth} 280 Z`}
+              fill="rgba(16, 19, 29, 0.72)"
+              stroke="#FFFFFF"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            {/* Wavy S-curves along the lob length */}
+            <path d={`M ${cx - 36} 120 C ${cx - 50} 160, ${cx - 32} 200, ${cx - 46} 260`} fill="none" stroke="#CBD5E1" strokeWidth="1.2" strokeLinecap="round" />
+            <path d={`M ${cx + 36} 120 C ${cx + 50} 160, ${cx + 32} 200, ${cx + 46} 260`} fill="none" stroke="#CBD5E1" strokeWidth="1.2" strokeLinecap="round" />
+          </g>
+        );
+      })()}
+
+      {/* 17. Blunt Bangs & Long */}
+      {(hairId === "hair_blunt_bangs") && (() => {
+        const topY = crownY - 8;
+        const pWidth = crWidth + 10;
+        return (
+          <g id="forensic-hair-blunt-bangs">
+            {/* Long outer hair mass */}
+            <path
+              d={`M ${cx - pWidth} 320 C ${cx - pWidth - 4} 220, ${cx - pWidth} 130, ${cx} ${topY} C ${cx + pWidth} 130, ${cx + pWidth + 4} 220, ${cx + pWidth} 320 C ${cx + pWidth - 14} 322, ${cx + 46} 250, ${cx + 44} 180 C ${cx + 42} 120, ${cx - 42} 120, ${cx - 44} 180 C ${cx - 46} 250, ${cx - pWidth + 14} 322, ${cx - pWidth} 320 Z`}
+              fill="rgba(16, 19, 29, 0.72)"
+              stroke="#FFFFFF"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            {/* Solid Horizontal Blunt Bangs line across brow */}
+            <path
+              d={`M ${cx - 44} 120 C ${cx - 20} 121, ${cx + 20} 121, ${cx + 44} 120 L ${cx + 44} 102 C ${cx + 22} 98, ${cx - 22} 98, ${cx - 44} 102 Z`}
+              fill="rgba(16, 19, 29, 0.85)"
+              stroke="#FFFFFF"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+            />
+            {/* Vertical bangs hatch lines */}
+            <line x1={cx - 30} y1={104} x2={cx - 30} y2={120} stroke="#94A3B8" strokeWidth="0.8" className="opacity-60" />
+            <line x1={cx - 15} y1={102} x2={cx - 15} y2={121} stroke="#94A3B8" strokeWidth="0.8" className="opacity-60" />
+            <line x1={cx} y1={102} x2={cx} y2={121} stroke="#FFFFFF" strokeWidth="0.9" className="opacity-70" />
+            <line x1={cx + 15} y1={102} x2={cx + 15} y2={121} stroke="#94A3B8" strokeWidth="0.8" className="opacity-60" />
+            <line x1={cx + 30} y1={104} x2={cx + 30} y2={120} stroke="#94A3B8" strokeWidth="0.8" className="opacity-60" />
+          </g>
+        );
+      })()}
+
+      {/* 18. Afro Puffs / Space Buns */}
+      {(hairId === "hair_afro_puffs") && (() => {
+        const topY = crownY - 4;
+        return (
+          <g id="forensic-hair-afro-puffs">
+            {/* Sleek Scalp Base */}
+            <path
+              d={`M ${cx - crWidth} 160 C ${cx - crWidth - 2} 120, ${cx - 36} ${topY}, ${cx} ${topY} C ${cx + 36} ${topY}, ${cx + crWidth + 2} 120, ${cx + crWidth} 160 C ${cx + 46} 130, ${cx + 40} 108, ${cx} 96 C ${cx - 40} 108, ${cx - 46} 130, ${cx - crWidth} 160 Z`}
+              fill="rgba(16, 19, 29, 0.75)"
+              stroke="#FFFFFF"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+            />
+            {/* Left Afro Puff sphere */}
+            <circle cx={cx - 52} cy={topY - 14} r="26" fill="rgba(16, 19, 29, 0.85)" stroke="#FFFFFF" strokeWidth="1.6" strokeDasharray="3 1.5" />
+            {/* Right Afro Puff sphere */}
+            <circle cx={cx + 52} cy={topY - 14} r="26" fill="rgba(16, 19, 29, 0.85)" stroke="#FFFFFF" strokeWidth="1.6" strokeDasharray="3 1.5" />
+            {/* Texture coils inside puffs */}
+            <circle cx={cx - 52} cy={topY - 14} r="18" fill="none" stroke="#CBD5E1" strokeWidth="1.0" strokeDasharray="2 2" className="opacity-70" />
+            <circle cx={cx + 52} cy={topY - 14} r="18" fill="none" stroke="#CBD5E1" strokeWidth="1.0" strokeDasharray="2 2" className="opacity-70" />
+          </g>
+        );
+      })()}
+
+      {/* 19. Box Braids / Cornrows */}
+      {(hairId === "hair_box_braids") && (() => {
+        const topY = crownY - 6;
+        const pWidth = crWidth + 6;
+        return (
+          <g id="forensic-hair-box-braids">
+            <path
+              d={`M ${cx - pWidth} 320 C ${cx - pWidth - 2} 220, ${cx - pWidth} 130, ${cx} ${topY} C ${cx + pWidth} 130, ${cx + pWidth + 2} 220, ${cx + pWidth} 320 C ${cx + pWidth - 12} 322, ${cx + 48} 250, ${cx + 44} 180 C ${cx + 42} 124, ${cx + 18} 104, ${cx} 98 C ${cx - 18} 104, ${cx - 42} 124, ${cx - 44} 180 C ${cx - 48} 250, ${cx - pWidth + 12} 322, ${cx - pWidth} 320 Z`}
+              fill="rgba(16, 19, 29, 0.72)"
+              stroke="#FFFFFF"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+            />
+            {/* Intricate cornrow & braid tracks */}
+            <line x1={cx - 42} y1={120} x2={cx - 52} y2={310} stroke="#FFFFFF" strokeWidth="1.3" strokeDasharray="4 2" />
+            <line x1={cx - 26} y1={108} x2={cx - 38} y2={310} stroke="#FFFFFF" strokeWidth="1.3" strokeDasharray="4 2" />
+            <line x1={cx - 10} y1={100} x2={cx - 24} y2={310} stroke="#FFFFFF" strokeWidth="1.3" strokeDasharray="4 2" />
+            <line x1={cx + 10} y1={100} x2={cx + 24} y2={310} stroke="#FFFFFF" strokeWidth="1.3" strokeDasharray="4 2" />
+            <line x1={cx + 26} y1={108} x2={cx + 38} y2={310} stroke="#FFFFFF" strokeWidth="1.3" strokeDasharray="4 2" />
+            <line x1={cx + 42} y1={120} x2={cx + 52} y2={310} stroke="#FFFFFF" strokeWidth="1.3" strokeDasharray="4 2" />
+          </g>
+        );
+      })()}
+
+      {/* 20. Textured Dreadlocks */}
+      {(hairId === "hair_dreadlocks") && (() => {
+        const topY = crownY - 10;
+        const pWidth = crWidth + 10;
+        return (
+          <g id="forensic-hair-dreadlocks">
+            <path
+              d={`M ${cx - pWidth} 320 C ${cx - pWidth - 4} 220, ${cx - pWidth} 130, ${cx} ${topY} C ${cx + pWidth} 130, ${cx + pWidth + 4} 220, ${cx + pWidth} 320 C ${cx + pWidth - 14} 322, ${cx + 46} 250, ${cx + 44} 180 C ${cx + 42} 124, ${cx + 18} 104, ${cx} 98 C ${cx - 18} 104, ${cx - 42} 124, ${cx - 44} 180 C ${cx - 46} 250, ${cx - pWidth + 14} 322, ${cx - pWidth} 320 Z`}
+              fill="rgba(16, 19, 29, 0.72)"
+              stroke="#FFFFFF"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+            />
+            {/* Thick cylindrical dreadlock ropes */}
+            <path d={`M ${cx - 46} 124 C ${cx - 56} 190, ${cx - 52} 260, ${cx - 56} 315`} fill="none" stroke="#FFFFFF" strokeWidth="2.5" strokeLinecap="round" strokeDasharray="6 2" />
+            <path d={`M ${cx - 30} 112 C ${cx - 40} 180, ${cx - 36} 250, ${cx - 40} 315`} fill="none" stroke="#FFFFFF" strokeWidth="2.5" strokeLinecap="round" strokeDasharray="6 2" />
+            <path d={`M ${cx - 12} 102 C ${cx - 22} 170, ${cx - 20} 240, ${cx - 26} 315`} fill="none" stroke="#FFFFFF" strokeWidth="2.5" strokeLinecap="round" strokeDasharray="6 2" />
+            <path d={`M ${cx + 12} 102 C ${cx + 22} 170, ${cx + 20} 240, ${cx + 26} 315`} fill="none" stroke="#FFFFFF" strokeWidth="2.5" strokeLinecap="round" strokeDasharray="6 2" />
+            <path d={`M ${cx + 30} 112 C ${cx + 40} 180, ${cx + 36} 250, ${cx + 40} 315`} fill="none" stroke="#FFFFFF" strokeWidth="2.5" strokeLinecap="round" strokeDasharray="6 2" />
+            <path d={`M ${cx + 46} 124 C ${cx + 56} 190, ${cx + 52} 260, ${cx + 56} 315`} fill="none" stroke="#FFFFFF" strokeWidth="2.5" strokeLinecap="round" strokeDasharray="6 2" />
+          </g>
+        );
+      })()}
+
       {/* High Hairline Indicator */}
       {(hairlineId === "other_hairline_high") && (
         <g id="forensic-hairline-high">
@@ -2553,6 +2970,19 @@ export function ForensicHairLayer({
           />
           <line x1={cx - 20} y1={97} x2={cx - 18} y2={102} stroke="#94A3B8" strokeWidth="0.8" strokeDasharray="1 2" className="opacity-50" />
           <line x1={cx + 20} y1={97} x2={cx + 18} y2={102} stroke="#94A3B8" strokeWidth="0.8" strokeDasharray="1 2" className="opacity-50" />
+        </g>
+      )}
+
+      {/* Widow's Peak Hairline Indicator */}
+      {(hairlineId === "hairline_widows_peak" || hairlineId === "other_hairline_widows_peak") && (
+        <g id="forensic-hairline-widows-peak">
+          <path
+            d={`M ${cx - crWidth + 8} 118 C ${cx - 48} 108, ${cx - 24} 88, ${cx} 96 C ${cx + 24} 88, ${cx + 48} 108, ${cx + crWidth - 8} 118`}
+            fill="none"
+            stroke="#CBD5E1"
+            strokeWidth="1.4"
+            strokeLinecap="round"
+          />
         </g>
       )}
     </g>
@@ -2596,6 +3026,12 @@ export function ForensicFacialDetailsLayer({
   const templeTattooSelected = selectedFeatures["facial_details"]?.id === "mark_temple_tattoo";
   const frecklesSelected = selectedFeatures["facial_details"]?.id === "mark_freckles";
   const cleftChinSelected = selectedFeatures["facial_details"]?.id === "mark_cleft_chin";
+  const monroeSelected = selectedFeatures["facial_details"]?.id === "mark_monroe_spot";
+  const cheekSpotSelected = selectedFeatures["facial_details"]?.id === "mark_cheek_spot";
+  const softFrecklesSelected = selectedFeatures["facial_details"]?.id === "mark_soft_freckles";
+  const noseStudSelected = selectedFeatures["facial_details"]?.id === "mark_nose_stud";
+  const lipLabretSelected = selectedFeatures["facial_details"]?.id === "mark_lip_labret";
+  const eyebrowRingSelected = selectedFeatures["facial_details"]?.id === "mark_eyebrow_ring";
 
   const isDetail = Boolean(
     beardSelected ||
@@ -2607,7 +3043,13 @@ export function ForensicFacialDetailsLayer({
     teardropSelected ||
     templeTattooSelected ||
     frecklesSelected ||
-    cleftChinSelected
+    cleftChinSelected ||
+    monroeSelected ||
+    cheekSpotSelected ||
+    softFrecklesSelected ||
+    noseStudSelected ||
+    lipLabretSelected ||
+    eyebrowRingSelected
   );
 
   const triggerKey = isDetail
@@ -2622,6 +3064,12 @@ export function ForensicFacialDetailsLayer({
         templeTattooSelected ? "cross" : "",
         frecklesSelected ? "freck" : "",
         cleftChinSelected ? "cleft" : "",
+        monroeSelected ? "monroe" : "",
+        cheekSpotSelected ? "c_spot" : "",
+        softFrecklesSelected ? "s_freck" : "",
+        noseStudSelected ? "n_stud" : "",
+        lipLabretSelected ? "l_labret" : "",
+        eyebrowRingSelected ? "e_ring" : "",
       ]
         .filter(Boolean)
         .join("_")
@@ -3024,6 +3472,49 @@ export function ForensicFacialDetailsLayer({
             strokeLinecap="round"
           />
           <circle cx={cx} cy={chY - 1} r="1.4" fill="#0A0E17" stroke="#CBD5E1" strokeWidth="0.8" />
+        </g>
+      )}
+
+      {/* 9. Monroe Beauty Spot (Above left upper lip) */}
+      {monroeSelected && (
+        <circle cx={cx - 14} cy={242} r="1.8" fill="#0A0E17" stroke="#CBD5E1" strokeWidth="0.8" />
+      )}
+
+      {/* 10. Cheek Beauty Mark (High cheekbone spot) */}
+      {cheekSpotSelected && (
+        <circle cx={cx + 34} cy={188} r="1.8" fill="#0A0E17" stroke="#CBD5E1" strokeWidth="0.8" />
+      )}
+
+      {/* 11. Delicate Bridge Freckles */}
+      {softFrecklesSelected && (
+        <g id="forensic-soft-freckles" fill="#94A3B8" opacity={0.6}>
+          <circle cx={cx - 8} cy={192} r="0.9" /><circle cx={cx - 4} cy={195} r="0.8" /><circle cx={cx} cy={193} r="0.9" />
+          <circle cx={cx + 4} cy={195} r="0.8" /><circle cx={cx + 8} cy={192} r="0.9" /><circle cx={cx - 12} cy={196} r="0.7" />
+          <circle cx={cx + 12} cy={196} r="0.7" />
+        </g>
+      )}
+
+      {/* 12. Nostril Stud Piercing */}
+      {noseStudSelected && (
+        <g id="forensic-nose-stud">
+          <circle cx={cx + 12} cy={213} r="2.0" fill="#E2E8F0" stroke="#94A3B8" strokeWidth="0.7" />
+          <circle cx={cx + 11.5} cy={212.5} r="0.7" fill="#FFFFFF" />
+        </g>
+      )}
+
+      {/* 13. Lip Labret Piercing */}
+      {lipLabretSelected && (
+        <g id="forensic-lip-labret">
+          <circle cx={cx} cy={263} r="2.2" fill="#E2E8F0" stroke="#94A3B8" strokeWidth="0.7" />
+          <circle cx={cx - 0.6} cy={262.4} r="0.8" fill="#FFFFFF" />
+        </g>
+      )}
+
+      {/* 14. Eyebrow Ring Piercing */}
+      {eyebrowRingSelected && (
+        <g id="forensic-eyebrow-ring">
+          <ellipse cx={cx + 64} cy={127} rx="2.5" ry="4.5" fill="none" stroke="#E2E8F0" strokeWidth="1.2" transform={`rotate(-15, ${cx + 64}, 127)`} />
+          <circle cx={cx + 63} cy={123} r="1.1" fill="#FFFFFF" />
         </g>
       )}
     </g>

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
+import { motion } from "motion/react";
 import { cn } from "@/lib/utils";
 import {
   Search,
@@ -42,6 +43,8 @@ export function MobileDatasetView() {
     generationMode,
     isSidebarEnabled,
     requestModeChange,
+    gender,
+    setGender,
   } = useSketch();
 
   const handleFeatureClick = (item: FeatureItem) => {
@@ -51,6 +54,41 @@ export function MobileDatasetView() {
       toggleFeature(item);
     }
   };
+
+  // Gender Switcher filter: "all" | "male" | "female"
+  const [genderFilter, setGenderFilter] = useState<"all" | "male" | "female">("all");
+
+  // Calculate total counts per gender
+  const { allCount, maleCount, femaleCount } = useMemo(() => {
+    let all = 0;
+    let male = 0;
+    let female = 0;
+    for (const cat of FACIAL_DATASET) {
+      for (const sub of cat.subcategories) {
+        for (const item of sub.items) {
+          all++;
+          if (!item.gender || item.gender === "all" || item.gender === "male") male++;
+          if (!item.gender || item.gender === "all" || item.gender === "female") female++;
+        }
+      }
+    }
+    return { allCount: all, maleCount: male, femaleCount: female };
+  }, []);
+
+  const handleGenderSwitch = (target: "all" | "male" | "female") => {
+    setGenderFilter(target);
+    if (target === "male") setGender("Male");
+    if (target === "female") setGender("Female");
+  };
+
+  const genderTabs = useMemo(
+    () => [
+      { id: "all" as const, label: "All", count: allCount },
+      { id: "male" as const, label: "♂ Male", count: maleCount },
+      { id: "female" as const, label: "♀ Female", count: femaleCount },
+    ],
+    [allCount, maleCount, femaleCount]
+  );
 
   const [openCategories, setOpenCategories] = useState<Record<string, boolean>>({
     face: true,
@@ -76,7 +114,20 @@ export function MobileDatasetView() {
     return FACIAL_DATASET.map((category) => {
       const filteredSub = category.subcategories
         .map((sub) => {
+          // When female filter is selected, omit facial hair (beard/moustache)
+          if (genderFilter === "female" && (sub.id === "beard" || sub.id === "moustache")) {
+            return null;
+          }
+
           let items = sub.items;
+
+          // Filter by gender
+          if (genderFilter !== "all") {
+            items = items.filter(
+              (item) => !item.gender || item.gender === "all" || item.gender === genderFilter
+            );
+          }
+
           if (filterSelectedOnly) {
             items = items.filter((item) => isFeatureSelected(item.id));
           }
@@ -95,19 +146,25 @@ export function MobileDatasetView() {
         .filter(Boolean) as SubcategoryGroup[];
       return { ...category, subcategories: filteredSub };
     }).filter((category) => category.subcategories.length > 0);
-  }, [searchQuery, filterSelectedOnly, isFeatureSelected]);
+  }, [searchQuery, filterSelectedOnly, isFeatureSelected, genderFilter]);
 
   const modalFilteredItems = useMemo(() => {
     if (!viewAllSubcategory) return [];
-    if (!modalSearch.trim()) return viewAllSubcategory.items;
+    let items = viewAllSubcategory.items;
+    if (genderFilter !== "all") {
+      items = items.filter(
+        (item) => !item.gender || item.gender === "all" || item.gender === genderFilter
+      );
+    }
+    if (!modalSearch.trim()) return items;
     const q = modalSearch.toLowerCase().trim();
-    return viewAllSubcategory.items.filter(
+    return items.filter(
       (item) =>
         item.name.toLowerCase().includes(q) ||
         item.description.toLowerCase().includes(q) ||
         item.token.toLowerCase().includes(q)
     );
-  }, [viewAllSubcategory, modalSearch]);
+  }, [viewAllSubcategory, modalSearch, genderFilter]);
 
   const renderCategoryIcon = (iconName: string) => {
     const iconClass = "size-4 text-foreground/80";
@@ -124,7 +181,7 @@ export function MobileDatasetView() {
   return (
     <div className="flex flex-col h-full">
       {/* Top Header Bar */}
-      <div className="px-3 pt-3 pb-2 space-y-2.5 shrink-0 bg-[#070709]">
+      <div className="px-3 pt-3 pb-2 space-y-2 shrink-0 bg-[#070709]">
         {/* Title Row */}
         <div className="flex items-center justify-between">
           <div>
@@ -162,6 +219,51 @@ export function MobileDatasetView() {
           </div>
         </div>
 
+        {/* Gender Segmented Switcher for Mobile */}
+        <div className="relative grid grid-cols-3 gap-1 p-0.5 bg-black/50 rounded-lg border-2 border-border/70">
+          {genderTabs.map((tab) => {
+            const isActive = genderFilter === tab.id;
+            return (
+              <motion.button
+                key={tab.id}
+                type="button"
+                onClick={() => handleGenderSwitch(tab.id)}
+                whileTap={{ scale: 0.94 }}
+                className={cn(
+                  "relative py-1.5 px-2 rounded-md text-xs font-medium select-none z-10 flex items-center justify-center gap-1.5 cursor-pointer transition-colors duration-200",
+                  isActive
+                    ? "text-white font-semibold"
+                    : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+                )}
+              >
+                {isActive && (
+                  <motion.div
+                    layoutId="mobile_dataset_gender_filter_pill"
+                    className="absolute inset-0 rounded-md bg-[#665AEF] shadow-md shadow-[#665AEF]/35 border-2 border-[#8579ff]/50 -z-10"
+                    transition={{
+                      type: "spring",
+                      stiffness: 450,
+                      damping: 24,
+                      mass: 0.7,
+                    }}
+                  />
+                )}
+                <span className="relative z-10">{tab.label}</span>
+                <span
+                  className={cn(
+                    "relative z-10 px-1 py-0.2 rounded-full text-[9px] font-mono transition-colors duration-200",
+                    isActive
+                      ? "bg-white/20 text-white font-bold"
+                      : "bg-surface/80 text-muted-foreground"
+                  )}
+                >
+                  {tab.count}
+                </span>
+              </motion.button>
+            );
+          })}
+        </div>
+
         {/* Search Bar — larger touch target */}
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
@@ -169,7 +271,13 @@ export function MobileDatasetView() {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search facial features..."
+            placeholder={
+              genderFilter === "female"
+                ? "Search female features..."
+                : genderFilter === "male"
+                ? "Search male features..."
+                : "Search facial features..."
+            }
             className="h-10 pl-10 pr-9 text-sm bg-black/50 border-2 border-border/70 rounded-lg placeholder:text-muted-foreground/60 focus-visible:ring-[#665AEF]/50 focus-visible:border-[#665AEF]"
           />
           {searchQuery && (
@@ -309,6 +417,21 @@ export function MobileDatasetView() {
                                     <Check className="size-2.5 stroke-3" />
                                   </span>
                                 )}
+
+                                {/* Gender indicator badge */}
+                                {item.gender && item.gender !== "all" && (
+                                  <span
+                                    className={cn(
+                                      "absolute bottom-0.5 right-0.5 z-10 px-0.8 py-0.2 rounded text-[7px] font-mono leading-none border shadow-xs pointer-events-none",
+                                      item.gender === "female"
+                                        ? "bg-rose-950/90 text-rose-300 border-rose-500/50"
+                                        : "bg-sky-950/90 text-sky-300 border-sky-500/50"
+                                    )}
+                                  >
+                                    {item.gender === "female" ? "♀" : "♂"}
+                                  </span>
+                                )}
+
                                 <div className="relative size-full flex items-center justify-center overflow-hidden rounded bg-[#FAFAFA] border border-[#E5E7EB] shadow-2xs">
                                   <FacialFeatureIcon
                                     svgType={item.svgType}
@@ -334,7 +457,7 @@ export function MobileDatasetView() {
         open={!!viewAllSubcategory}
         onOpenChange={(open) => !open && setViewAllSubcategory(null)}
       >
-        <DialogContent className="max-h-[100dvh] w-full h-full sm:max-w-2xl sm:h-auto rounded-none sm:rounded-xl bg-[#0e0e13]/98 backdrop-blur-2xl border-0 sm:border-2 sm:border-border p-4 sm:p-5 shadow-2xl">
+        <DialogContent className="max-h-dvh w-full h-full sm:max-w-2xl sm:h-auto rounded-none sm:rounded-xl bg-[#0e0e13]/98 backdrop-blur-2xl border-0 sm:border-2 sm:border-border p-4 sm:p-5 shadow-2xl">
           <DialogHeader className="pb-3 border-b-2 border-border/80">
             <div className="flex items-center justify-between pr-6">
               <div>
@@ -347,14 +470,51 @@ export function MobileDatasetView() {
               </div>
             </div>
 
-            <div className="relative mt-3">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
-              <Input
-                value={modalSearch}
-                onChange={(e) => setModalSearch(e.target.value)}
-                placeholder={`Search ${viewAllSubcategory?.label.toLowerCase()} variants...`}
-                className="h-10 pl-10 text-sm bg-black/40 border-2 border-border/70 rounded-lg"
-              />
+            {/* Filter in Modal: Gender Switcher + Search */}
+            <div className="flex flex-col gap-2 mt-3">
+              <div className="relative grid grid-cols-3 gap-1 p-0.5 bg-black/40 rounded-lg border-2 border-border/70 shrink-0">
+                {genderTabs.map((tab) => {
+                  const isActive = genderFilter === tab.id;
+                  return (
+                    <motion.button
+                      key={tab.id}
+                      type="button"
+                      onClick={() => handleGenderSwitch(tab.id)}
+                      whileTap={{ scale: 0.94 }}
+                      className={cn(
+                        "relative py-1 px-2 rounded-md text-xs font-medium select-none z-10 transition-colors duration-200 cursor-pointer text-center flex items-center justify-center",
+                        isActive
+                          ? "text-white font-semibold"
+                          : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+                      )}
+                    >
+                      {isActive && (
+                        <motion.div
+                          layoutId="mobile_modal_gender_filter_pill"
+                          className="absolute inset-0 rounded-md bg-[#665AEF] shadow-sm shadow-[#665AEF]/35 border border-[#8579ff]/50 -z-10"
+                          transition={{
+                            type: "spring",
+                            stiffness: 450,
+                            damping: 24,
+                            mass: 0.7,
+                          }}
+                        />
+                      )}
+                      <span className="relative z-10">{tab.label}</span>
+                    </motion.button>
+                  );
+                })}
+              </div>
+
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
+                <Input
+                  value={modalSearch}
+                  onChange={(e) => setModalSearch(e.target.value)}
+                  placeholder={`Search ${viewAllSubcategory?.label.toLowerCase()} variants...`}
+                  className="h-10 pl-10 text-sm bg-black/40 border-2 border-border/70 rounded-lg"
+                />
+              </div>
             </div>
           </DialogHeader>
 
@@ -404,6 +564,16 @@ export function MobileDatasetView() {
                       )}>
                         {item.name}
                       </span>
+                      {item.gender && item.gender !== "all" && (
+                        <span className={cn(
+                          "text-[9px] font-mono px-1.5 py-0.5 rounded border transition-colors shrink-0",
+                          item.gender === "female"
+                            ? "bg-rose-500/15 text-rose-300 border-rose-500/30"
+                            : "bg-sky-500/15 text-sky-300 border-sky-500/30"
+                        )}>
+                          {item.gender === "female" ? "♀" : "♂"}
+                        </span>
+                      )}
                     </div>
                     <p className={cn(
                       "text-[11px] leading-snug line-clamp-2 transition-colors",

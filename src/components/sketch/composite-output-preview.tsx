@@ -86,18 +86,14 @@ export function CompositeOutputPreview() {
     >
       {/* Header with Dual View Tabs */}
       <div className="flex items-center justify-between px-3 py-2 md:px-4 border-b-2 border-border/60 bg-[#0c0c11]/90 shrink-0">
-        <div className="flex items-center gap-2 sm:gap-3">
-
-
-
-
+        <div className="hidden sm:flex items-center gap-2 sm:gap-3">
           {/* Status Badge */}
           {generationStatus === "generating" ? (
-            <span className="hidden sm:inline text-[10.5px] font-mono font-medium text-amber-400">
+            <span className="text-[10.5px] font-mono font-medium text-amber-400">
               Synthesizing...
             </span>
           ) : generationStatus === "generated" && generatedImageUrl ? (
-            <span className="hidden sm:inline text-[10.5px] font-mono font-medium text-emerald-400">
+            <span className="text-[10.5px] font-mono font-medium text-emerald-400">
               AI Verified · {confidenceScore}%
             </span>
           ) : null}
@@ -105,9 +101,9 @@ export function CompositeOutputPreview() {
 
         {/* Right Tools (Available when sketch is generated) */}
         {generatedImageUrl && (
-          <div className="flex items-center gap-1.5 flex-wrap">
+          <div className="w-full sm:w-auto flex items-center justify-between sm:justify-end gap-2">
             {activeTab === "sketch" && (
-              <>
+              <div className="flex-1 sm:flex-initial flex items-center gap-2">
                 {/* Generate Variation Button */}
                 <Button
                   type="button"
@@ -115,7 +111,7 @@ export function CompositeOutputPreview() {
                   size="sm"
                   onClick={generateVariation}
                   disabled={isGenerating}
-                  className="h-7 px-2.5 text-[11px] font-medium border border-[#665AEF]/50 bg-[#665AEF]/15 hover:bg-[#665AEF]/30 text-[#8579ff] hover:text-white rounded cursor-pointer transition-colors flex items-center gap-1 shadow-sm"
+                  className="flex-1 sm:flex-initial justify-center h-7 px-2 sm:px-2.5 text-[11px] font-medium border border-[#665AEF]/50 bg-[#665AEF]/15 hover:bg-[#665AEF]/30 text-[#8579ff] hover:text-white rounded cursor-pointer transition-colors flex items-center gap-1.5 shadow-sm"
                   title="Generate another variation with the same prompt"
                 >
                   <Sparkles className="size-3" />
@@ -128,13 +124,13 @@ export function CompositeOutputPreview() {
                   variant="outline"
                   size="sm"
                   onClick={toggleFilter}
-                  className={`h-7 px-2 text-[11px] font-medium border border-border/70 rounded cursor-pointer transition-colors ${
+                  className={`flex-1 sm:flex-initial justify-center h-7 px-2 text-[11px] font-medium border rounded cursor-pointer transition-colors flex items-center gap-1.5 ${
                     forensicFilter === "darkroom_negative"
                       ? "bg-amber-500/20 text-amber-300 border-amber-500/50"
-                      : "bg-black/30 text-muted-foreground hover:text-foreground"
+                      : "border-border/70 bg-black/30 text-muted-foreground hover:text-foreground"
                   }`}
                 >
-                  <Contrast className="size-3 mr-1" />
+                  <Contrast className="size-3" />
                   <span>UV Filter</span>
                 </Button>
 
@@ -144,12 +140,12 @@ export function CompositeOutputPreview() {
                   variant="outline"
                   size="sm"
                   onClick={handleDownload}
-                  className="h-7 px-2 text-[11px] font-medium border border-border/70 bg-black/30 hover:bg-emerald-500/10 hover:text-emerald-400 rounded text-foreground cursor-pointer transition-colors"
+                  className="flex-1 sm:flex-initial justify-center h-7 px-2 text-[11px] font-medium border border-border/70 bg-black/30 hover:bg-emerald-500/10 hover:text-emerald-400 rounded text-foreground cursor-pointer transition-colors flex items-center gap-1.5"
                 >
-                  <Download className="size-3 mr-1" />
+                  <Download className="size-3" />
                   <span>Download</span>
                 </Button>
-              </>
+              </div>
             )}
 
             {/* Expand / Minimize Button */}
@@ -158,7 +154,7 @@ export function CompositeOutputPreview() {
               variant="ghost"
               size="icon"
               onClick={() => setIsExpanded(!isExpanded)}
-              className="size-7 text-muted-foreground hover:text-foreground cursor-pointer"
+              className="size-7 shrink-0 text-muted-foreground hover:text-foreground cursor-pointer"
             >
               {isExpanded ? <Minimize2 className="size-3.5" /> : <Maximize2 className="size-3.5" />}
             </Button>
@@ -288,9 +284,11 @@ export function CompositeOutputPreview() {
             </div>
             <div className="rounded-lg border border-border/60 bg-black/40 p-2.5 space-y-1">
               <span className="text-[10px] text-muted-foreground flex items-center gap-1 font-mono">
-                <Layers className="size-3 text-[#8579ff]" /> Synthesis Fidelity
+                <Layers className="size-3 text-[#8579ff]" /> Sketch Quality
               </span>
-              <p className="font-semibold text-xs text-foreground">{detailLevel}</p>
+              <p className="font-semibold text-xs text-foreground">
+                {detailLevel === "Master" ? "High Detail" : detailLevel === "Draft" ? "Draft (Fast)" : "Standard"}
+              </p>
             </div>
           </div>
 
@@ -364,13 +362,29 @@ export function CompositeOutputPreview() {
 
       {/* Bottom Footer Info Bar */}
       {generatedImageUrl && (
-        <div className="px-3 py-1.5 md:px-4 border-t border-border/40 bg-[#0a0a0e] flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1 text-[10.5px] font-mono text-muted-foreground shrink-0 select-none">
-          <span className="truncate">
-            Style: {sketchStyle} • Perspective: {cameraAngle} • Cohort: {gender} ({ageGroup})
-          </span>
-          <span className="text-emerald-400 shrink-0 font-semibold">
-            {confidenceScore}% Match Fidelity
-          </span>
+        <div className="px-3 py-1.5 md:px-4 border-t border-border/40 bg-[#0a0a0e] text-[10.5px] font-mono text-muted-foreground shrink-0 select-none">
+          {/* Mobile view: 2 balanced rows */}
+          <div className="flex flex-col gap-1 sm:hidden">
+            <div className="flex items-center justify-between gap-2 w-full">
+              <span className="truncate">Style: {sketchStyle}</span>
+              <span className="text-[#a594fd] shrink-0 font-semibold">
+                {confidenceScore}% Match Fidelity
+              </span>
+            </div>
+            <div className="truncate text-muted-foreground/80 text-[10px]">
+              Perspective: {cameraAngle} • Cohort: {gender} ({ageGroup})
+            </div>
+          </div>
+
+          {/* Desktop view (sm+): single row */}
+          <div className="hidden sm:flex items-center justify-between gap-2">
+            <span className="truncate">
+              Style: {sketchStyle} • Perspective: {cameraAngle} • Cohort: {gender} ({ageGroup})
+            </span>
+            <span className="text-[#a594fd] shrink-0 font-semibold">
+              {confidenceScore}% Match Fidelity
+            </span>
+          </div>
         </div>
       )}
     </div>

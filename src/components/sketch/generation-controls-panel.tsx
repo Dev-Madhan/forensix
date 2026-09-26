@@ -62,7 +62,11 @@ export function GenerationControlsPanel() {
   const [hoveredStyle, setHoveredStyle] = useState<string | null>(null);
   const [isEthnicityOpen, setIsEthnicityOpen] = useState(false);
 
-  const detailLevels: DetailLevel[] = ["Draft", "Standard", "Master"];
+  const detailOptions: { value: DetailLevel; label: string }[] = [
+    { value: "Draft", label: "Draft (Fast)" },
+    { value: "Standard", label: "Standard" },
+    { value: "Master", label: "High Detail" },
+  ];
 
   // Check if prompt is finished
   const isPromptMode =
@@ -304,20 +308,22 @@ export function GenerationControlsPanel() {
         </div>
       </div>
 
-      {/* Detail Level Segmented Buttons */}
+      {/* Detail Level / Sketch Quality Segmented Buttons */}
       <div className="flex flex-col gap-1.5 mt-3">
         <label className="text-[11px] text-muted-foreground/80 font-medium select-none flex items-center justify-between">
-          <span>Synthesis Fidelity</span>
-          <span className="text-[10px] text-[#c2b5fd] font-mono">{detailLevel}</span>
+          <span>Sketch Quality</span>
+          <span className="text-[10px] text-[#c2b5fd] font-mono">
+            {detailLevel === "Master" ? "High Detail" : detailLevel === "Draft" ? "Draft (Fast)" : "Standard"}
+          </span>
         </label>
         <div className="relative grid grid-cols-3 gap-1 p-1 rounded-lg border-2 border-border/70 bg-black/40">
-          {detailLevels.map((lvl) => {
-            const isActive = detailLevel === lvl;
+          {detailOptions.map(({ value, label }) => {
+            const isActive = detailLevel === value;
             return (
               <motion.button
-                key={lvl}
+                key={value}
                 type="button"
-                onClick={() => setDetailLevel(lvl)}
+                onClick={() => setDetailLevel(value)}
                 whileTap={{ scale: 0.92 }}
                 className={`relative h-7 rounded-md text-[11px] font-medium select-none z-10 flex items-center justify-center transition-colors duration-200 cursor-pointer ${
                   isActive
@@ -337,7 +343,7 @@ export function GenerationControlsPanel() {
                     }}
                   />
                 )}
-                <span className="relative z-10">{lvl}</span>
+                <span className="relative z-10">{label}</span>
               </motion.button>
             );
           })}
@@ -377,7 +383,7 @@ export function GenerationControlsPanel() {
           disabled={!promptText}
           whileTap={!promptText ? undefined : { scale: 0.98 }}
           transition={{ duration: 0.12 }}
-          className="group w-full h-8 rounded-md border-2 border-white/10 hover:border-red-500/40 bg-white/[0.02] hover:bg-red-500/[0.08] text-[11px] font-medium text-muted-foreground/75 hover:text-red-400 flex items-center justify-center gap-1.5 cursor-pointer mt-2 transition-all duration-200 select-none disabled:opacity-30 disabled:pointer-events-none"
+          className="group w-full h-8 rounded-md border-2 border-white/10 hover:border-red-500/40 bg-white/2 hover:bg-red-500/8 text-[11px] font-medium text-muted-foreground/75 hover:text-red-400 flex items-center justify-center gap-1.5 cursor-pointer mt-2 transition-all duration-200 select-none disabled:opacity-30 disabled:pointer-events-none"
         >
           <Trash2 className="size-3 text-muted-foreground/70 group-hover:text-red-400 transition-colors duration-200" />
           <span className="transition-colors duration-200">Clear Witness Prompt</span>
@@ -389,7 +395,7 @@ export function GenerationControlsPanel() {
           disabled={selectedCount === 0}
           whileTap={selectedCount === 0 ? undefined : { scale: 0.98 }}
           transition={{ duration: 0.12 }}
-          className="group w-full h-8 rounded-md border-2 border-white/10 hover:border-red-500/40 bg-white/[0.02] hover:bg-red-500/[0.08] text-[11px] font-medium text-muted-foreground/75 hover:text-red-400 flex items-center justify-center gap-1.5 cursor-pointer mt-2 transition-all duration-200 select-none disabled:opacity-30 disabled:pointer-events-none"
+          className="group w-full h-8 rounded-md border-2 border-white/10 hover:border-red-500/40 bg-white/2 hover:bg-red-500/8 text-[11px] font-medium text-muted-foreground/75 hover:text-red-400 flex items-center justify-center gap-1.5 cursor-pointer mt-2 transition-all duration-200 select-none disabled:opacity-30 disabled:pointer-events-none"
         >
           <Trash2 className="size-3 text-muted-foreground/70 group-hover:text-red-400 transition-colors duration-200" />
           <span className="transition-colors duration-200">Clear All Features</span>
