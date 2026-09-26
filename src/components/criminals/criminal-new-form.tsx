@@ -21,6 +21,8 @@ import {
   Save,
   Calendar as CalendarIcon,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Lock,
   ArrowLeft,
   Dna,
@@ -106,6 +108,27 @@ const DEFAULT_SUGGESTED_ALIASES = [
   "Viper",
 ];
 
+const MONTH_NAMES = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+
+const CURRENT_YEAR = new Date().getFullYear();
+const YEAR_OPTIONS = Array.from(
+  { length: CURRENT_YEAR - 1930 + 1 },
+  (_, i) => CURRENT_YEAR - i
+);
+
 interface CriminalNewFormProps {
   suggestedCriminalId?: string;
 }
@@ -120,6 +143,9 @@ export function CriminalNewForm({
   // 1. Personal Information State
   const [fullName, setFullName] = React.useState("");
   const [dateOfBirth, setDateOfBirth] = React.useState<Date | undefined>(undefined);
+  const [calendarMonth, setCalendarMonth] = React.useState<Date>(
+    dateOfBirth || new Date()
+  );
   const [isDatePickerOpen, setIsDatePickerOpen] = React.useState(false);
   const [gender, setGender] = React.useState("");
   const [nationality, setNationality] = React.useState("Indian");
@@ -288,6 +314,7 @@ export function CriminalNewForm({
   const handleReset = () => {
     setFullName("");
     setDateOfBirth(undefined);
+    setCalendarMonth(new Date(1995, 0, 1));
     setGender("");
     setNationality("Indian");
     setKnownAs("");
@@ -491,7 +518,15 @@ export function CriminalNewForm({
                     <span>Date of Birth</span>
                     <span className="text-rose-500">*</span>
                   </Label>
-                  <Popover open={isDatePickerOpen} onOpenChange={setIsDatePickerOpen}>
+                  <Popover
+                    open={isDatePickerOpen}
+                    onOpenChange={(open) => {
+                      setIsDatePickerOpen(open);
+                      if (open) {
+                        setCalendarMonth(dateOfBirth || new Date());
+                      }
+                    }}
+                  >
                     <PopoverTrigger
                       render={
                         <Button
@@ -511,17 +546,187 @@ export function CriminalNewForm({
                       align="start"
                       side="bottom"
                       sideOffset={6}
-                      className="w-auto p-2 rounded-xl shadow-2xl bg-card/95 backdrop-blur-xl border-2 border-border overflow-hidden"
+                      collisionAvoidance={{
+                        side: "none",
+                        align: "shift",
+                        fallbackAxisSide: "none",
+                      }}
+                      collisionPadding={8}
+                      className="w-[316px] max-w-[calc(100vw-1.5rem)] p-3.5 rounded-2xl shadow-2xl bg-card/95 backdrop-blur-xl border-2 border-border overflow-hidden select-none"
                     >
+                      {/* Month & Year Navigation Bar */}
+                      <div className="flex items-center justify-between gap-2 pb-3 mb-2 border-b-2 border-border/60">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setCalendarMonth(
+                              (prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1)
+                            )
+                          }
+                          className="size-8 rounded-lg border-2 border-border/70 bg-background/50 hover:bg-muted/70 text-muted-foreground hover:text-foreground flex items-center justify-center cursor-pointer transition-colors active:scale-95 shadow-xs shrink-0"
+                          title="Previous month"
+                          aria-label="Previous month"
+                        >
+                          <ChevronLeft className="size-4" />
+                        </button>
+
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          {/* Month Dropdown */}
+                          <DropdownMenu>
+                            <DropdownMenuTrigger
+                              render={
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  className="h-8 px-2.5 rounded-lg border-2 border-border/80 bg-background/60 hover:bg-muted/60 text-foreground font-semibold text-xs flex items-center gap-1.5 cursor-pointer transition-colors focus-visible:border-[#665AEF] shadow-xs"
+                                />
+                              }
+                            >
+                              <span>{MONTH_NAMES[calendarMonth.getMonth()]}</span>
+                              <ChevronDown className="size-3 text-muted-foreground opacity-70 shrink-0" />
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent
+                              align="start"
+                              side="bottom"
+                              sideOffset={4}
+                              className="w-36 min-w-[140px] p-1 rounded-xl shadow-2xl bg-card/95 backdrop-blur-xl border-2 border-border z-[70] scrollbar-width-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none]"
+                              onPointerLeave={() => setHoveredItem(null)}
+                            >
+                              <div className="flex flex-col max-h-[220px] overflow-y-auto scrollbar-width-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] p-0.5">
+                                {MONTH_NAMES.map((m, idx) => {
+                                  const isSelected = calendarMonth.getMonth() === idx;
+                                  return (
+                                    <DropdownMenuItem
+                                      key={m}
+                                      onClick={() => {
+                                        setCalendarMonth(
+                                          new Date(calendarMonth.getFullYear(), idx, 1)
+                                        );
+                                      }}
+                                      onPointerEnter={() => setHoveredItem(`dob-m-${m}`)}
+                                      className={cn(
+                                        "relative z-0 cursor-pointer px-2.5 py-1.5 rounded-md text-xs font-medium hover:!bg-transparent focus:!bg-transparent transition-colors flex items-center justify-between",
+                                        isSelected && "text-[#665AEF] font-semibold"
+                                      )}
+                                    >
+                                      {hoveredItem === `dob-m-${m}` && (
+                                        <motion.div
+                                          layoutId="dob-month-hover"
+                                          className="absolute inset-0 z-[-1] rounded-md bg-accent/80"
+                                          transition={{ type: "spring", bounce: 0.3, duration: 0.4 }}
+                                        />
+                                      )}
+                                      <span>{m}</span>
+                                      {isSelected && (
+                                        <Check className="size-3 text-[#665AEF] shrink-0" />
+                                      )}
+                                    </DropdownMenuItem>
+                                  );
+                                })}
+                              </div>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+
+                          {/* Year Dropdown */}
+                          <DropdownMenu>
+                            <DropdownMenuTrigger
+                              render={
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  className="h-8 px-2.5 rounded-lg border-2 border-border/80 bg-background/60 hover:bg-muted/60 text-foreground font-semibold text-xs flex items-center gap-1.5 cursor-pointer transition-colors focus-visible:border-[#665AEF] shadow-xs"
+                                />
+                              }
+                            >
+                              <span>{calendarMonth.getFullYear()}</span>
+                              <ChevronDown className="size-3 text-muted-foreground opacity-70 shrink-0" />
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent
+                              align="start"
+                              side="bottom"
+                              sideOffset={4}
+                              className="w-28 min-w-[110px] p-1 rounded-xl shadow-2xl bg-card/95 backdrop-blur-xl border-2 border-border z-[70] scrollbar-width-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none]"
+                              onPointerLeave={() => setHoveredItem(null)}
+                            >
+                              <div className="flex flex-col max-h-[220px] overflow-y-auto scrollbar-width-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] p-0.5">
+                                {YEAR_OPTIONS.map((y) => {
+                                  const isSelected = calendarMonth.getFullYear() === y;
+                                  return (
+                                    <DropdownMenuItem
+                                      key={y}
+                                      onClick={() => {
+                                        setCalendarMonth(
+                                          new Date(y, calendarMonth.getMonth(), 1)
+                                        );
+                                      }}
+                                      onPointerEnter={() => setHoveredItem(`dob-y-${y}`)}
+                                      className={cn(
+                                        "relative z-0 cursor-pointer px-2.5 py-1.5 rounded-md text-xs font-medium hover:!bg-transparent focus:!bg-transparent transition-colors flex items-center justify-between",
+                                        isSelected && "text-[#665AEF] font-semibold"
+                                      )}
+                                    >
+                                      {hoveredItem === `dob-y-${y}` && (
+                                        <motion.div
+                                          layoutId="dob-year-hover"
+                                          className="absolute inset-0 z-[-1] rounded-md bg-accent/80"
+                                          transition={{ type: "spring", bounce: 0.3, duration: 0.4 }}
+                                        />
+                                      )}
+                                      <span>{y}</span>
+                                      {isSelected && (
+                                        <Check className="size-3 text-[#665AEF] shrink-0" />
+                                      )}
+                                    </DropdownMenuItem>
+                                  );
+                                })}
+                              </div>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setCalendarMonth(
+                              (prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1)
+                            )
+                          }
+                          className="size-8 rounded-lg border-2 border-border/70 bg-background/50 hover:bg-muted/70 text-muted-foreground hover:text-foreground flex items-center justify-center cursor-pointer transition-colors active:scale-95 shadow-xs shrink-0"
+                          title="Next month"
+                          aria-label="Next month"
+                        >
+                          <ChevronRight className="size-4" />
+                        </button>
+                      </div>
+
+                      {/* Day Grid with hidden default caption */}
                       <CalendarPicker
                         mode="single"
+                        month={calendarMonth}
+                        onMonthChange={setCalendarMonth}
                         selected={dateOfBirth}
-                        defaultMonth={dateOfBirth || new Date(1995, 0, 1)}
                         onSelect={(date) => {
                           if (date) {
                             setDateOfBirth(date);
+                            setCalendarMonth(date);
                             setIsDatePickerOpen(false);
                           }
+                        }}
+                        className="w-full p-0 select-none bg-transparent [--cell-size:2.25rem] [--cell-radius:var(--radius-lg)]"
+                        classNames={{
+                          root: "w-full flex flex-col items-center",
+                          months: "w-full",
+                          month: "w-full space-y-2",
+                          nav: "hidden",
+                          month_caption: "hidden",
+                          month_grid: "w-full border-collapse",
+                          weekdays: "flex w-full items-center justify-between mb-1",
+                          weekday:
+                            "flex-1 text-center text-xs font-semibold text-muted-foreground/75 select-none py-1",
+                          week: "flex w-full items-center justify-between mt-1",
+                          day: "flex-1 flex items-center justify-center p-0 text-center select-none aspect-square",
+                          today: "font-bold text-[#665AEF] border-2 border-[#665AEF] rounded-lg",
+                          outside: "text-muted-foreground/35 pointer-events-auto",
                         }}
                       />
                     </PopoverContent>
