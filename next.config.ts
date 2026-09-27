@@ -20,6 +20,21 @@ const nextConfig: NextConfig = {
         hostname: "*.googleusercontent.com",
         pathname: "/**",
       },
+      {
+        protocol: "https",
+        hostname: "forensix-evidence.fly.storage.tigris.dev",
+        pathname: "/**",
+      },
+      {
+        protocol: "https",
+        hostname: "*.fly.storage.tigris.dev",
+        pathname: "/**",
+      },
+      {
+        protocol: "https",
+        hostname: "fly.storage.tigris.dev",
+        pathname: "/**",
+      },
     ],
   },
 };

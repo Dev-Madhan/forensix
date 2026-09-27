@@ -24,10 +24,14 @@ export type CreateCriminalInput = z.infer<typeof CreateCriminalSchema>;
 
 export const UpdateCriminalSchema = z.object({
   id: z.string(),
+  criminalId: z.string().optional(),
   firstName: z.string().min(1, "First name is required").max(100).optional(),
   lastName: z.string().min(1, "Last name is required").max(100).optional(),
   alias: z.string().optional(),
-  dateOfBirth: z.string().optional().transform((str) => (str ? new Date(str) : undefined)),
+  dateOfBirth: z
+    .union([z.string(), z.date()])
+    .optional()
+    .transform((val) => (val ? new Date(val) : undefined)),
   gender: z.string().optional(),
   nationality: z.string().optional(),
   address: z.string().optional(),
@@ -35,6 +39,7 @@ export const UpdateCriminalSchema = z.object({
   status: z.nativeEnum(CriminalStatus).optional(),
   lastKnownLocation: z.string().optional(),
   mugshotUrl: z.string().optional(),
+  demographics: z.record(z.string(), z.any()).optional(),
 });
 
 export type UpdateCriminalInput = z.infer<typeof UpdateCriminalSchema>;

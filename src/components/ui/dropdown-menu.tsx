@@ -46,6 +46,7 @@ function DropdownMenuContent({
             "z-50 max-h-(--available-height) w-(--anchor-width) min-w-32 origin-(--transform-origin) overflow-hidden rounded-xl bg-card/95 backdrop-blur-xl border-2 border-border text-popover-foreground shadow-xl outline-none no-scrollbar scrollbar-none [&::-webkit-scrollbar]:hidden",
             className
           )}
+          style={{ scrollbarWidth: "none", msOverflowStyle: "none", ...props.style }}
           {...props}
         >
           <motion.div
@@ -53,7 +54,8 @@ function DropdownMenuContent({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.96, y: -8 }}
             transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-            className="p-1 overflow-x-hidden overflow-y-auto max-h-[calc(var(--available-height)-1rem)]"
+            className="p-1 overflow-x-hidden overflow-y-auto max-h-[calc(var(--available-height)-1rem)] no-scrollbar"
+            style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
           >
             {children}
           </motion.div>

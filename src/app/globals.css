@@ -354,12 +354,24 @@
   background: rgba(102, 90, 239, 0.8);
 }
 
-
-
 .no-scrollbar::-webkit-scrollbar {
-  display: none;
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
 }
 .no-scrollbar {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
+  -ms-overflow-style: none !important;
+  scrollbar-width: none !important;
+}
+
+[data-slot="dropdown-menu-content"],
+[data-slot="dropdown-menu-content"] * {
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+[data-slot="dropdown-menu-content"]::-webkit-scrollbar,
+[data-slot="dropdown-menu-content"] *::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
 }

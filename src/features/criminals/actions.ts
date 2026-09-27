@@ -84,6 +84,9 @@ export async function updateCriminal(data: unknown) {
 
     revalidatePath("/dashboard/criminals");
     revalidatePath(`/dashboard/criminals/${criminal.id}`);
+    if (criminal.criminalId) {
+      revalidatePath(`/dashboard/criminals/${criminal.criminalId}`);
+    }
     return { success: true, data: criminal };
   } catch (error) {
     console.error("Failed to update criminal:", error);
