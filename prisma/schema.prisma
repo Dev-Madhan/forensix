@@ -43,6 +43,13 @@ enum CriminalStatus {
   ARCHIVED
 }
 
+enum GenerationStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
 // --- MODELS ---
 
 model User {
@@ -230,4 +237,16 @@ model Verification {
 
   @@index([identifier])
   @@map("verification")
+}
+
+model GenerationJob {
+  id        String           @id @default(uuid())
+  userId    String?          // Optional: link to User if auth is implemented
+  prompt    String           @db.Text
+  status    GenerationStatus @default(PENDING)
+  imageUrl  String?          @db.Text // URL of the generated image once completed
+  error     String?          @db.Text // Error message if failed
+  caseId    String?          // Optional: link to Case if generated within a case
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
 }

@@ -1,18 +1,42 @@
 import { NextRequest, NextResponse } from "next/server";
+import { after } from "next/server";
 import { buildForensicPrompt } from "@/services/ai/sketch-prompt-builder";
 import { synthesizeProceduralSketch } from "@/services/ai/forensic-procedural-synthesizer";
 import { env } from "@/env";
 import crypto from "crypto";
+import { prisma } from "@/lib/prisma";
 
 // Maximum duration for Vercel Serverless Function execution (RTX 4050 GPU generation takes ~12-25s)
 export const maxDuration = 60;
 export const dynamic = "force-dynamic";
 
+// Global in-memory queue to prevent concurrency issues (GPU OOM / Ngrok connection limits)
+// This ensures that even if 5 users request an image at the exact same time, 
+// they are processed 1 by 1 sequentially by the local AI worker.
+const jobQueue: { id: string, execute: () => Promise<void> }[] = [];
+let isProcessingQueue = false;
+
+async function processQueue() {
+  if (isProcessingQueue) return;
+  isProcessingQueue = true;
+  
+  while (jobQueue.length > 0) {
+    const job = jobQueue.shift();
+    if (job) {
+      try {
+        await job.execute();
+      } catch (e) {
+        console.error(`[Queue] Error executing job ${job.id}:`, e);
+      }
+    }
+  }
+  
+  isProcessingQueue = false;
+}
+
 /**
  * Next.js server route proxy for forensic sketch synthesis.
- * Strategy 1: Local / Tunneled FastAPI AI microservice (SD 1.5 + ControlNet Lineart) — real GPU
- * Strategy 2: Google Gemini / Imagen 3 cloud API (if key set)
- * Strategy 3: High-fidelity forensic procedural SVG synthesizer (always works)
+ * Now using Asynchronous Job Architecture.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -31,202 +55,196 @@ export async function POST(request: NextRequest) {
     const detailLevel = rawBody.detail_level || "Standard";
     const resolution = rawBody.resolution ?? 640;
     const seed = rawBody.seed ?? Math.floor(100000 + Math.random() * 900000);
-
     const mode = rawBody.mode || (rawBody.prompt?.trim() ? "PROMPT_GENERATION" : "DATASET_COMPOSITE");
     const components = rawBody.components || undefined;
 
-    // Build the master forensic prompt
-    const engineeredPrompt = buildForensicPrompt({
-      witnessStatement: prompt,
-      attributes,
-      sketchStyle,
-      cameraAngle,
-      ageGroup,
-      gender,
-      ethnicity,
-      lightingMood,
-      detailLevel,
+    // Create the Job in the Database immediately
+    const job = await prisma.generationJob.create({
+      data: {
+        prompt: prompt || JSON.stringify(attributes),
+        status: "PENDING",
+        caseId: caseId,
+      }
     });
 
-    // Strategy 1: Local FastAPI AI Microservice (SD 1.5 + ControlNet Lineart)
-    //   Real GPU inference on RTX 4050 — produces authentic pencil sketch PNGs
-    const aiServiceUrl = (env.AI_SERVICE_URL || "http://localhost:8000").replace(/\/$/, "");
-    const aiSecret = env.AI_SERVICE_SECRET || "";
+    // Define the async generation task
+    const executeJob = async () => {
+      try {
+        // Update status to processing
+        await prisma.generationJob.update({
+          where: { id: job.id },
+          data: { status: "PROCESSING" }
+        });
 
-    try {
-      const requestId = `req_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`;
-      const steps =
-        detailLevel === "Master" ? 36 : detailLevel === "Draft" ? 14 : 24;
-      const controlStrength = typeof rawBody.control_strength === "number" ? rawBody.control_strength : undefined;
-
-      const fastApiRes = await fetch(`${aiServiceUrl}/api/v1/sketch/generate`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-AI-Secret": aiSecret,
-          "X-Request-ID": requestId,
-          "bypass-tunnel-reminder": "true",
-          "ngrok-skip-browser-warning": "true",
-        },
-        body: JSON.stringify({
-          mode,
-          case_id: caseId,
-          witness_id: witnessId,
-          attributes: mode === "DATASET_COMPOSITE" ? attributes : undefined,
-          components: mode === "DATASET_COMPOSITE" ? components : undefined,
-          seed,
-          resolution: typeof resolution === "number" ? Math.min(resolution, 512) : 512,
-          steps,
-          ...(controlStrength !== undefined ? { control_strength: controlStrength } : {}),
-          sketch_style: sketchStyle,
-          camera_angle: cameraAngle,
-          age_group: ageGroup,
+        // Build the master forensic prompt
+        const engineeredPrompt = buildForensicPrompt({
+          witnessStatement: prompt,
+          attributes,
+          sketchStyle,
+          cameraAngle,
+          ageGroup,
           gender,
           ethnicity,
-          lighting_mood: lightingMood,
-          detail_level: detailLevel,
-          prompt: mode === "PROMPT_GENERATION" ? (prompt.trim() || undefined) : undefined,
-        }),
-        // 3-minute timeout — first call loads model into VRAM
-        signal: AbortSignal.timeout(180_000),
-      });
+          lightingMood,
+          detailLevel,
+        });
 
-      if (fastApiRes.ok) {
-        const fastApiData = await fastApiRes.json();
-        const imageRelativeUrl: string | undefined = fastApiData.image?.url;
+        let finalImageUrl: string | null = null;
 
-        if (imageRelativeUrl) {
-          // Fetch the actual PNG bytes and convert to base64 data URL for the browser
-          const imageAbsoluteUrl = `${aiServiceUrl}${imageRelativeUrl.startsWith("/") ? "" : "/"}${imageRelativeUrl}`;
-          const imgRes = await fetch(imageAbsoluteUrl, {
+        // Strategy 1: Local FastAPI AI Microservice
+        const aiServiceUrl = (env.AI_SERVICE_URL || "http://localhost:8000").replace(/\/$/, "");
+        const aiSecret = env.AI_SERVICE_SECRET || "";
+
+        try {
+          const requestId = `req_${crypto.randomUUID().replace(/-/g, "").slice(0, 16)}`;
+          const steps = detailLevel === "Master" ? 36 : detailLevel === "Draft" ? 14 : 24;
+          const controlStrength = typeof rawBody.control_strength === "number" ? rawBody.control_strength : undefined;
+
+          const fastApiRes = await fetch(`${aiServiceUrl}/api/v1/sketch/generate`, {
+            method: "POST",
             headers: {
+              "Content-Type": "application/json",
+              "X-AI-Secret": aiSecret,
+              "X-Request-ID": requestId,
               "bypass-tunnel-reminder": "true",
               "ngrok-skip-browser-warning": "true",
             },
-            signal: AbortSignal.timeout(30_000),
+            body: JSON.stringify({
+              mode,
+              case_id: caseId,
+              witness_id: witnessId,
+              attributes: mode === "DATASET_COMPOSITE" ? attributes : undefined,
+              components: mode === "DATASET_COMPOSITE" ? components : undefined,
+              seed,
+              resolution: typeof resolution === "number" ? Math.min(resolution, 512) : 512,
+              steps,
+              ...(controlStrength !== undefined ? { control_strength: controlStrength } : {}),
+              sketch_style: sketchStyle,
+              camera_angle: cameraAngle,
+              age_group: ageGroup,
+              gender,
+              ethnicity,
+              lighting_mood: lightingMood,
+              detail_level: detailLevel,
+              prompt: mode === "PROMPT_GENERATION" ? (prompt.trim() || undefined) : undefined,
+            }),
+            signal: AbortSignal.timeout(180_000),
           });
 
-          if (imgRes.ok) {
-            const imgBuffer = await imgRes.arrayBuffer();
-            const b64 = Buffer.from(imgBuffer).toString("base64");
-            const contentType = fastApiData.image?.content_type || "image/png";
+          if (fastApiRes.ok) {
+            const fastApiData = await fastApiRes.json();
+            const imageRelativeUrl: string | undefined = fastApiData.image?.url;
 
-            return NextResponse.json({
-              status: "completed",
-              case_id: caseId,
-              witness_id: witnessId,
-              image: {
-                url: `data:${contentType};base64,${b64}`,
-                content_type: contentType,
-              },
-              seed: fastApiData.seed ?? seed,
-              llm_analysis: fastApiData.llm_analysis,
-              metadata: {
-                ...(fastApiData.metadata || {}),
-                engine: "diffusion_local_sd15_controlnet",
-                prompt_used: engineeredPrompt.prompt,
-                sketch_style: sketchStyle,
-                camera_angle: cameraAngle,
-                confidence_score: fastApiData.llm_analysis?.confidence_score ?? 97.1,
-                resolution,
-              },
-            });
+            if (imageRelativeUrl) {
+              const imageAbsoluteUrl = `${aiServiceUrl}${imageRelativeUrl.startsWith("/") ? "" : "/"}${imageRelativeUrl}`;
+              const imgRes = await fetch(imageAbsoluteUrl, {
+                headers: {
+                  "bypass-tunnel-reminder": "true",
+                  "ngrok-skip-browser-warning": "true",
+                },
+                signal: AbortSignal.timeout(30_000),
+              });
+
+              if (imgRes.ok) {
+                const imgBuffer = await imgRes.arrayBuffer();
+                const b64 = Buffer.from(imgBuffer).toString("base64");
+                const contentType = fastApiData.image?.content_type || "image/png";
+                finalImageUrl = `data:${contentType};base64,${b64}`;
+              }
+            }
+          } else {
+            console.warn(`[AI Route] FastAPI returned HTTP ${fastApiRes.status}`);
+          }
+        } catch (fastApiErr) {
+          console.warn("[AI Route] Local ai-service unavailable, trying cloud fallback.");
+        }
+
+        // Strategy 2: Gemini / Imagen 3 Cloud API (if Strategy 1 failed)
+        if (!finalImageUrl) {
+          const geminiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_AI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+          if (geminiKey) {
+            try {
+              const geminiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${geminiKey}`;
+              const geminiRes = await fetch(geminiEndpoint, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  instances: [{ prompt: engineeredPrompt.prompt }],
+                  parameters: {
+                    sampleCount: 1,
+                    aspectRatio: "4:5",
+                    negativePrompt: engineeredPrompt.negativePrompt,
+                  },
+                }),
+              });
+
+              if (geminiRes.ok) {
+                const geminiData = await geminiRes.json();
+                const b64 = geminiData.predictions?.[0]?.bytesBase64Encoded;
+                if (b64) {
+                  finalImageUrl = `data:image/jpeg;base64,${b64}`;
+                }
+              }
+            } catch (geminiErr) {
+              console.warn("[AI Route] Gemini image generation failed:", geminiErr);
+            }
           }
         }
-      } else {
-        const errText = await fastApiRes.text();
-        console.warn(`[AI Route] FastAPI returned HTTP ${fastApiRes.status}: ${errText}`);
-      }
-    } catch (fastApiErr) {
-      console.warn(
-        "[AI Route] Local ai-service unavailable, trying cloud fallback:",
-        fastApiErr instanceof Error ? fastApiErr.message : fastApiErr
-      );
-    }
 
-    // Strategy 2: Gemini / Imagen 3 Cloud API (if API key is set)
-    const geminiKey =
-      process.env.GEMINI_API_KEY ||
-      process.env.GOOGLE_AI_API_KEY ||
-      process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+        // Strategy 3: Resilient High-Fidelity Forensic Procedural SVG Synthesizer
+        if (!finalImageUrl) {
+          const proceduralResult = synthesizeProceduralSketch({
+            witnessStatement: prompt,
+            attributes,
+            sketchStyle,
+            cameraAngle,
+            ageGroup,
+            gender,
+            ethnicity,
+            lightingMood,
+            detailLevel,
+            caseId,
+            witnessId,
+            seed,
+            resolution,
+          });
+          finalImageUrl = proceduralResult.imageUrl;
+        }
 
-    if (geminiKey) {
-      try {
-        const geminiEndpoint = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${geminiKey}`;
-        const geminiRes = await fetch(geminiEndpoint, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            instances: [{ prompt: engineeredPrompt.prompt }],
-            parameters: {
-              sampleCount: 1,
-              aspectRatio: "4:5",
-              negativePrompt: engineeredPrompt.negativePrompt,
-            },
-          }),
+        // Update Job as COMPLETED
+        await prisma.generationJob.update({
+          where: { id: job.id },
+          data: {
+            status: "COMPLETED",
+            imageUrl: finalImageUrl
+          }
         });
 
-        if (geminiRes.ok) {
-          const geminiData = await geminiRes.json();
-          const b64 = geminiData.predictions?.[0]?.bytesBase64Encoded;
-          if (b64) {
-            return NextResponse.json({
-              status: "completed",
-              case_id: caseId,
-              witness_id: witnessId,
-              image: {
-                url: `data:image/jpeg;base64,${b64}`,
-                content_type: "image/jpeg",
-              },
-              seed,
-              metadata: {
-                engine: "gemini_imagen3",
-                prompt_used: engineeredPrompt.prompt,
-                sketch_style: sketchStyle,
-                camera_angle: cameraAngle,
-                confidence_score: 98.2,
-                resolution,
-              },
-            });
+      } catch (err) {
+        console.error("[Job Processing Error]:", err);
+        await prisma.generationJob.update({
+          where: { id: job.id },
+          data: {
+            status: "FAILED",
+            error: err instanceof Error ? err.message : "Unknown error occurred"
           }
-        }
-      } catch (geminiErr) {
-        console.warn("[AI Route] Gemini image generation failed:", geminiErr);
+        });
       }
-    }
+    };
 
-    // Strategy 3: Resilient High-Fidelity Forensic Procedural SVG Synthesizer
-    //   Always succeeds regardless of GPU or API availability
-    const proceduralResult = synthesizeProceduralSketch({
-      witnessStatement: prompt,
-      attributes,
-      sketchStyle,
-      cameraAngle,
-      ageGroup,
-      gender,
-      ethnicity,
-      lightingMood,
-      detailLevel,
-      caseId,
-      witnessId,
-      seed,
-      resolution,
+    // Push task to the queue and trigger processor
+    jobQueue.push({ id: job.id, execute: executeJob });
+    after(() => {
+      processQueue();
     });
 
+    // Return jobId immediately so the client can start polling
     return NextResponse.json({
-      status: "completed",
-      case_id: caseId,
-      witness_id: witnessId,
-      image: {
-        url: proceduralResult.imageUrl,
-        content_type: "image/svg+xml",
-      },
-      seed: proceduralResult.seed,
-      metadata: {
-        ...proceduralResult.metadata,
-        fallback_notice: "Generated via procedural engine because the local GPU AI worker was unreachable. Connect your tunnel at AI_SERVICE_URL to use your local RTX 4050 model.",
-      },
+      job_id: job.id,
+      status: "pending",
+      message: "Image generation started asynchronously."
     });
+
   } catch (error: unknown) {
     console.error("[AI Route] Unexpected error in sketch route:", error);
     const message = error instanceof Error ? error.message : "Internal sketch generator error";
