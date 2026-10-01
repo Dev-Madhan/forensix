@@ -1,3 +1,4 @@
+import asyncio
 import json
 import random
 import time
@@ -16,6 +17,12 @@ from app.services.geometry_service import geometry_service
 from app.utils.errors import ProviderException
 
 settings = get_settings()
+
+# GPU Inference Semaphore: Serializes GPU access to prevent CUDA OOM.
+# RTX 4050 6GB can only run ONE SD 1.5 + ControlNet inference at a time.
+# When multiple Vercel containers send requests simultaneously through ngrok,
+# this semaphore queues them 1-by-1 instead of crashing the GPU.
+_gpu_semaphore = asyncio.Semaphore(1)
 
 
 class SketchService:
@@ -43,6 +50,17 @@ class SketchService:
             f"angle={request.camera_angle}, style={request.sketch_style}",
             extra={"endpoint": "/api/v1/sketch/generate", "request_id": request_id},
         )
+
+        # Acquire GPU semaphore — serializes inference to prevent CUDA OOM
+        # If another generation is running, this will wait up to 90 seconds
+        try:
+            await asyncio.wait_for(_gpu_semaphore.acquire(), timeout=90.0)
+        except asyncio.TimeoutError:
+            logger.warning(
+                f"GPU semaphore timeout for {generation_id} — GPU busy for >90s",
+                extra={"endpoint": "/api/v1/sketch/generate", "request_id": request_id},
+            )
+            raise ProviderException("GPU is currently busy processing another sketch. Please try again in a few seconds.")
 
         try:
             # 0. Mode Routing & Attribute Preparation
@@ -265,6 +283,9 @@ class SketchService:
                 exc_info=True,
             )
             raise ProviderException("Failed to generate forensic sketch.")
+        finally:
+            # Always release the GPU semaphore so the next request can proceed
+            _gpu_semaphore.release()
 
         elapsed_ms = round((time.perf_counter() - start_time) * 1000, 2)
         return SketchGenerateResponse(

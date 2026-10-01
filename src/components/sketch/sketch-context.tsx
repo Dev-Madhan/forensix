@@ -391,7 +391,6 @@ export function SketchProvider({ children }: { children: React.ReactNode }) {
       }
 
       const isPromptMode = generationMode === "PROMPT_GENERATION" || (generationMode === "IDLE" && promptText.trim().length > 0);
-      const activeMode = isPromptMode ? "PROMPT_GENERATION" : "DATASET_COMPOSITE";
 
       // Build components map for dataset composite mode
       const components: Record<string, string> = {};
@@ -455,8 +454,13 @@ export function SketchProvider({ children }: { children: React.ReactNode }) {
       let finalMetadata = null;
       let finalLlmAnalysis = null;
 
-      if (data.job_id) {
-        // Start polling for asynchronous generation
+      if (data.status === "completed" && data.image?.url) {
+        // Synchronous response — image is returned directly (primary path)
+        finalImageUrl = data.image.url;
+        finalMetadata = data.metadata || null;
+        finalLlmAnalysis = data.llm_analysis || data.metadata?.llm_analysis || null;
+      } else if (data.job_id) {
+        // Polling fallback — only used if server somehow returns a pending job
         let isDone = false;
         
         while (!isDone) {
@@ -477,7 +481,7 @@ export function SketchProvider({ children }: { children: React.ReactNode }) {
           }
         }
       } else {
-        // Synchronous fallback
+        // Legacy synchronous fallback (shouldn't happen but safe)
         finalImageUrl = data.image?.url;
         finalMetadata = data.metadata;
         finalLlmAnalysis = data.llm_analysis || data.metadata?.llm_analysis;
