@@ -152,6 +152,7 @@ class ForensicLoRADataset(Dataset):
         resolution: int = 512,
         fs2k_dir: Path = FS2K_DIR,
         celeba_dir: Path = CELEBA_DIR,
+        dataset_mode: str = "both",
         max_samples: int = 5000,
         seed: int = 42,
     ):
@@ -165,13 +166,15 @@ class ForensicLoRADataset(Dataset):
             transforms.Normalize([0.5], [0.5]),
         ])
 
-        self._load_fs2k(fs2k_dir)
-        self._load_celeba_hq(celeba_dir)
+        if dataset_mode in ("both", "fs2k"):
+            self._load_fs2k(fs2k_dir)
+        if dataset_mode in ("both", "celeba"):
+            self._load_celeba_hq(celeba_dir)
         self.rng.shuffle(self.samples)
-        if len(self.samples) > max_samples:
+        if max_samples and max_samples > 0 and len(self.samples) > max_samples:
             self.samples = self.samples[:max_samples]
 
-        print(f"[Dataset] Loaded {len(self.samples)} total training samples.")
+        print(f"[Dataset] Loaded {len(self.samples)} total training samples (mode: {dataset_mode}).")
 
     def _load_fs2k(self, fs2k_dir: Path) -> None:
         """Load FS2K sketch images with auto-generated captions."""
@@ -241,7 +244,7 @@ class ForensicLoRADataset(Dataset):
             print(f"[WARN] CelebAMask-HQ image directory not found at {celeba_dir}. Skipping CelebA-HQ.")
             return
 
-        img_paths = sorted(list(img_dir.glob("*.jpg")) + list(img_dir.glob("*.png")))[:5000]
+        img_paths = sorted(list(img_dir.glob("*.jpg")) + list(img_dir.glob("*.png")))
         print(f"[Dataset] Found {len(img_paths)} CelebA-HQ images.")
 
         for i, path in enumerate(img_paths):
@@ -443,7 +446,12 @@ def train(args: argparse.Namespace) -> None:
         weight_decay=1e-2,
     )
 
-    dataset    = ForensicLoRADataset(resolution=512, max_samples=args.max_samples, seed=args.seed)
+    dataset    = ForensicLoRADataset(
+        resolution=512,
+        dataset_mode=args.dataset,
+        max_samples=args.max_samples,
+        seed=args.seed,
+    )
     dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=True, num_workers=0)
 
     from transformers import get_cosine_schedule_with_warmup
@@ -586,8 +594,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--learning_rate",               default=5e-5, type=float)
     p.add_argument("--batch_size",                  default=1,    type=int)
     p.add_argument("--gradient_accumulation_steps", default=4,    type=int)
-    p.add_argument("--max_train_steps",             default=1500, type=int)
-    p.add_argument("--max_samples",                 default=5000, type=int)
+    p.add_argument("--max_train_steps",             default=2500, type=int)
+    p.add_argument("--max_samples",                 default=0,    type=int,   help="Max samples to load (0 = train ALL images in dataset)")
+    p.add_argument("--dataset",                     default="both", choices=["both", "fs2k", "celeba"], help="Dataset to train: fs2k, celeba, or both")
     p.add_argument("--mixed_precision",             default="fp16", type=str, choices=["no", "fp16", "bf16"])
     p.add_argument("--seed",                        default=42,   type=int)
     return p.parse_args()
