@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
 import {
   Target,
   MoreHorizontal,
@@ -9,6 +10,7 @@ import {
   UserCheck,
   CheckCircle2,
   Trash2,
+  ExternalLink,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import {
@@ -183,6 +185,17 @@ export function SuspectPreviewCard({
           >
             {suspect.matchConfidence}%
           </span>
+        </div>
+
+        {/* 1-Click Link to Central Criminal Database */}
+        <div className="pt-2">
+          <Link
+            href={`/dashboard/criminals/${suspect.criminalId || suspect.databaseId || suspect.id}`}
+            className="w-full h-8.5 rounded-lg border-2 border-[#665AEF]/40 bg-[#665AEF]/10 hover:bg-[#665AEF]/20 text-[#a594fd] hover:text-white text-xs font-medium flex items-center justify-center gap-1.5 transition-all"
+          >
+            <span>View Criminal Dossier</span>
+            <ExternalLink className="size-3" />
+          </Link>
         </div>
       </CardContent>
     </Card>

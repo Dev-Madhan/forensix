@@ -31,12 +31,37 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 RAW_CELEBA_DIR = BASE_DIR / "datasets" / "raw" / "CelebAMask-HQ"
 ANNO_FILE = RAW_CELEBA_DIR / "CelebAMask-HQ-attribute-anno.txt"
 IMG_DIR = RAW_CELEBA_DIR / "images"
+FS2K_DIR = BASE_DIR / "datasets" / "raw" / "FS2K"
 
 PROCESSED_DIR = BASE_DIR / "datasets" / "processed"
 PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
 
 DIFFUSION_OUTPUT = PROCESSED_DIR / "diffusion_train.jsonl"
 LLM_SFT_OUTPUT = PROCESSED_DIR / "llm_sft_train.jsonl"
+
+SYSTEM_PROMPT_V2 = """You are an expert forensic facial morphologist assisting a criminal investigator.
+Extract observable facial characteristics from the witness statement strictly conforming to the forensic taxonomy.
+Return ONLY valid JSON matching this schema. Do not invent missing features.
+Mark attributes as explicit when stated, or omit if unseen.
+
+Target JSON Schema:
+{
+  "face": {"face_shape": "oval|round|square|oblong|heart", "skin_tone": "fair|medium|dark", "cheekbones": "high|prominent|flat|subtle"},
+  "eyes": {"shape": "almond|round|narrow", "size": "small|medium|large", "spacing": "close|normal|wide", "tilt": "neutral|upward|downward", "color": "dark brown|light brown|hazel|green|blue|gray|black"},
+  "eyebrows": {"thickness": "thin|medium|thick|bushy", "shape": "straight|arched"},
+  "nose": {"bridge": "straight|convex|concave|aquiline", "length": "short|medium|long", "width": "narrow|medium|wide", "tip": "pointed|rounded|bulbous"},
+  "mouth": {"width": "narrow|medium|wide", "upper_lip": "thin|medium|full", "lower_lip": "thin|medium|full"},
+  "jaw": {"width": "narrow|medium|wide", "shape": "angular|rounded"},
+  "chin": {"size": "small|medium|large", "shape": "pointed|rounded|square"},
+  "hair": {"length": "bald|buzz cut|short|medium|long", "texture": "straight|wavy|curly|coily", "color": "black|dark brown|light brown|blonde|red|gray|white"},
+  "facial_hair": {"type": "none|clean-shaven|stubble|mustache|goatee|beard|full beard", "thickness": "light|medium|dense"},
+  "gender": "male|female|unknown",
+  "estimated_age_range": "18-25|26-35|36-50|50+|unknown",
+  "distinctive_features": ["scars", "glasses", "tattoos", "moles", "piercings"],
+  "unknown_attributes": [],
+  "ambiguous_attributes": []
+}
+"""
 
 # Mapping from CelebAMask-HQ 40 binary attributes to forensic diffusion descriptors
 ATTR_DIFFUSION_DESCRIPTORS: Dict[str, str] = {
@@ -155,7 +180,7 @@ def build_diffusion_caption(pos_attrs: Set[str], is_male: bool, is_young: bool, 
             if attr in pos_attrs:
                 parts.append(desc)
         parts.extend([
-            "sharp anatomical facial contours, paper grain texture, neutral white background",
+            "sharp anatomical facial contours, Strathmore cold-press paper grain texture, neutral white background",
             "precise law enforcement identification drawing",
         ])
     
@@ -184,77 +209,170 @@ def build_llm_sample(pos_attrs: Set[str], is_male: bool, is_young: bool) -> Dict
     template = random.choice(TEMPLATES)
     statement = template.format(age_desc=age_desc, gender_desc=gender_desc, traits=traits_str)
     
-    # Target structured JSON
-    face_shape = "oval" if "Oval_Face" in pos_attrs else "round" if "Chubby" in pos_attrs else "unknown"
-    eye_shape = "narrow" if "Narrow_Eyes" in pos_attrs else "unknown"
-    eyebrow_thickness = "thick" if "Bushy_Eyebrows" in pos_attrs else "unknown"
-    eyebrow_shape = "arched" if "Arched_Eyebrows" in pos_attrs else "straight" if "Straight_Hair" in pos_attrs else "unknown"
-    nose_width = "wide" if "Big_Nose" in pos_attrs else "unknown"
-    nose_tip = "pointed" if "Pointy_Nose" in pos_attrs else "rounded" if "Big_Nose" in pos_attrs else "unknown"
-    mouth_width = "wide" if "Big_Lips" in pos_attrs else "unknown"
-    upper_lip = "full" if "Big_Lips" in pos_attrs else "unknown"
-    lower_lip = "full" if "Big_Lips" in pos_attrs else "unknown"
+    # Target structured JSON matching SYSTEM_PROMPT_V2
+    face_shape = "oval" if "Oval_Face" in pos_attrs else "round" if "Chubby" in pos_attrs else "oval"
+    eye_shape = "narrow" if "Narrow_Eyes" in pos_attrs else "almond"
+    eyebrow_thickness = "bushy" if "Bushy_Eyebrows" in pos_attrs else "medium"
+    eyebrow_shape = "arched" if "Arched_Eyebrows" in pos_attrs else "straight"
+    nose_width = "wide" if "Big_Nose" in pos_attrs else "medium"
+    nose_tip = "pointed" if "Pointy_Nose" in pos_attrs else "bulbous" if "Big_Nose" in pos_attrs else "rounded"
+    mouth_width = "wide" if "Big_Lips" in pos_attrs else "medium"
+    upper_lip = "full" if "Big_Lips" in pos_attrs else "medium"
+    lower_lip = "full" if "Big_Lips" in pos_attrs else "medium"
+    cheekbones = "high" if "High_Cheekbones" in pos_attrs else "subtle"
+    skin_tone = "fair" if "Blond_Hair" in pos_attrs else "medium"
+    hair_length = "bald" if "Bald" in pos_attrs else "short" if is_male else "medium"
+    hair_texture = "wavy" if "Wavy_Hair" in pos_attrs else "straight"
+    hair_color = "black" if "Black_Hair" in pos_attrs else "blonde" if "Blond_Hair" in pos_attrs else "gray" if "Gray_Hair" in pos_attrs else "dark brown"
     
-    target_attributes = {
-        "face_shape": face_shape,
-        "gender": "male" if is_male else "female",
-        "estimated_age_range": "20-30" if is_young else "40-50",
+    facial_hair_type = "stubble" if "5_o_Clock_Shadow" in pos_attrs else "goatee" if "Goatee" in pos_attrs else "mustache" if "Mustache" in pos_attrs else "clean-shaven" if "No_Beard" in pos_attrs else "none"
+    distinctive = []
+    if "Eyeglasses" in pos_attrs:
+        distinctive.append("glasses")
+
+    target_attributes_v2 = {
+        "face": {
+            "face_shape": face_shape,
+            "skin_tone": skin_tone,
+            "cheekbones": cheekbones,
+        },
         "eyes": {
             "shape": eye_shape,
             "size": "small" if "Narrow_Eyes" in pos_attrs else "medium",
             "spacing": "normal",
-            "tilt": "neutral"
+            "tilt": "neutral",
+            "color": "dark brown",
         },
         "eyebrows": {
             "thickness": eyebrow_thickness,
-            "shape": eyebrow_shape
+            "shape": eyebrow_shape,
         },
         "nose": {
             "bridge": "straight",
             "length": "medium",
             "width": nose_width,
-            "tip": nose_tip
+            "tip": nose_tip,
         },
         "mouth": {
             "width": mouth_width,
             "upper_lip": upper_lip,
-            "lower_lip": lower_lip
+            "lower_lip": lower_lip,
         },
         "jaw": {
             "width": "wide" if "Chubby" in pos_attrs else "medium",
-            "shape": "rounded" if "Chubby" in pos_attrs else "angular" if "High_Cheekbones" in pos_attrs else "unknown"
+            "shape": "angular" if "High_Cheekbones" in pos_attrs else "rounded",
         },
         "chin": {
             "size": "large" if "Double_Chin" in pos_attrs else "medium",
-            "shape": "rounded" if "Double_Chin" in pos_attrs else "pointed" if "Pointy_Nose" in pos_attrs else "unknown"
+            "shape": "pointed" if "Pointy_Nose" in pos_attrs else "rounded",
         },
-        "facial_hair": "5_o_clock_shadow" if "5_o_Clock_Shadow" in pos_attrs else "goatee" if "Goatee" in pos_attrs else "mustache" if "Mustache" in pos_attrs else "clean_shaven" if "No_Beard" in pos_attrs else "none",
-        "accessories": {
-            "glasses": "eyeglasses" if "Eyeglasses" in pos_attrs else "none",
-            "headwear": "baseball_cap" if "Wearing_Hat" in pos_attrs else "none"
-        }
+        "hair": {
+            "length": hair_length,
+            "texture": hair_texture,
+            "color": hair_color,
+        },
+        "facial_hair": {
+            "type": facial_hair_type,
+            "thickness": "medium" if facial_hair_type != "none" else "light",
+        },
+        "gender": "male" if is_male else "female",
+        "estimated_age_range": "18-25" if is_young else "36-50",
+        "distinctive_features": distinctive,
+        "unknown_attributes": [],
+        "ambiguous_attributes": [],
     }
     
     return {
         "messages": [
             {
                 "role": "system",
-                "content": "Extract only observable facial characteristics from the witness description.\nReturn JSON matching the supplied schema.\nDo not identify a person.\nDo not invent missing attributes.\nUse \"unknown\" when the description is insufficient."
+                "content": SYSTEM_PROMPT_V2.strip(),
             },
             {
                 "role": "user",
-                "content": statement
+                "content": statement,
             },
             {
                 "role": "assistant",
-                "content": json.dumps(target_attributes, indent=2)
+                "content": json.dumps(target_attributes_v2, indent=2),
             }
         ]
     }
 
 
+def load_fs2k_entries(fs2k_dir: Path, limit: int = 3000) -> List[Dict[str, Any]]:
+    """Ingests authentic law-enforcement graphite sketches from FS2K."""
+    anno_file = fs2k_dir / "anno_train.json"
+    if not anno_file.exists():
+        print(f"[FS2K] anno_train.json not found at {anno_file}. Checking sketch folders directly.")
+        sketch_files = list((fs2k_dir / "sketch").rglob("*.jpg"))
+        entries = []
+        for sf in sketch_files[:limit]:
+            entries.append({
+                "image_path": str(sf.resolve()),
+                "caption": (
+                    "(single person:1.6), (solo:1.6), (single face:1.6), <forensic_graphite> authentic police forensic composite sketch, "
+                    "fine 2B graphite pencil cross-hatching, official law enforcement forensic drawing, "
+                    "monochrome pencil portrait of an adult suspect, sharp anatomical facial contours, "
+                    "Strathmore cold-press paper grain texture, neutral white background, precise law enforcement identification drawing"
+                ),
+                "style": "graphite",
+                "positive_attributes": ["authentic_sketch", "graphite_crosshatch"],
+                "gender": "unknown",
+                "is_young": True,
+            })
+        return entries
+
+    with open(anno_file, "r", encoding="utf-8") as f:
+        records = json.load(f)
+
+    entries = []
+    for r in records:
+        img_name = r.get("image_name", "")  # e.g. "photo1/image0110"
+        if not img_name:
+            continue
+        # Map photo1/image0110 -> sketch/sketch1/sketch0110.jpg
+        parts = img_name.split("/")
+        if len(parts) == 2:
+            p_folder = parts[0].replace("photo", "sketch")
+            s_num = parts[1].replace("image", "sketch")
+            sketch_cand = fs2k_dir / "sketch" / p_folder / f"{s_num}.jpg"
+        else:
+            sketch_cand = fs2k_dir / "sketch" / f"{img_name}.jpg"
+
+        if not sketch_cand.exists():
+            continue
+
+        is_male = (r.get("gender", 1) == 1)
+        gender_str = "male" if is_male else "female"
+        hair_desc = "short cropped hair" if r.get("hair", 1) == 1 else "natural medium hair"
+        smile_desc = "subtle smile expression" if r.get("smile", 0) == 1 else "neutral closed-mouth expression"
+        earring_desc = ", wearing small earrings" if r.get("earring", 0) == 1 else ""
+
+        cap = (
+            f"(single person:1.6), (solo:1.6), (single face:1.6), <forensic_graphite> authentic police forensic composite sketch, "
+            f"fine 2B graphite pencil cross-hatching, official law enforcement forensic drawing, "
+            f"monochrome pencil portrait of an adult {gender_str} suspect, {hair_desc}, {smile_desc}{earring_desc}, "
+            f"sharp anatomical facial contours, Strathmore cold-press paper grain texture, neutral white background, "
+            f"precise law enforcement identification drawing"
+        )
+        entries.append({
+            "image_path": str(sketch_cand.resolve()),
+            "caption": cap,
+            "style": "graphite",
+            "positive_attributes": ["authentic_forensic_sketch", "2b_graphite_pencil", "cross_hatching"],
+            "gender": gender_str,
+            "is_young": True,
+        })
+        if len(entries) >= limit:
+            break
+
+    print(f"[FS2K] Ingested {len(entries)} authentic forensic graphite sketches.")
+    return entries
+
+
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Generate CelebAMask-HQ paired forensic training datasets.")
+    parser = argparse.ArgumentParser(description="Generate CelebAMask-HQ + FS2K paired forensic training datasets.")
     parser.add_argument("--limit", type=int, default=15000, help="Maximum samples to process.")
     parser.add_argument("--verify-only", action="store_true", help="Only verify mapping and sample generation without saving.")
     args = parser.parse_args()
@@ -273,6 +391,12 @@ def main() -> None:
         diffusion_entries: List[Dict[str, Any]] = []
         llm_sft_entries: List[Dict[str, Any]] = []
 
+        # 1. Ingest authentic FS2K forensic sketches first (priority for graphite ground-truth)
+        if FS2K_DIR.exists():
+            fs2k_samples = load_fs2k_entries(FS2K_DIR, limit=2000)
+            diffusion_entries.extend(fs2k_samples)
+            print(f"[Datasets] Ingested {len(fs2k_samples)} authentic FS2K graphite sketches.")
+
         processed = 0
         for line in f:
             parts = line.strip().split()
@@ -290,18 +414,18 @@ def main() -> None:
             is_male = "Male" in pos_attrs
             is_young = "Young" in pos_attrs
 
-            # 1. Diffusion sample with balanced multimodal styles (40% graphite, 30% chalkboard, 30% color)
+            # 2. Diffusion sample with 60% graphite focus (60% graphite, 20% chalkboard, 20% color)
             style_roll = processed % 10
-            if style_roll < 4:
+            if style_roll < 6:
                 sample_style = "graphite"
-            elif style_roll < 7:
+            elif style_roll < 8:
                 sample_style = "chalkboard"
             else:
                 sample_style = "color_age"
 
             caption = build_diffusion_caption(pos_attrs, is_male, is_young, style=sample_style)
             diffusion_entries.append({
-                "image_path": str(img_path),
+                "image_path": str(img_path.resolve()),
                 "caption": caption,
                 "style": sample_style,
                 "positive_attributes": sorted(list(pos_attrs)),
@@ -309,7 +433,7 @@ def main() -> None:
                 "is_young": is_young,
             })
 
-            # 2. LLM SFT sample
+            # 3. LLM SFT sample
             llm_sample = build_llm_sample(pos_attrs, is_male, is_young)
             llm_sft_entries.append(llm_sample)
 
@@ -317,12 +441,12 @@ def main() -> None:
             if processed >= args.limit:
                 break
 
-    print(f"Processed {processed} valid samples.")
+    print(f"Processed {processed} valid CelebAMask-HQ samples ({len(diffusion_entries)} total diffusion entries).")
 
     if args.verify_only:
-        print("\n--- SAMPLE DIFFUSION ENTRY ---")
+        print("\n--- SAMPLE DIFFUSION ENTRY (FS2K / CelebA) ---")
         print(json.dumps(diffusion_entries[0], indent=2))
-        print("\n--- SAMPLE LLM SFT ENTRY ---")
+        print("\n--- SAMPLE LLM SFT ENTRY (v2 Forensic Schema) ---")
         print(json.dumps(llm_sft_entries[0], indent=2))
         print("\n[VERIFY OK] All records valid.")
         return

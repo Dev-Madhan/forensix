@@ -310,8 +310,8 @@ CAMERA_PERSPECTIVE_DIRECTIVES: Dict[str, Dict[str, Any]] = {
 # ---------------------------------------------------------------------------
 STYLE_DIRECTIVES: Dict[str, Dict[str, Any]] = {
     "Forensic Graphite (Pencil)": {
-        "prompt": "(single person:1.6), (solo:1.6), (single face:1.6), (authentic forensic graphite sketch:1.4), official police composite drawing, (sharp 2B pencil linework:1.3), fine cross-hatching shading, paper grain texture, monochrome graphite on clean white background",
-        "negative": "color, painted, photorealistic, 3d render, digital glossy, charcoal smudges, muddy dark skin patches",
+        "prompt": "(single person:1.6), (solo:1.6), (single face:1.6), <forensic_graphite> authentic police forensic composite drawing, (sharp 2B graphite pencil linework:1.4), (anatomical cross-hatching shading:1.3), Strathmore cold-press paper grain texture, monochrome graphite silver-grey and deep carbon tones on clean white background, chiaroscuro facial contour modeling, sharp anatomical precision",
+        "negative": "(color:2.0), (painted:1.8), (photorealistic:1.8), (digital art:1.8), (smooth airbrushed skin:1.8), (3d render:1.8), (glossy:1.6), anime, cartoon, comic, watercolor, charcoal smudges, muddy dark skin patches, blurry, deformed, extra eyes, twin, double face, side by side, diptych, split screen",
         "cfg": 9.0,
         "control_weight": 0.25,
         "steps_standard": 28,

@@ -24,10 +24,13 @@ import {
   Sparkles,
   UserPlus,
   Check,
+  Database,
+  Search,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import type { SuspectItem, SuspectStatus, SuspectRole } from "./types";
+import { INITIAL_CRIMINALS } from "@/constants/mock-criminals";
 import {
   MOCK_CASE_SKETCHES,
   type CaseSketchReference,
@@ -49,9 +52,15 @@ export function AddSuspectDialog({
   nextIndexNumber,
   existingSuspects = [],
 }: AddSuspectDialogProps) {
-  const [activeTab, setActiveTab] = useState<"ai-sketch" | "manual">(
-    "ai-sketch"
+  const [activeTab, setActiveTab] = useState<"database" | "ai-sketch" | "manual">(
+    "database"
   );
+
+  // Database Search State
+  const [dbSearchTerm, setDbSearchTerm] = useState("");
+  const [dbCandidateRoles, setDbCandidateRoles] = useState<
+    Record<string, { status: SuspectStatus; role: SuspectRole }>
+  >({});
 
   // AI Match Tab State
   const [selectedSketchId, setSelectedSketchId] = useState<string>(
@@ -227,19 +236,32 @@ export function AddSuspectDialog({
 
           {/* Clean Segmented Tab Navigation: Equal columns on mobile, inline on desktop */}
           <div className="pt-2.5 sm:pt-3 min-w-0">
-            <div className="grid grid-cols-2 sm:inline-flex items-center rounded-lg bg-muted/40 p-1 border border-border/50 gap-1 sm:gap-0 w-full sm:w-auto min-w-0">
+            <div className="grid grid-cols-3 sm:inline-flex items-center rounded-lg bg-muted/40 p-1 border border-border/50 gap-1 sm:gap-0 w-full sm:w-auto min-w-0">
+              <button
+                type="button"
+                onClick={() => setActiveTab("database")}
+                className={cn(
+                  "flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer select-none text-center min-h-8.5 min-w-0",
+                  activeTab === "database"
+                    ? "bg-[#665AEF] text-white shadow-xs"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50 font-medium"
+                )}
+              >
+                <Database className="size-3.5 shrink-0" />
+                <span className="truncate">Registry</span>
+              </button>
               <button
                 type="button"
                 onClick={() => setActiveTab("ai-sketch")}
                 className={cn(
-                  "flex items-center justify-center gap-1.5 px-2.5 sm:px-3.5 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer select-none text-center min-h-8.5 min-w-0",
+                  "flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer select-none text-center min-h-8.5 min-w-0",
                   activeTab === "ai-sketch"
                     ? "bg-[#665AEF] text-white shadow-xs"
                     : "text-muted-foreground hover:text-foreground hover:bg-muted/50 font-medium"
                 )}
               >
                 <Sparkles className="size-3.5 shrink-0" />
-                <span className="truncate">AI Biometric Match</span>
+                <span className="truncate">AI Match</span>
               </button>
               <button
                 type="button"
@@ -252,7 +274,7 @@ export function AddSuspectDialog({
                 )}
               >
                 <UserPlus className="size-3.5 shrink-0" />
-                <span className="truncate">Manual Entry</span>
+                <span className="truncate">Manual</span>
               </button>
             </div>
           </div>
@@ -271,7 +293,119 @@ export function AddSuspectDialog({
         >
           <div ref={contentMeasureRef} className="w-full min-w-0 flow-root">
             <AnimatePresence mode="wait" initial={false}>
-              {activeTab === "ai-sketch" ? (
+              {activeTab === "database" ? (
+                <motion.div
+                  key="tab-database"
+                  initial={{ opacity: 0, y: 8, filter: "blur(4px)" }}
+                  animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+                  exit={{ opacity: 0, y: -6, filter: "blur(4px)" }}
+                  transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+                  className="w-full min-w-0 px-3 sm:px-6 py-3 sm:py-4 space-y-3.5"
+                >
+                  {/* Database Search Input */}
+                  <div className="relative w-full">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
+                    <Input
+                      placeholder="Search registered criminal by name, alias, ID, location..."
+                      value={dbSearchTerm}
+                      onChange={(e) => setDbSearchTerm(e.target.value)}
+                      className="h-10 pl-9 rounded-lg border-2 border-border bg-card/60 text-xs sm:text-sm placeholder:text-muted-foreground/70 focus-visible:border-[#665AEF]"
+                    />
+                  </div>
+
+                  {/* Filtered Criminal List */}
+                  <div className="space-y-2.5 max-h-[380px] overflow-y-auto pr-1">
+                    {INITIAL_CRIMINALS.filter((c) => {
+                      if (!dbSearchTerm.trim()) return true;
+                      const q = dbSearchTerm.toLowerCase();
+                      const name = `${c.firstName} ${c.lastName}`.toLowerCase();
+                      return (
+                        name.includes(q) ||
+                        c.alias?.toLowerCase().includes(q) ||
+                        c.criminalId.toLowerCase().includes(q) ||
+                        c.lastKnownLocation.toLowerCase().includes(q)
+                      );
+                    }).map((candidate) => {
+                      const candidateName = `${candidate.firstName} ${candidate.lastName}`.trim();
+                      const alreadyInCase = isCandidateInCase(candidateName);
+                      const currentCfg = dbCandidateRoles[candidate.id] || {
+                        status: (candidate.status === "Wanted" ? "Primary Suspect" : "Person of Interest") as SuspectStatus,
+                        role: "Direct Involvement" as SuspectRole,
+                      };
+
+                      return (
+                        <div
+                          key={candidate.id}
+                          className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3 rounded-lg border-2 border-border/70 bg-card/60 hover:border-[#665AEF]/50 transition-colors"
+                        >
+                          <div className="flex items-center gap-3 min-w-0">
+                            <div className="size-11 rounded-lg overflow-hidden border border-border bg-muted/40 shrink-0">
+                              <img
+                                src={candidate.mugshotUrl || "/images/suspects/arun-prakash.jpg"}
+                                alt={candidateName}
+                                className="size-full object-cover"
+                              />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="font-semibold text-xs sm:text-sm text-foreground truncate">
+                                  {candidateName}
+                                </span>
+                                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-border/60 bg-muted/40 text-muted-foreground">
+                                  {candidate.criminalId}
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-muted-foreground truncate">
+                                Alias: {candidate.alias} • {candidate.lastKnownLocation}
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
+                            {alreadyInCase ? (
+                              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border/80 bg-muted/40 text-muted-foreground text-xs font-medium">
+                                <Check className="size-3 text-emerald-400" />
+                                <span>Already in Case</span>
+                              </div>
+                            ) : (
+                              <Button
+                                size="sm"
+                                onClick={() => {
+                                  const newSuspect: SuspectItem = {
+                                    id: `susp-${Date.now().toString().slice(-4)}`,
+                                    criminalId: candidate.criminalId,
+                                    databaseId: candidate.id,
+                                    numberIndex: String(nextIndexNumber).padStart(2, "0"),
+                                    name: candidateName,
+                                    alias: candidate.alias ? `Alias: ${candidate.alias}` : "Alias: None",
+                                    photo: candidate.mugshotUrl || "/images/suspects/arun-prakash.jpg",
+                                    status: currentCfg.status,
+                                    role: currentCfg.role,
+                                    matchConfidence: 88,
+                                    lastSeenDate: "Oct 5, 2026",
+                                    lastSeenTime: "11:20 AM",
+                                    dob: candidate.dateOfBirth,
+                                    gender: candidate.gender,
+                                    nationality: candidate.nationality,
+                                    knownAddresses: candidate.lastKnownLocation,
+                                    notes: `Linked directly from Criminal Database repository.`,
+                                  };
+                                  onAddSuspect(newSuspect);
+                                  toast.success(`Attached ${candidateName} to Case.`);
+                                  onOpenChange(false);
+                                }}
+                                className="h-8.5 px-3 rounded-lg bg-[#665AEF] hover:bg-[#5749DF] text-white text-xs font-medium shadow-xs"
+                              >
+                                <span>Attach to Case</span>
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </motion.div>
+              ) : activeTab === "ai-sketch" ? (
                 <motion.div
                   key="tab-ai-sketch"
                   initial={{ opacity: 0, y: 8, filter: "blur(4px)" }}

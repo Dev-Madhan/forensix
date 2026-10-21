@@ -15,8 +15,7 @@ import { INITIAL_SUSPECTS } from "./mock-suspects";
 import type { SuspectItem, SuspectStatus, SuspectRole } from "./types";
 import { toast } from "sonner";
 import { logCaseActivity } from "@/components/cases/activity";
-
-
+import { linkCriminalToCase, unlinkCriminalFromCase } from "@/features/criminals/actions";
 
 interface SuspectsTabContentProps {
   caseNumber?: string;
@@ -224,55 +223,73 @@ export function SuspectsTabContent({ caseNumber }: SuspectsTabContentProps) {
       window.dispatchEvent(new CustomEvent("forensix:suspects-updated"));
     }
 
-    toast.info(`Suspect ${target?.name || id} removed from this case.`);
+      toast.info(`Suspect ${target?.name || id} removed from this case.`);
 
-    logCaseActivity({
-      caseNumber,
-      action: "Removed Suspect",
-      actionType: "DELETE",
-      category: "Suspect",
-      details: `Removed suspect ${target?.name || id} from case file.`,
-    });
-  };
-
-  // Add new suspect handler
-  const handleAddSuspect = (newSuspect: SuspectItem) => {
-    setSuspectsList((prev) => [newSuspect, ...prev]);
-    setSelectedSuspectId(newSuspect.id);
-
-    if (typeof window !== "undefined") {
-      const cleanCase = (caseNumber || "default").replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
-      try {
-        const customSuspects = JSON.parse(
-          localStorage.getItem(`forensix_suspects_${cleanCase}`) || "[]"
-        );
-        localStorage.setItem(
-          `forensix_suspects_${cleanCase}`,
-          JSON.stringify([newSuspect, ...customSuspects.filter((s: any) => s.id !== newSuspect.id)])
-        );
-        const deletedIds = JSON.parse(
-          localStorage.getItem(`forensix_deleted_suspects_${cleanCase}`) || "[]"
-        );
-        if (deletedIds.includes(newSuspect.id)) {
-          localStorage.setItem(
-            `forensix_deleted_suspects_${cleanCase}`,
-            JSON.stringify(deletedIds.filter((id: string) => id !== newSuspect.id))
-          );
-        }
-      } catch (e) {
-        console.warn("Failed saving suspect to storage:", e);
+      if (caseNumber && (target?.databaseId || target?.criminalId)) {
+        unlinkCriminalFromCase(caseNumber, target.databaseId || target.criminalId!).catch(() => {});
       }
-      window.dispatchEvent(new CustomEvent("forensix:suspects-updated"));
-    }
 
-    logCaseActivity({
-      caseNumber,
-      action: "Added Suspect",
-      actionType: "SUSPECT",
-      category: "Suspect",
-      details: `Added ${newSuspect.name} as ${newSuspect.status.toLowerCase()}.`,
-    });
-  };
+      logCaseActivity({
+        caseNumber,
+        action: "Removed Suspect",
+        actionType: "DELETE",
+        category: "Suspect",
+        details: `Removed suspect ${target?.name || id} from case file.`,
+      });
+    };
+
+    // Add new suspect handler
+    const handleAddSuspect = (newSuspect: SuspectItem) => {
+      setSuspectsList((prev) => [newSuspect, ...prev]);
+      setSelectedSuspectId(newSuspect.id);
+
+      // Persist to central PostgreSQL database if caseNumber and criminal ID are present
+      if (caseNumber && (newSuspect.databaseId || newSuspect.criminalId)) {
+        linkCriminalToCase({
+          caseId: caseNumber,
+          criminalId: newSuspect.databaseId || newSuspect.criminalId!,
+          status: newSuspect.status === "Primary Suspect" ? "PRIMARY_SUSPECT" : "PERSON_OF_INTEREST",
+          role: "DIRECT_INVOLVEMENT",
+          matchConfidence: newSuspect.matchConfidence,
+          notes: newSuspect.notes,
+        }).catch((err) => {
+          console.warn("Could not link suspect in database:", err);
+        });
+      }
+
+      if (typeof window !== "undefined") {
+        const cleanCase = (caseNumber || "default").replace(/[^a-zA-Z0-9]/g, "").toLowerCase();
+        try {
+          const customSuspects = JSON.parse(
+            localStorage.getItem(`forensix_suspects_${cleanCase}`) || "[]"
+          );
+          localStorage.setItem(
+            `forensix_suspects_${cleanCase}`,
+            JSON.stringify([newSuspect, ...customSuspects.filter((s: any) => s.id !== newSuspect.id)])
+          );
+          const deletedIds = JSON.parse(
+            localStorage.getItem(`forensix_deleted_suspects_${cleanCase}`) || "[]"
+          );
+          if (deletedIds.includes(newSuspect.id)) {
+            localStorage.setItem(
+              `forensix_deleted_suspects_${cleanCase}`,
+              JSON.stringify(deletedIds.filter((id: string) => id !== newSuspect.id))
+            );
+          }
+        } catch (e) {
+          console.warn("Failed saving suspect to storage:", e);
+        }
+        window.dispatchEvent(new CustomEvent("forensix:suspects-updated"));
+      }
+
+      logCaseActivity({
+        caseNumber,
+        action: "Added Suspect",
+        actionType: "SUSPECT",
+        category: "Suspect",
+        details: `Added ${newSuspect.name} as ${newSuspect.status.toLowerCase()}.`,
+      });
+    };
 
   return (
     <div className="w-full space-y-6">

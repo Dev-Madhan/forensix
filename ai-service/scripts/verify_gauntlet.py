@@ -14,10 +14,12 @@ STYLES = [
     "Monochrome Inversion (Black Background)"
 ]
 
-async def run_gauntlet():
+import argparse
+
+async def run_gauntlet(target_style: str = None, count: int = 10):
     provider = LocalDiffusionProvider()
     print("=======================================")
-    print("STARTING 50-GENERATION STRESS TEST")
+    print("STARTING FORENSIC GENERATION GAUNTLET")
     print("=======================================")
     
     total_images = 0
@@ -31,19 +33,22 @@ async def run_gauntlet():
         "hair": "short neat side-parted dark hair"
     }
 
-    for style in STYLES:
+    test_styles = [target_style] if target_style else STYLES
+
+    for style in test_styles:
         print(f"\n--- Testing Style: {style} ---")
-        for i in range(10):
+        for i in range(count):
             try:
-                print(f"[{total_images + 1}/50] Generating {style} (#{i + 1}/10)...")
-                await provider.generate_sketch(
+                print(f"[{total_images + 1}/{len(test_styles) * count}] Generating {style} (#{i + 1}/{count})...")
+                res = await provider.generate_sketch(
                     case_id="GAUNTLET_TEST",
                     witness_id=f"TEST_{total_images}",
                     attributes=attributes,
                     sketch_style=style,
-                    detail_level="Standard", # Test Standard first to verify VRAM leak is fixed
+                    detail_level="Standard",
                     control_strength=0.0
                 )
+                print(f"  ✓ Saved to: {res.get('local_path', 'ok')}")
                 total_images += 1
             except Exception as e:
                 print(f"FAILED on image {total_images + 1} ({style}): {e}")
@@ -53,12 +58,16 @@ async def run_gauntlet():
     print("\n=======================================")
     print("GAUNTLET COMPLETE")
     print(f"Total Generations: {total_images}")
-    print(f"Failures (OOMs or crashes): {failures}")
+    print(f"Failures: {failures}")
     if failures == 0:
-        print("RESULT: SUCCESS - VRAM Leak Fixed!")
+        print("RESULT: SUCCESS - All forensic composites rendered cleanly!")
     else:
-        print("RESULT: FAILED - Memory leak still present.")
+        print("RESULT: FAILED - Issues detected.")
     print("=======================================")
 
 if __name__ == "__main__":
-    asyncio.run(run_gauntlet())
+    parser = argparse.ArgumentParser(description="Run Forensic Sketch Gauntlet")
+    parser.add_argument("--style", type=str, default="Forensic Graphite (Pencil)", help="Style to evaluate")
+    parser.add_argument("--count", type=int, default=5, help="Number of samples to generate")
+    args = parser.parse_args()
+    asyncio.run(run_gauntlet(target_style=args.style, count=args.count))

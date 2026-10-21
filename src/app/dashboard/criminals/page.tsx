@@ -19,6 +19,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
+import { getCriminalsForTable, getCriminalIntelligenceMetrics } from "@/features/criminals/queries";
 import { CriminalSectionCards } from "@/components/criminals/criminal-section-cards";
 import { CriminalsTable } from "@/components/criminals/criminals-table";
 
@@ -41,33 +42,11 @@ export default async function CriminalsPage() {
       }
     : undefined;
 
-  // Query real-time criminal counts from database with resilient fallback defaults
-  let totalCount = 0;
-  let activeCount = 0;
-  let wantedCount = 0;
-  let inactiveCount = 0;
-
-  try {
-    const [total, active, wanted, inactive] = await Promise.all([
-      prisma.criminal.count(),
-      prisma.criminal.count({ where: { status: "ACTIVE" } }),
-      prisma.criminal.count({ where: { status: "WANTED" } }),
-      prisma.criminal.count({ where: { status: "INACTIVE" } }),
-    ]);
-    totalCount = total;
-    activeCount = active;
-    wantedCount = wanted;
-    inactiveCount = inactive;
-  } catch (error) {
-    console.error("Failed to query criminal metrics from database:", error);
-  }
-
-  const metrics = {
-    totalRecords: totalCount > 0 ? totalCount : 1248,
-    identifiedViaAI: totalCount > 0 ? Math.floor(totalCount * 0.71) : 892,
-    activeWatchlist: totalCount > 0 ? activeCount + wantedCount : 156,
-    highRiskSubjects: totalCount > 0 ? wantedCount : 94,
-  };
+  // Query database items and live metrics in parallel
+  const [criminals, metrics] = await Promise.all([
+    getCriminalsForTable(),
+    getCriminalIntelligenceMetrics(),
+  ]);
 
   return (
     <SidebarProvider>
@@ -123,7 +102,7 @@ export default async function CriminalsPage() {
             <CriminalSectionCards metrics={metrics} />
 
             {/* Criminals Table and Criminal Profile Preview */}
-            <CriminalsTable />
+            <CriminalsTable initialCriminals={criminals} />
           </div>
         </div>
       </SidebarInset>

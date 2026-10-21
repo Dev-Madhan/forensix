@@ -260,7 +260,50 @@ export async function saveRecognitionMatch(data: {
         matchScore: data.matchScore,
         status: data.status || "CONFIRMED",
       },
+      include: {
+        sketch: {
+          select: {
+            id: true,
+            caseId: true,
+            case: {
+              select: {
+                id: true,
+                caseNumber: true,
+                title: true,
+              },
+            },
+          },
+        },
+      },
     });
+
+    // Automatically link suspect to the Case if sketch is associated with a case
+    if (recResult.sketch?.caseId) {
+      await prisma.caseSuspect.upsert({
+        where: {
+          caseId_criminalId: {
+            caseId: recResult.sketch.caseId,
+            criminalId: criminal.id,
+          },
+        },
+        update: {
+          status: "PRIMARY_SUSPECT",
+          role: "DIRECT_INVOLVEMENT",
+          matchConfidence: Math.round(data.matchScore * 100),
+          notes: `Automated link from composite sketch match (${Math.round(data.matchScore * 100)}% confidence).`,
+        },
+        create: {
+          caseId: recResult.sketch.caseId,
+          criminalId: criminal.id,
+          status: "PRIMARY_SUSPECT",
+          role: "DIRECT_INVOLVEMENT",
+          matchConfidence: Math.round(data.matchScore * 100),
+          notes: `Automated link from composite sketch match (${Math.round(data.matchScore * 100)}% confidence).`,
+        },
+      }).catch((e) => {
+        console.warn("Could not upsert CaseSuspect for sketch match:", e);
+      });
+    }
 
     try {
       await prisma.auditLog.create({
@@ -272,6 +315,7 @@ export async function saveRecognitionMatch(data: {
             sketchId: data.sketchId,
             criminalId: criminal.id,
             matchScore: data.matchScore,
+            caseNumber: recResult.sketch?.case?.caseNumber,
           },
         },
       });
@@ -280,6 +324,12 @@ export async function saveRecognitionMatch(data: {
     }
 
     revalidatePath("/sketch");
+    revalidatePath("/dashboard/criminals");
+    revalidatePath(`/dashboard/criminals/${criminal.id}`);
+    if (recResult.sketch?.caseId) {
+      revalidatePath(`/case-details/${recResult.sketch.case?.caseNumber || recResult.sketch.caseId}`);
+    }
+
     return { success: true, result: recResult };
   } catch (error: unknown) {
     console.error("Failed to save recognition match:", error);

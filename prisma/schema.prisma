@@ -50,6 +50,38 @@ enum GenerationStatus {
   FAILED
 }
 
+enum SuspectCaseStatus {
+  PRIMARY_SUSPECT
+  PERSON_OF_INTEREST
+  ACCOMPLICE
+  CLEARED
+  CONVICTED
+}
+
+enum SuspectRole {
+  DIRECT_INVOLVEMENT
+  POSSIBLE_ASSOCIATE
+  ACCOMPLICE
+  INFORMANT
+  WITNESS
+  UNDER_INVESTIGATION
+}
+
+enum CriminalRiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum SurveillanceHitStatus {
+  UNACKNOWLEDGED
+  INVESTIGATING
+  CONFIRMED_SIGHTING
+  FALSE_POSITIVE
+  RESOLVED
+}
+
 // --- MODELS ---
 
 model User {
@@ -67,11 +99,12 @@ model User {
   provider     String  @default("email")
   avatarUrl    String?
 
-  cases     Case[]     @relation("AssignedCases")
-  reports   Report[]   @relation("ReportAuthor")
-  auditLogs AuditLog[]
-  sessions  Session[]
-  accounts  Account[]
+  cases            Case[]        @relation("AssignedCases")
+  reports          Report[]      @relation("ReportAuthor")
+  auditLogs        AuditLog[]
+  assignedSuspects CaseSuspect[]
+  sessions         Session[]
+  accounts         Account[]
 
   @@map("user")
 }
@@ -89,6 +122,7 @@ model Case {
   sketches     Sketch[]
   reports      Report[]
   evidences    Evidence[]
+  suspects     CaseSuspect[]
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 }
@@ -130,13 +164,59 @@ model Criminal {
   address            String?
   description        String?
   status             CriminalStatus      @default(ACTIVE)
+  riskLevel          CriminalRiskLevel   @default(MEDIUM)
   mugshotUrl         String?
   demographics       Json? // e.g., height, eye color, tattoos
   lastKnownLocation  String?
   embedding          Unsupported("vector(512)")?
+  caseLinks          CaseSuspect[]
+  evidences          Evidence[]          @relation("CriminalEvidence")
+  surveillanceHits   SurveillanceHit[]
   recognitionResults RecognitionResult[]
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
+}
+
+model CaseSuspect {
+  id                String            @id @default(uuid())
+  caseId            String
+  criminalId        String
+  status            SuspectCaseStatus @default(PERSON_OF_INTEREST)
+  role              SuspectRole       @default(UNDER_INVESTIGATION)
+  matchConfidence   Float             @default(0.0) // 0.0 - 100.0%
+  notes             String?           @db.Text
+  assignedOfficerId String?
+  assignedOfficer   User?             @relation(fields: [assignedOfficerId], references: [id], onDelete: SetNull)
+  case              Case              @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  criminal          Criminal          @relation(fields: [criminalId], references: [id], onDelete: Cascade)
+  addedAt           DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  @@unique([caseId, criminalId])
+  @@index([caseId])
+  @@index([criminalId])
+}
+
+model SurveillanceHit {
+  id               String                @id @default(uuid())
+  criminalId       String
+  sensorId         String // e.g., "ANPR-CAM-11", "CCTV-AI-03"
+  sensorName       String? // e.g., "Anna Salai Junction High-Speed ANPR"
+  location         String // e.g., "Anna Salai - Mount Road Junction"
+  latitude         Float
+  longitude        Float
+  confidenceScore  Float // 0.0 to 1.0 (e.g. 0.942)
+  capturedMediaUrl String?
+  details          String?
+  status           SurveillanceHitStatus @default(UNACKNOWLEDGED)
+  acknowledgedBy   String?
+  acknowledgedAt   DateTime?
+  criminal         Criminal              @relation(fields: [criminalId], references: [id], onDelete: Cascade)
+  createdAt        DateTime              @default(now())
+
+  @@index([criminalId])
+  @@index([status])
+  @@index([createdAt])
 }
 
 model RecognitionResult {
@@ -165,17 +245,19 @@ model Report {
 }
 
 model Evidence {
-  id         String   @id @default(cuid())
+  id         String    @id @default(cuid())
   caseId     String
+  criminalId String?
   fileName   String
   storageKey String
   mimeType   String
   fileSize   Int
   sha256Hash String
   uploadedBy String
-  uploadedAt DateTime @default(now())
+  uploadedAt DateTime  @default(now())
 
-  case Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  case     Case      @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  criminal Criminal? @relation("CriminalEvidence", fields: [criminalId], references: [id], onDelete: SetNull)
 }
 
 model AuditLog {

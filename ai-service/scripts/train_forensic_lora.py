@@ -104,11 +104,26 @@ VALIDATION_PROMPT_COLOR = (
     "forensic facial composite of an adult female, mature older suspect aged 50 and above, "
     "deep transverse forehead wrinkles, pronounced nasolabial folds, aging skin texture"
 )
-VALIDATION_NEGATIVE_COLOR = (
-    "(two faces:2.0), (multiple faces:2.0), (two people:2.0), (dual image:2.0), (side by side:2.0), "
-    "(diptych:2.0), (split image:2.0), (twin:2.0), (twins:2.0), (duplicate:2.0), (cloned face:2.0), (before and after:2.0), "
-    "(comparison:2.0), (double portrait:2.0), (extra head:2.0), (two heads:2.0), multiple people, "
-    "cartoon, anime, 3d render, flat monochrome, black and white, grayscale, desaturated, deformed, bad anatomy"
+VALIDATION_PROMPT_GRAPHITE = (
+    "(single person:1.6), (solo:1.6), (single face:1.6), "
+    "<forensic_graphite> authentic police forensic composite drawing, (sharp 2B graphite pencil linework:1.4), "
+    "(anatomical cross-hatching shading:1.3), Strathmore cold-press paper grain texture, "
+    "monochrome graphite silver-grey and deep carbon tones on clean white background, "
+    "direct frontal mugshot view, direct forward gaze. "
+    "(oval-shaped face:1.3), (soft gentle jawline:1.2), (moderately prominent rounded chin:1.3), "
+    "(high prominent cheekbones:1.4). "
+    "(medium-sized almond-shaped eyes:1.35), (close-set eyes:1.35), (deep-set eyes:1.4), "
+    "(medium-thick naturally arched eyebrows:1.3). "
+    "(straight medium-width nose:1.35), (defined nostrils:1.2), (slightly rounded upturned nasal tip:1.3). "
+    "(medium-wide mouth:1.3), (full voluminous lips:1.3), (clearly defined Cupid's bow upper lip:1.4), "
+    "(neutral closed-mouth expression:1.4). "
+    "(wearing thin rectangular eyeglasses:1.45), slim dark wire rectangular frames. "
+    "(short neat side-parted dark hair:1.4), (clean-shaven face:1.5), forensic facial composite of an adult male, aged 26 to 35."
+)
+VALIDATION_NEGATIVE_GRAPHITE = (
+    "(color:2.0), (painted:1.8), (photorealistic:1.8), (digital art:1.8), (smooth airbrushed skin:1.8), "
+    "(3d render:1.8), (glossy:1.6), anime, cartoon, comic, watercolor, charcoal smudges, muddy dark skin patches, "
+    "blurry, deformed, extra eyes, twin, double face, side by side, diptych, split screen, watermark, text"
 )
 
 
@@ -340,7 +355,20 @@ def _run_validation(
         val_dir = output_dir / "validation"
         val_dir.mkdir(exist_ok=True)
 
-        # 1. Chalkboard validation
+        # 1. Forensic Graphite validation (Primary Style)
+        with torch.no_grad(), autocast_ctx:
+            out_graphite = pipe(
+                prompt=VALIDATION_PROMPT_GRAPHITE,
+                negative_prompt=VALIDATION_NEGATIVE_GRAPHITE,
+                num_inference_steps=22,
+                guidance_scale=9.0,
+                height=512, width=512,
+                generator=torch.Generator(device="cpu").manual_seed(42),
+            )
+        graphite_file = val_dir / f"step_{step:05d}_graphite.png"
+        out_graphite.images[0].save(graphite_file)
+
+        # 2. Chalkboard validation
         with torch.no_grad(), autocast_ctx:
             out_chalk = pipe(
                 prompt=VALIDATION_PROMPT,
@@ -353,7 +381,7 @@ def _run_validation(
         chalk_file = val_dir / f"step_{step:05d}_chalk.png"
         out_chalk.images[0].save(chalk_file)
 
-        # 2. Color Age-Progressed single-person validation
+        # 3. Color Age-Progressed single-person validation
         with torch.no_grad(), autocast_ctx:
             out_color = pipe(
                 prompt=VALIDATION_PROMPT_COLOR,
@@ -366,7 +394,7 @@ def _run_validation(
         color_file = val_dir / f"step_{step:05d}_color.png"
         out_color.images[0].save(color_file)
 
-        print(f"  [Validation] Saved → {chalk_file.name} and {color_file.name}")
+        print(f"  [Validation] Saved → {graphite_file.name}, {chalk_file.name}, and {color_file.name}")
         del pipe
     except Exception as err:
         print(f"  [Validation] Skipped at step {step}: {err}")

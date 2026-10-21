@@ -215,47 +215,48 @@ Generated on: ${new Date().toISOString()}
   };
 
   return (
-    <div className="flex flex-col gap-5 w-full">
+    <div className="flex flex-col gap-4 sm:gap-5 w-full">
       {/* ─────────────────────────────────────────────────────────────
           TOP BAR: Back link on left, Action buttons on right
           ───────────────────────────────────────────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex items-center justify-between gap-3">
         {/* Back Link with Sidebar Toggle */}
-        <div className="flex items-center gap-2">
-          <SidebarTrigger className="-ml-1 size-7 text-muted-foreground hover:text-foreground cursor-pointer" />
+        <div className="flex items-center gap-2 min-w-0">
+          <SidebarTrigger className="-ml-1 size-7 shrink-0 text-muted-foreground hover:text-foreground cursor-pointer" />
           <Link
             href="/dashboard/criminals"
-            className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors group cursor-pointer w-fit"
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors group cursor-pointer w-fit"
           >
-            <ArrowLeft className="size-4 transition-transform group-hover:-translate-x-0.5" />
-            <span>Back to Criminal Database</span>
+            <ArrowLeft className="size-4 shrink-0 transition-transform group-hover:-translate-x-0.5" />
+            <span className="hidden sm:inline">Back to Criminal Database</span>
+            <span className="sm:hidden">Back</span>
           </Link>
         </div>
 
         {/* Action Buttons Group */}
-        <div className="flex items-center gap-2.5 flex-wrap">
-          {/* Add to Watchlist Button */}
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Watchlist — always visible */}
           <Button
             variant="outline"
             size="sm"
             onClick={handleToggleWatchlist}
-            className={`h-9 gap-2 rounded-lg border-2 text-xs sm:text-sm font-medium cursor-pointer shadow-xs transition-colors ${
+            className={`h-8 sm:h-9 gap-1.5 rounded-lg border-2 text-xs font-medium cursor-pointer shadow-xs transition-colors ${
               isOnWatchlist
                 ? "border-[#665AEF]/50 bg-[#665AEF]/15 text-[#a594fd] hover:bg-[#665AEF]/25"
                 : "border-border/80 bg-card/60 hover:bg-muted/60 hover:text-foreground text-foreground"
             }`}
           >
             <Shield className="size-3.5" />
-            <span>{isOnWatchlist ? "On Watchlist" : "Add to Watchlist"}</span>
+            <span className="hidden xs:inline">{isOnWatchlist ? "On Watchlist" : "Watchlist"}</span>
           </Button>
 
-          {/* Generate Report Button */}
+          {/* Generate Report — desktop only */}
           <Button
             variant="outline"
             size="sm"
             onClick={handleGenerateReport}
             disabled={generatingReport}
-            className="h-9 gap-2 rounded-lg border-2 border-border/80 bg-card/60 text-xs sm:text-sm font-medium hover:bg-muted/60 hover:text-foreground cursor-pointer shadow-xs"
+            className="hidden sm:inline-flex h-9 gap-2 rounded-lg border-2 border-border/80 bg-card/60 text-xs font-medium hover:bg-muted/60 hover:text-foreground cursor-pointer shadow-xs"
           >
             {generatingReport ? (
               <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
@@ -265,23 +266,23 @@ Generated on: ${new Date().toISOString()}
             <span>{generatingReport ? "Generating..." : "Generate Report"}</span>
           </Button>
 
-          {/* Edit Profile Button */}
+          {/* Edit Profile — desktop only */}
           <Link
             href={`/dashboard/criminals/${criminal.criminalId}/edit`}
-            className="inline-flex items-center gap-2 h-9 px-3 rounded-lg border-2 border-border/80 bg-card/60 text-xs sm:text-sm font-medium hover:bg-muted/60 hover:text-foreground text-foreground cursor-pointer shadow-xs transition-colors"
+            className="hidden sm:inline-flex items-center gap-2 h-9 px-3 rounded-lg border-2 border-border/80 bg-card/60 text-xs font-medium hover:bg-muted/60 hover:text-foreground text-foreground cursor-pointer shadow-xs transition-colors"
           >
             <Edit className="size-3.5 text-muted-foreground" />
             <span>Edit Profile</span>
           </Link>
 
-          {/* More Actions Dropdown Button */}
+          {/* More Actions Dropdown — always visible */}
           <DropdownMenu>
             <DropdownMenuTrigger
               render={
-                <Button className="h-9 gap-1.5 rounded-lg bg-[#665AEF] hover:bg-[#5749DF] text-white text-xs sm:text-sm font-medium shadow-sm shadow-[#665AEF]/25 px-3.5 cursor-pointer" />
+                <Button className="h-8 sm:h-9 gap-1.5 rounded-lg bg-[#665AEF] hover:bg-[#5749DF] text-white text-xs font-medium shadow-sm shadow-[#665AEF]/25 px-2.5 sm:px-3.5 cursor-pointer" />
               }
             >
-              <span>More Actions</span>
+              <span className="hidden sm:inline">More Actions</span>
               <ChevronDown className="size-3.5" />
             </DropdownMenuTrigger>
             <DropdownMenuContent
@@ -358,34 +359,33 @@ Generated on: ${new Date().toISOString()}
       {/* ─────────────────────────────────────────────────────────────
           TITLE & RISK BADGE ROW
           ───────────────────────────────────────────────────────────── */}
-      <div className="flex flex-wrap items-center gap-3">
-        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground font-heading">
+      <div className="flex flex-wrap items-center gap-2.5">
+        <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold tracking-tight text-foreground font-heading">
           {fullName}
         </h1>
         {riskLevel === "High" ? (
-          <span className="inline-flex items-center rounded-[4px] border-2 border-rose-500/40 bg-rose-500/15 px-2.5 py-0.5 text-xs font-semibold text-rose-400 tracking-wide">
+          <span className="inline-flex items-center rounded-[4px] border-2 border-rose-500/40 bg-rose-500/15 px-2 py-0.5 text-[11px] font-semibold text-rose-400 tracking-wide">
             High Risk
           </span>
         ) : riskLevel === "Medium" ? (
-          <span className="inline-flex items-center rounded-[4px] border-2 border-amber-500/40 bg-amber-500/15 px-2.5 py-0.5 text-xs font-semibold text-amber-400 tracking-wide">
+          <span className="inline-flex items-center rounded-[4px] border-2 border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold text-amber-400 tracking-wide">
             Medium Risk
           </span>
         ) : (
-          <span className="inline-flex items-center rounded-[4px] border-2 border-emerald-500/40 bg-emerald-500/15 px-2.5 py-0.5 text-xs font-semibold text-emerald-400 tracking-wide">
+          <span className="inline-flex items-center rounded-[4px] border-2 border-emerald-500/40 bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-400 tracking-wide">
             Low Risk
           </span>
         )}
       </div>
 
-      {/* ─────────────────────────────────────────────────────────────
-          CRIMINAL ID & LAST UPDATED SUBTITLE
-          ───────────────────────────────────────────────────────────── */}
-      <div className="flex flex-wrap items-center gap-4 text-xs sm:text-sm text-muted-foreground">
+      {/* CRIMINAL ID & LAST UPDATED SUBTITLE */}
+      <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-xs text-muted-foreground -mt-1">
         <span className="font-mono font-medium tracking-wide text-foreground/80">
           {criminal.criminalId}
         </span>
-        <span className="text-muted-foreground/60">•</span>
-        <span>Last Updated: {formattedUpdated}</span>
+        <span className="text-muted-foreground/40">•</span>
+        <span className="hidden sm:inline">Last Updated: {formattedUpdated}</span>
+        <span className="sm:hidden">{new Date(criminal.updatedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</span>
       </div>
 
       {/* ─────────────────────────────────────────────────────────────
@@ -395,10 +395,10 @@ Generated on: ${new Date().toISOString()}
           Col 3: Identifiers (3 cols)
           Col 4: Status & Classification (3 cols)
           ───────────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-12 gap-4 lg:gap-5 w-full">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-12 gap-3 sm:gap-4 lg:gap-5 w-full">
         {/* CARD 1: MUGSHOT PHOTO */}
-        <div className="xl:col-span-2 2xl:col-span-2 flex flex-col">
-          <div className="relative h-full min-h-[260px] w-full rounded-xl overflow-hidden border-2 border-border/80 bg-card/60 shadow-xs group">
+        <div className="sm:col-span-1 xl:col-span-2 2xl:col-span-2 flex flex-col">
+          <div className="relative h-full min-h-[200px] sm:min-h-[260px] w-full rounded-xl overflow-hidden border-2 border-border/80 bg-card/60 shadow-xs group">
             <Image
               src={resolvedPhoto}
               alt={fullName}
@@ -440,7 +440,7 @@ Generated on: ${new Date().toISOString()}
         </div>
 
         {/* CARD 2: PERSONAL INFORMATION */}
-        <div className="xl:col-span-4 2xl:col-span-4 flex flex-col">
+        <div className="sm:col-span-1 xl:col-span-4 2xl:col-span-4 flex flex-col">
           <div className="h-full rounded-xl border-2 border-border/80 bg-card/60 p-4 shadow-xs flex flex-col justify-between">
             <div>
               {/* Header */}
@@ -455,8 +455,8 @@ Generated on: ${new Date().toISOString()}
                 </div>
               </div>
 
-              {/* 2 Sub-Columns Grid */}
-              <div className="grid grid-cols-2 gap-x-4 gap-y-2.5 pt-3 text-xs">
+              {/* 2 Sub-Columns Grid — single col on mobile */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 pt-3 text-xs">
                 {/* Left Sub-Column */}
                 <div className="space-y-2.5">
                   <div className="flex flex-col gap-0.5">
@@ -535,7 +535,7 @@ Generated on: ${new Date().toISOString()}
         </div>
 
         {/* CARD 3: IDENTIFIERS */}
-        <div className="xl:col-span-3 2xl:col-span-3 flex flex-col">
+        <div className="sm:col-span-1 xl:col-span-3 2xl:col-span-3 flex flex-col">
           <div className="h-full rounded-xl border-2 border-border/80 bg-card/60 p-4 shadow-xs flex flex-col justify-between">
             <div>
               {/* Header */}
@@ -549,7 +549,7 @@ Generated on: ${new Date().toISOString()}
               </div>
 
               {/* List */}
-              <div className="space-y-2 pt-3 text-xs">
+              <div className="space-y-2 pt-3 text-xs grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-1 gap-y-2 gap-x-4">
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-muted-foreground text-[11px]">Criminal ID</span>
                   <span className="font-mono font-semibold text-foreground">
@@ -611,7 +611,7 @@ Generated on: ${new Date().toISOString()}
         </div>
 
         {/* CARD 4: STATUS & CLASSIFICATION */}
-        <div className="xl:col-span-3 2xl:col-span-3 flex flex-col">
+        <div className="sm:col-span-1 xl:col-span-3 2xl:col-span-3 flex flex-col">
           <div className="h-full rounded-xl border-2 border-border/80 bg-card/60 p-4 shadow-xs flex flex-col justify-between">
             <div>
               {/* Header */}
@@ -625,7 +625,7 @@ Generated on: ${new Date().toISOString()}
               </div>
 
               {/* List */}
-              <div className="space-y-2 pt-3 text-xs">
+              <div className="space-y-2 pt-3 text-xs grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-1 gap-y-2 gap-x-4">
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-muted-foreground text-[11px]">Current Status</span>
                   <span className="inline-flex items-center rounded-[4px] border border-emerald-500/40 bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-400">

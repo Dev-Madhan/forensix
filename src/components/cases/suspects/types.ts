@@ -18,6 +18,8 @@ export interface AssociatedEvidenceRef {
 
 export interface SuspectItem {
   id: string;
+  criminalId?: string; // links to /dashboard/criminals/[criminalId]
+  databaseId?: string;
   numberIndex: string; // "01", "02", etc.
   name: string;
   alias: string;

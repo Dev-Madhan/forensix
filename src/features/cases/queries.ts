@@ -78,3 +78,36 @@ export async function getCaseById(caseId: string) {
 
   return caseData;
 }
+
+export async function getCaseSuspects(caseNumberOrId: string) {
+  try {
+    const caseSuspects = await prisma.caseSuspect.findMany({
+      where: {
+        case: {
+          OR: [
+            { id: caseNumberOrId },
+            { caseNumber: { equals: caseNumberOrId, mode: "insensitive" } },
+          ],
+        },
+      },
+      include: {
+        criminal: true,
+        assignedOfficer: {
+          select: {
+            id: true,
+            name: true,
+            badgeId: true,
+            role: true,
+          },
+        },
+      },
+      orderBy: { addedAt: "desc" },
+    });
+
+    return caseSuspects;
+  } catch (error) {
+    console.warn("Failed to query case suspects:", error);
+    return [];
+  }
+}
+
