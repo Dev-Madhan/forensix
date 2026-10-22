@@ -17,6 +17,7 @@ import {
   Loader2,
   Archive,
   RefreshCw,
+  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -142,6 +143,15 @@ export function CaseDetailsHeader({ caseData }: CaseDetailsHeaderProps) {
 
         {/* Action Buttons: Edit Case, Generate Report, More Actions */}
         <div className="flex items-center gap-2.5 flex-wrap">
+          {/* AI Composite Sketch Launcher */}
+          <Link
+            href={`/sketch?caseId=${encodeURIComponent(caseData.id)}&caseNumber=${encodeURIComponent(caseData.caseNumber)}`}
+            className="inline-flex items-center gap-2 h-9 px-3 rounded-lg border-2 border-purple-500/40 bg-purple-500/10 hover:bg-purple-500/20 text-purple-300 hover:text-white text-xs sm:text-sm font-medium cursor-pointer shadow-xs transition-colors"
+          >
+            <Sparkles className="size-3.5 text-purple-400" />
+            <span>AI Composite Sketch</span>
+          </Link>
+
           {/* Edit Case Page Link Button */}
           <Link
             href={`/case-details/${caseData.caseNumber}/edit`}

@@ -130,103 +130,49 @@ export function CaseDetailsTabs({ caseData }: CaseDetailsTabsProps) {
     [caseData.caseNumber]
   );
 
-  // 1. Dynamic Live Evidence Calculation
+  // 1. Dynamic Live Evidence Calculation from server relations
   const [liveEvidenceCount, setLiveEvidenceCount] = useState<number>(() => {
-    return caseData.evidenceCount || MOCK_EVIDENCE_ITEMS.length;
+    return caseData.evidences?.length ?? (caseData.evidenceCount || MOCK_EVIDENCE_ITEMS.length);
   });
 
-  const refreshEvidenceStats = React.useCallback(() => {
-    if (typeof window === "undefined") return;
-    try {
-      const deletedIds = new Set<string>(
-        JSON.parse(localStorage.getItem(`forensix_deleted_evidence_${cleanCase}`) || "[]")
-      );
-      const uploaded = JSON.parse(
-        localStorage.getItem(`forensix_uploaded_evidence_${cleanCase}`) || "[]"
-      );
-      const taggedCctv = JSON.parse(
-        localStorage.getItem(`forensix_tagged_cctv_${cleanCase}`) || "[]"
-      );
-
-      const activeBase = MOCK_EVIDENCE_ITEMS.filter((item) => !deletedIds.has(item.id));
-      const activeUploaded = uploaded.filter((item: any) => !deletedIds.has(item.id));
-      const activeCctv = taggedCctv.filter(
-        (tag: any) => !deletedIds.has(`cctv-${tag.voucherId}`)
-      );
-
-      const combined = [...activeCctv, ...activeUploaded, ...activeBase];
-      const seen = new Set<string>();
-      let count = 0;
-      for (const item of combined) {
-        const id = item.id || `cctv-${item.voucherId}`;
-        if (!seen.has(id)) {
-          seen.add(id);
-          count++;
-        }
-      }
-      setLiveEvidenceCount(count);
-    } catch (e) {
-      console.warn("Error computing dynamic evidence count:", e);
-    }
-  }, [cleanCase]);
-
-  React.useEffect(() => {
-    refreshEvidenceStats();
-    const handleUpdate = () => refreshEvidenceStats();
-    window.addEventListener("forensix:evidence-updated", handleUpdate);
-    window.addEventListener("forensix:case-activity", handleUpdate);
-    window.addEventListener("storage", handleUpdate);
-    return () => {
-      window.removeEventListener("forensix:evidence-updated", handleUpdate);
-      window.removeEventListener("forensix:case-activity", handleUpdate);
-      window.removeEventListener("storage", handleUpdate);
-    };
-  }, [refreshEvidenceStats]);
-
-  // 2. Dynamic Live Suspects Calculation
+  // 2. Dynamic Live Suspects Calculation from server relations
   const [liveSuspectsCount, setLiveSuspectsCount] = useState<number>(() => {
-    return caseData.suspectsCount || INITIAL_SUSPECTS.length;
+    return caseData.suspects?.length ?? (caseData.suspectsCount || INITIAL_SUSPECTS.length);
   });
 
-  const refreshSuspectsStats = React.useCallback(() => {
-    if (typeof window === "undefined") return;
-    try {
-      const deletedIds = new Set<string>(
-        JSON.parse(localStorage.getItem(`forensix_deleted_suspects_${cleanCase}`) || "[]")
-      );
-      const customSuspects = JSON.parse(
-        localStorage.getItem(`forensix_suspects_${cleanCase}`) || "[]"
-      );
-      const activeBase = INITIAL_SUSPECTS.filter((s) => !deletedIds.has(s.id));
-      const activeCustom = customSuspects.filter((s: any) => !deletedIds.has(s.id));
-
-      const combined = [...activeCustom, ...activeBase];
-      const seen = new Set<string>();
-      let count = 0;
-      for (const s of combined) {
-        if (!seen.has(s.id)) {
-          seen.add(s.id);
-          count++;
-        }
-      }
-      setLiveSuspectsCount(count);
-    } catch (e) {
-      console.warn("Error computing dynamic suspects count:", e);
+  React.useEffect(() => {
+    if (caseData.evidences) {
+      setLiveEvidenceCount(caseData.evidences.length);
     }
-  }, [cleanCase]);
+    if (caseData.suspects) {
+      setLiveSuspectsCount(caseData.suspects.length);
+    }
+  }, [caseData.evidences, caseData.suspects]);
 
   React.useEffect(() => {
-    refreshSuspectsStats();
-    const handleUpdate = () => refreshSuspectsStats();
-    window.addEventListener("forensix:suspects-updated", handleUpdate);
-    window.addEventListener("forensix:case-activity", handleUpdate);
-    window.addEventListener("storage", handleUpdate);
-    return () => {
-      window.removeEventListener("forensix:suspects-updated", handleUpdate);
-      window.removeEventListener("forensix:case-activity", handleUpdate);
-      window.removeEventListener("storage", handleUpdate);
+    const handleCaseActivity = (e: any) => {
+      const detail = e.detail;
+      if (!detail) return;
+      if (detail.category === "Evidence") {
+        if (detail.actionType === "DELETE" || detail.action === "Evidence Deleted") {
+          setLiveEvidenceCount((prev) => Math.max(0, prev - 1));
+        } else if (detail.actionType === "EVIDENCE" || detail.action === "Added Evidence") {
+          setLiveEvidenceCount((prev) => prev + 1);
+        }
+      } else if (detail.category === "Suspect") {
+        if (detail.actionType === "DELETE" || detail.action === "Removed Suspect") {
+          setLiveSuspectsCount((prev) => Math.max(0, prev - 1));
+        } else if (detail.actionType === "SUSPECT" || detail.action === "Added Suspect") {
+          setLiveSuspectsCount((prev) => prev + 1);
+        }
+      }
     };
-  }, [refreshSuspectsStats]);
+
+    window.addEventListener("forensix:case-activity", handleCaseActivity);
+    return () => {
+      window.removeEventListener("forensix:case-activity", handleCaseActivity);
+    };
+  }, []);
 
   // 3. Persistent Interactive Notes State
   const DEFAULT_NOTES = [
@@ -1228,7 +1174,11 @@ export function CaseDetailsTabs({ caseData }: CaseDetailsTabsProps) {
               exit="exit"
               className="outline-none"
             >
-              <EvidenceTabContent caseNumber={caseData.caseNumber} />
+              <EvidenceTabContent
+                caseId={caseData.id}
+                caseNumber={caseData.caseNumber}
+                initialEvidence={caseData.evidences}
+              />
             </motion.div>
           )}
 
@@ -1245,7 +1195,11 @@ export function CaseDetailsTabs({ caseData }: CaseDetailsTabsProps) {
               exit="exit"
               className="outline-none"
             >
-              <SuspectsTabContent caseNumber={caseData.caseNumber} />
+              <SuspectsTabContent
+                caseId={caseData.id}
+                caseNumber={caseData.caseNumber}
+                initialSuspects={caseData.suspects}
+              />
             </motion.div>
           )}
 

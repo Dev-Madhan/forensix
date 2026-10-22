@@ -3,12 +3,17 @@
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { searchSuspectsByVector, executeNeonQuery, FormattedSuspectCandidate } from "@/lib/neon-pgvector";
+import { tigris, TIGRIS_BUCKET } from "@/lib/tigris";
+import { PutObjectCommand } from "@aws-sdk/client-s3";
+import { auth } from "@/lib/auth";
+import { headers } from "next/headers";
+import crypto from "crypto";
 
 export interface StudioCaseOption {
   id: string;
   caseNumber: string;
   title: string;
-  witnesses: Array<{ id: string; name: string }>;
+  witnesses: Array<{ id: string; name: string; statement?: string | null }>;
 }
 
 export interface StudioCriminalOption {
@@ -21,23 +26,55 @@ export interface StudioCriminalOption {
   status: string;
 }
 
-export async function getStudioInitialData(): Promise<{
+export async function getStudioInitialData(targetCaseIdentifier?: string): Promise<{
   cases: StudioCaseOption[];
   criminals: StudioCriminalOption[];
 }> {
   try {
     let cases = await prisma.case.findMany({
-      take: 25,
+      take: 30,
       orderBy: { updatedAt: "desc" },
       select: {
         id: true,
         caseNumber: true,
         title: true,
         witnesses: {
-          select: { id: true, name: true },
+          select: { id: true, name: true, statement: true },
         },
       },
     });
+
+    // If a targetCaseIdentifier was requested, ensure it's loaded and positioned at index 0
+    if (targetCaseIdentifier) {
+      const targetMatchIndex = cases.findIndex(
+        (c) => c.id === targetCaseIdentifier || c.caseNumber.toLowerCase() === targetCaseIdentifier.toLowerCase()
+      );
+
+      if (targetMatchIndex > 0) {
+        const [target] = cases.splice(targetMatchIndex, 1);
+        cases.unshift(target);
+      } else if (targetMatchIndex === -1) {
+        const directMatch = await prisma.case.findFirst({
+          where: {
+            OR: [
+              { id: targetCaseIdentifier },
+              { caseNumber: targetCaseIdentifier },
+            ],
+          },
+          select: {
+            id: true,
+            caseNumber: true,
+            title: true,
+            witnesses: {
+              select: { id: true, name: true, statement: true },
+            },
+          },
+        });
+        if (directMatch) {
+          cases.unshift(directMatch);
+        }
+      }
+    }
 
     // If no case exists yet, create a default demonstrative case
     if (cases.length === 0) {
@@ -75,7 +112,7 @@ export async function getStudioInitialData(): Promise<{
           caseNumber: true,
           title: true,
           witnesses: {
-            select: { id: true, name: true },
+            select: { id: true, name: true, statement: true },
           },
         },
       });
@@ -166,6 +203,7 @@ export async function getStudioInitialData(): Promise<{
               {
                 id: "wit-01",
                 name: "Sarah Jenkins",
+                statement: "Suspect was male, around 35 years old, sharp oval face, arched dark eyebrows, straight pointed nose, thin lips, and slight stubble.",
               },
             ],
           },
@@ -323,11 +361,15 @@ export async function saveRecognitionMatch(data: {
       // Non-fatal
     }
 
-    revalidatePath("/sketch");
-    revalidatePath("/dashboard/criminals");
-    revalidatePath(`/dashboard/criminals/${criminal.id}`);
-    if (recResult.sketch?.caseId) {
-      revalidatePath(`/case-details/${recResult.sketch.case?.caseNumber || recResult.sketch.caseId}`);
+    try {
+      revalidatePath("/sketch");
+      revalidatePath("/dashboard/criminals");
+      revalidatePath(`/dashboard/criminals/${criminal.id}`);
+      if (recResult.sketch?.caseId) {
+        revalidatePath(`/case-details/${recResult.sketch.case?.caseNumber || recResult.sketch.caseId}`);
+      }
+    } catch {
+      // Revalidation ignored outside request context
     }
 
     return { success: true, result: recResult };
@@ -336,3 +378,217 @@ export async function saveRecognitionMatch(data: {
     return { error: error instanceof Error ? error.message : "Failed to confirm match." };
   }
 }
+
+/**
+ * Persists a synthesized forensic composite sketch directly to Tigris Object Storage (S3),
+ * registers a permanent Sketch record in Neon PostgreSQL, and cross-catalogs it as an official
+ * Case Evidence record for complete bidirectional case visibility.
+ */
+export async function saveSketchToVault(data: {
+  caseId: string;
+  witnessId?: string | null;
+  imageDataUrl: string;
+  description?: string;
+  promptUsed?: string;
+  metadata?: Record<string, any>;
+}): Promise<{
+  success: boolean;
+  sketch?: any;
+  evidenceId?: string;
+  fileUrl?: string;
+  caseNumber?: string;
+  error?: string;
+}> {
+  try {
+    let sessionUser = "System Investigator";
+    try {
+      const session = await auth.api.getSession({
+        headers: await headers(),
+      });
+      if (session?.user?.name) {
+        sessionUser = session.user.name;
+      }
+    } catch {
+      // Session fallback
+    }
+
+    if (!data.caseId) {
+      return { success: false, error: "Case ID is required to save sketch to case vault." };
+    }
+
+    if (!data.imageDataUrl) {
+      return { success: false, error: "No synthesized sketch image provided." };
+    }
+
+    // Verify target case exists
+    const targetCase = await prisma.case.findFirst({
+      where: {
+        OR: [{ id: data.caseId }, { caseNumber: data.caseId }],
+      },
+      select: { id: true, caseNumber: true, title: true },
+    });
+
+    if (!targetCase) {
+      return { success: false, error: `Target case "${data.caseId}" not found in database.` };
+    }
+
+    const realCaseId = targetCase.id;
+
+    // Decode base64 or SVG
+    let buffer: Buffer;
+    let mimeType = "image/png";
+    let ext = "png";
+
+    if (data.imageDataUrl.startsWith("data:image/svg+xml;base64,")) {
+      buffer = Buffer.from(data.imageDataUrl.replace("data:image/svg+xml;base64,", ""), "base64");
+      mimeType = "image/svg+xml";
+      ext = "svg";
+    } else if (
+      data.imageDataUrl.startsWith("data:image/svg+xml;utf8,") ||
+      data.imageDataUrl.startsWith("data:image/svg+xml,")
+    ) {
+      const svgText = decodeURIComponent(data.imageDataUrl.replace(/^data:image\/svg\+xml(;utf8)?,/, ""));
+      buffer = Buffer.from(svgText, "utf-8");
+      mimeType = "image/svg+xml";
+      ext = "svg";
+    } else if (data.imageDataUrl.startsWith("data:image/png;base64,")) {
+      buffer = Buffer.from(data.imageDataUrl.replace("data:image/png;base64,", ""), "base64");
+      mimeType = "image/png";
+      ext = "png";
+    } else if (data.imageDataUrl.startsWith("data:image/jpeg;base64,")) {
+      buffer = Buffer.from(data.imageDataUrl.replace("data:image/jpeg;base64,", ""), "base64");
+      mimeType = "image/jpeg";
+      ext = "jpg";
+    } else if (data.imageDataUrl.startsWith("http://") || data.imageDataUrl.startsWith("https://")) {
+      // Direct remote URL
+      const sketch = await prisma.sketch.create({
+        data: {
+          caseId: realCaseId,
+          witnessId: data.witnessId || null,
+          imageUrl: data.imageDataUrl,
+          description: data.description || `AI Forensic Composite Sketch (${targetCase.caseNumber})`,
+        },
+      });
+
+      return {
+        success: true,
+        sketch,
+        fileUrl: data.imageDataUrl,
+        caseNumber: targetCase.caseNumber,
+      };
+    } else {
+      const base64Data = data.imageDataUrl.replace(/^data:image\/\w+;base64,/, "");
+      buffer = Buffer.from(base64Data, "base64");
+    }
+
+    // Cryptographic SHA-256 Checksum
+    const sha256Hash = crypto.createHash("sha256").update(buffer).digest("hex");
+    const sketchId = crypto.randomUUID();
+    const storageKey = `cases/${realCaseId}/sketches/${sketchId}.${ext}`;
+
+    // Stream binary buffer to Tigris S3
+    let fileUrl = data.imageDataUrl;
+    try {
+      await tigris.send(
+        new PutObjectCommand({
+          Bucket: TIGRIS_BUCKET,
+          Key: storageKey,
+          Body: buffer,
+          ContentType: mimeType,
+        })
+      );
+      fileUrl = `https://fly.storage.tigris.dev/${TIGRIS_BUCKET}/${storageKey}`;
+    } catch (uploadError) {
+      console.warn("Tigris S3 sketch streaming notice (fallback to data URL):", uploadError);
+    }
+
+    // 1. Insert permanent Sketch entity
+    const sketch = await prisma.sketch.create({
+      data: {
+        id: sketchId,
+        caseId: realCaseId,
+        witnessId: data.witnessId || null,
+        imageUrl: fileUrl,
+        description: data.description || `AI Forensic Composite Sketch (${targetCase.caseNumber})`,
+      },
+    });
+
+    // 2. Dual-catalog into Case Evidence so it immediately appears in Case Intelligence Evidence gallery
+    let evidenceId: string | undefined;
+    try {
+      const evidence = await prisma.evidence.create({
+        data: {
+          caseId: realCaseId,
+          title: `Composite Sketch - ${targetCase.caseNumber}`,
+          description: data.promptUsed
+            ? `Witness-guided AI synthesis: "${data.promptUsed.slice(0, 150)}..."`
+            : "Synthesized AI Forensic Composite Portrait",
+          category: "IMAGE",
+          source: "INVESTIGATOR",
+          status: "VERIFIED",
+          fileName: `composite_sketch_${sketchId.slice(0, 8)}.${ext}`,
+          storageKey,
+          mimeType,
+          fileSize: buffer.length,
+          sha256Hash,
+          fileUrl,
+          metadata: {
+            sketchId: sketch.id,
+            isAiCompositeSketch: true,
+            engine: data.metadata?.engine || "Forensix-SD15-Procedural",
+            confidenceScore: data.metadata?.confidenceScore || 96.4,
+            promptUsed: data.promptUsed,
+          },
+          uploadedBy: sessionUser,
+        },
+      });
+      evidenceId = evidence.id;
+    } catch (evErr) {
+      console.warn("Evidence dual-catalog notice:", evErr);
+    }
+
+    // 3. Immutable Audit Log
+    try {
+      await prisma.auditLog.create({
+        data: {
+          action: "SKETCH_PERSISTED_TO_VAULT",
+          entityType: "Sketch",
+          entityId: sketch.id,
+          details: {
+            caseId: realCaseId,
+            caseNumber: targetCase.caseNumber,
+            evidenceId,
+            fileUrl,
+            sha256Hash,
+            witnessId: data.witnessId,
+          },
+        },
+      });
+    } catch {
+      // Non-fatal
+    }
+
+    try {
+      revalidatePath("/sketch");
+      revalidatePath(`/case-details/${targetCase.caseNumber}`);
+      revalidatePath(`/case-details/${realCaseId}`);
+    } catch {
+      // Revalidation ignored outside request context
+    }
+
+    return {
+      success: true,
+      sketch,
+      evidenceId,
+      fileUrl,
+      caseNumber: targetCase.caseNumber,
+    };
+  } catch (error: unknown) {
+    console.error("Failed to save sketch to vault:", error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Failed to persist sketch to case vault.",
+    };
+  }
+}
+

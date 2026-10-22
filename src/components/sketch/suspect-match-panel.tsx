@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Image from "next/image";
+import Link from "next/link";
 import {
   ShieldAlert,
   CheckCircle2,
@@ -157,35 +158,52 @@ export function SuspectMatchPanel({
                     </div>
 
                     {/* Action Button */}
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant={isConfirmed ? "secondary" : "outline"}
-                      disabled={isConfirmed || confirmingId === match.criminal_id}
-                      onClick={() => handleConfirm(match.criminal_id, match.confidence_score)}
-                      className={`text-xs cursor-pointer ${
-                        isConfirmed
-                          ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30"
-                          : "border-purple-500/40 hover:bg-purple-500/10 text-purple-300"
-                      }`}
-                    >
-                      {confirmingId === match.criminal_id ? (
-                        <>
-                          <Loader2 className="size-3 mr-1.5 animate-spin" />
-                          Confirming...
-                        </>
-                      ) : isConfirmed ? (
-                        <>
-                          <CheckCircle2 className="size-3 mr-1.5 text-emerald-400" />
-                          Confirmed
-                        </>
-                      ) : (
-                        <>
-                          <UserCheck className="size-3 mr-1.5" />
-                          Confirm Candidate
-                        </>
-                      )}
-                    </Button>
+                    <div className="flex items-center gap-1.5">
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant={isConfirmed ? "secondary" : "outline"}
+                        disabled={isConfirmed || confirmingId === match.criminal_id}
+                        onClick={() => handleConfirm(match.criminal_id, match.confidence_score)}
+                        className={`text-xs cursor-pointer ${
+                          isConfirmed
+                            ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30"
+                            : "border-purple-500/40 hover:bg-purple-500/10 text-purple-300"
+                        }`}
+                      >
+                        {confirmingId === match.criminal_id ? (
+                          <>
+                            <Loader2 className="size-3 mr-1.5 animate-spin" />
+                            Confirming...
+                          </>
+                        ) : isConfirmed ? (
+                          <>
+                            <CheckCircle2 className="size-3 mr-1.5 text-emerald-400" />
+                            Linked to Case
+                          </>
+                        ) : (
+                          <>
+                            <UserCheck className="size-3 mr-1.5" />
+                            Confirm &amp; Link
+                          </>
+                        )}
+                      </Button>
+
+                      <Link
+                        href={`/dashboard/criminals/${matchedProfile?.id || match.criminal_id}`}
+                        target="_blank"
+                      >
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          className="size-8 text-muted-foreground hover:text-foreground cursor-pointer"
+                          title="Open Criminal Dossier in new tab"
+                        >
+                          <ExternalLink className="size-3.5" />
+                        </Button>
+                      </Link>
+                    </div>
                   </div>
                 </div>
               );

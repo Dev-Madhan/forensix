@@ -42,6 +42,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import type { Criminal } from "@prisma/client";
+import { toggleCriminalWatchlist, updateCriminalPhoto } from "@/features/criminals/actions";
 
 interface CriminalProfileHeaderProps {
   criminal: Criminal;
@@ -118,19 +119,58 @@ export function CriminalProfileHeader({
   const threatAssessment =
     (demographics.threatAssessment as string) || "Likely to re-offend";
 
-  // Watchlist Toggle
-  const handleToggleWatchlist = () => {
-    setIsOnWatchlist((prev) => {
-      const next = !prev;
-      if (next) {
-        toast.success(`${fullName} placed on Priority Watchlist`, {
-          description: "Alerts dispatched to field patrol units.",
-        });
+  const [newPhotoFile, setNewPhotoFile] = useState<File | null>(null);
+  const [newPhotoPreview, setNewPhotoPreview] = useState<string | null>(null);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const photoInputRef = React.useRef<HTMLInputElement>(null);
+
+  // Watchlist Toggle with DB Persistence
+  const handleToggleWatchlist = async () => {
+    const next = !isOnWatchlist;
+    setIsOnWatchlist(next);
+    try {
+      const res = await toggleCriminalWatchlist(criminal.id, next);
+      if (res.error) {
+        setIsOnWatchlist(!next);
+        toast.error("Failed to update watchlist status on server.");
       } else {
-        toast.info(`${fullName} removed from Priority Watchlist`);
+        if (next) {
+          toast.success(`${fullName} placed on Priority Watchlist`, {
+            description: "Live sensor radar and ANPR alerts activated.",
+          });
+        } else {
+          toast.info(`${fullName} removed from Priority Watchlist`);
+        }
       }
-      return next;
-    });
+    } catch {
+      setIsOnWatchlist(!next);
+      toast.error("Error communicating with registry.");
+    }
+  };
+
+  const handleSaveNewPhoto = async () => {
+    if (!newPhotoFile) {
+      toast.error("Please select a photo file first.");
+      return;
+    }
+    setIsUploadingPhoto(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", newPhotoFile);
+      const res = await updateCriminalPhoto(criminal.id, formData);
+      if (res.error) {
+        toast.error(res.error);
+      } else {
+        toast.success("Criminal booking photo updated and verified!");
+        setIsChangePhotoOpen(false);
+        setNewPhotoFile(null);
+        setNewPhotoPreview(null);
+      }
+    } catch {
+      toast.error("Failed to upload photo to storage.");
+    } finally {
+      setIsUploadingPhoto(false);
+    }
   };
 
   // Generate Report
@@ -739,43 +779,99 @@ Generated on: ${new Date().toISOString()}
       {/* 2. CHANGE PHOTO MODAL */}
       <Modal
         isOpen={isChangePhotoOpen}
-        onClose={() => setIsChangePhotoOpen(false)}
+        onClose={() => {
+          setIsChangePhotoOpen(false);
+          setNewPhotoFile(null);
+          setNewPhotoPreview(null);
+        }}
         title="Update Criminal Photo"
-        description="Upload a new front-facing booking photo or mugshot."
+        description="Upload a new front-facing booking photo or mugshot to Tigris S3."
       >
         <div className="space-y-4 py-2">
-          <div className="border-2 border-dashed border-border/70 rounded-xl p-8 flex flex-col items-center justify-center gap-3 text-center bg-muted/10 hover:bg-muted/20 transition-colors cursor-pointer">
-            <div className="flex size-12 items-center justify-center rounded-full bg-[#665AEF]/15 text-[#a594fd]">
-              <Upload className="size-6" />
+          <input
+            type="file"
+            ref={photoInputRef}
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) {
+                if (file.size > 10 * 1024 * 1024) {
+                  toast.error("Image file size exceeds 10 MB limit");
+                  return;
+                }
+                setNewPhotoFile(file);
+                setNewPhotoPreview(URL.createObjectURL(file));
+              }
+            }}
+          />
+
+          {newPhotoPreview ? (
+            <div className="relative aspect-[3/4] w-48 mx-auto rounded-xl overflow-hidden border-2 border-[#665AEF]/50 shadow-md">
+              <Image
+                src={newPhotoPreview}
+                alt="New Photo Preview"
+                fill
+                className="object-cover"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  setNewPhotoFile(null);
+                  setNewPhotoPreview(null);
+                }}
+                className="absolute top-2 right-2 size-6 rounded-full bg-black/70 text-white flex items-center justify-center hover:bg-black cursor-pointer"
+              >
+                <X className="size-3.5" />
+              </button>
             </div>
-            <div>
-              <p className="text-sm font-semibold text-foreground">
-                Click or drag mugshot file here
-              </p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                PNG, JPG, or WEBP up to 10MB
-              </p>
+          ) : (
+            <div
+              onClick={() => photoInputRef.current?.click()}
+              className="border-2 border-dashed border-border/70 rounded-xl p-8 flex flex-col items-center justify-center gap-3 text-center bg-muted/10 hover:bg-muted/20 transition-colors cursor-pointer"
+            >
+              <div className="flex size-12 items-center justify-center rounded-full bg-[#665AEF]/15 text-[#a594fd]">
+                <Upload className="size-6" />
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-foreground">
+                  Click to select booking mugshot file
+                </p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  PNG, JPG, or WEBP up to 10MB
+                </p>
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="flex justify-end gap-2.5 pt-2">
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setIsChangePhotoOpen(false)}
-              className="h-9 px-4"
+              disabled={isUploadingPhoto}
+              onClick={() => {
+                setIsChangePhotoOpen(false);
+                setNewPhotoFile(null);
+                setNewPhotoPreview(null);
+              }}
+              className="h-9 px-4 cursor-pointer"
             >
               Cancel
             </Button>
             <Button
               size="sm"
-              onClick={() => {
-                setIsChangePhotoOpen(false);
-                toast.success("Photo update queued for forensic verification");
-              }}
-              className="h-9 px-4 bg-[#665AEF] hover:bg-[#5749DF] text-white shadow-xs shadow-[#665AEF]/25"
+              disabled={!newPhotoFile || isUploadingPhoto}
+              onClick={handleSaveNewPhoto}
+              className="h-9 px-4 bg-[#665AEF] hover:bg-[#5749DF] text-white shadow-xs shadow-[#665AEF]/25 cursor-pointer gap-2"
             >
-              Save Photo
+              {isUploadingPhoto ? (
+                <>
+                  <Loader2 className="size-3.5 animate-spin" />
+                  <span>Uploading to S3...</span>
+                </>
+              ) : (
+                <span>Save Photo</span>
+              )}
             </Button>
           </div>
         </div>

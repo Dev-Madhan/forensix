@@ -36,6 +36,10 @@ import {
   type CaseSketchReference,
   type CaseSketchMatchCandidate,
 } from "./mock-case-sketches";
+import {
+  getAvailableCriminalsForCase,
+  linkCriminalToCase,
+} from "@/features/criminals/actions";
 
 interface AddSuspectDialogProps {
   isOpen: boolean;
@@ -43,6 +47,8 @@ interface AddSuspectDialogProps {
   onAddSuspect: (suspect: SuspectItem) => void;
   nextIndexNumber: number;
   existingSuspects?: SuspectItem[];
+  caseId?: string;
+  caseNumber?: string;
 }
 
 export function AddSuspectDialog({
@@ -51,16 +57,46 @@ export function AddSuspectDialog({
   onAddSuspect,
   nextIndexNumber,
   existingSuspects = [],
+  caseId,
+  caseNumber,
 }: AddSuspectDialogProps) {
   const [activeTab, setActiveTab] = useState<"database" | "ai-sketch" | "manual">(
     "database"
   );
 
-  // Database Search State
+  // Database Search & Criminals State
   const [dbSearchTerm, setDbSearchTerm] = useState("");
+  const [dbCriminals, setDbCriminals] = useState<any[]>(INITIAL_CRIMINALS);
+  const [isLoadingCriminals, setIsLoadingCriminals] = useState(false);
   const [dbCandidateRoles, setDbCandidateRoles] = useState<
     Record<string, { status: SuspectStatus; role: SuspectRole }>
   >({});
+
+  // Fetch real registered criminals from PostgreSQL
+  React.useEffect(() => {
+    if (!isOpen) return;
+    let active = true;
+    setIsLoadingCriminals(true);
+    getAvailableCriminalsForCase(dbSearchTerm)
+      .then((res) => {
+        if (!active) return;
+        if (res.data && res.data.length > 0) {
+          setDbCriminals(res.data);
+        } else {
+          setDbCriminals(INITIAL_CRIMINALS);
+        }
+      })
+      .catch(() => {
+        if (active) setDbCriminals(INITIAL_CRIMINALS);
+      })
+      .finally(() => {
+        if (active) setIsLoadingCriminals(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [isOpen, dbSearchTerm]);
 
   // AI Match Tab State
   const [selectedSketchId, setSelectedSketchId] = useState<string>(
@@ -315,21 +351,26 @@ export function AddSuspectDialog({
 
                   {/* Filtered Criminal List */}
                   <div className="space-y-2.5 max-h-[380px] overflow-y-auto pr-1">
-                    {INITIAL_CRIMINALS.filter((c) => {
+                    {isLoadingCriminals && (
+                      <div className="text-center py-4 text-xs text-muted-foreground animate-pulse">
+                        Querying central forensic criminal repository...
+                      </div>
+                    )}
+                    {dbCriminals.filter((c) => {
                       if (!dbSearchTerm.trim()) return true;
                       const q = dbSearchTerm.toLowerCase();
                       const name = `${c.firstName} ${c.lastName}`.toLowerCase();
                       return (
                         name.includes(q) ||
                         c.alias?.toLowerCase().includes(q) ||
-                        c.criminalId.toLowerCase().includes(q) ||
-                        c.lastKnownLocation.toLowerCase().includes(q)
+                        c.criminalId?.toLowerCase().includes(q) ||
+                        c.lastKnownLocation?.toLowerCase().includes(q)
                       );
                     }).map((candidate) => {
                       const candidateName = `${candidate.firstName} ${candidate.lastName}`.trim();
                       const alreadyInCase = isCandidateInCase(candidateName);
                       const currentCfg = dbCandidateRoles[candidate.id] || {
-                        status: (candidate.status === "Wanted" ? "Primary Suspect" : "Person of Interest") as SuspectStatus,
+                        status: (candidate.status === "Wanted" || candidate.status === "ACTIVE" ? "Primary Suspect" : "Person of Interest") as SuspectStatus,
                         role: "Direct Involvement" as SuspectRole,
                       };
 
@@ -356,7 +397,7 @@ export function AddSuspectDialog({
                                 </span>
                               </div>
                               <p className="text-[11px] text-muted-foreground truncate">
-                                Alias: {candidate.alias} • {candidate.lastKnownLocation}
+                                Alias: {candidate.alias || "None"} • {candidate.lastKnownLocation || "Location uncataloged"}
                               </p>
                             </div>
                           </div>
@@ -370,9 +411,10 @@ export function AddSuspectDialog({
                             ) : (
                               <Button
                                 size="sm"
-                                onClick={() => {
+                                onClick={async () => {
+                                  const resolvedCaseId = caseId || caseNumber || "FX-2026-184";
                                   const newSuspect: SuspectItem = {
-                                    id: `susp-${Date.now().toString().slice(-4)}`,
+                                    id: candidate.id || `susp-${Date.now().toString().slice(-4)}`,
                                     criminalId: candidate.criminalId,
                                     databaseId: candidate.id,
                                     numberIndex: String(nextIndexNumber).padStart(2, "0"),
@@ -382,14 +424,28 @@ export function AddSuspectDialog({
                                     status: currentCfg.status,
                                     role: currentCfg.role,
                                     matchConfidence: 88,
-                                    lastSeenDate: "Oct 5, 2026",
+                                    lastSeenDate: "Today",
                                     lastSeenTime: "11:20 AM",
-                                    dob: candidate.dateOfBirth,
+                                    dob: candidate.dateOfBirth ? String(candidate.dateOfBirth) : undefined,
                                     gender: candidate.gender,
                                     nationality: candidate.nationality,
                                     knownAddresses: candidate.lastKnownLocation,
                                     notes: `Linked directly from Criminal Database repository.`,
                                   };
+
+                                  try {
+                                    await linkCriminalToCase({
+                                      caseId: resolvedCaseId,
+                                      criminalId: candidate.id || candidate.criminalId,
+                                      status: currentCfg.status === "Primary Suspect" ? "PRIMARY_SUSPECT" : "PERSON_OF_INTEREST",
+                                      role: "DIRECT_INVOLVEMENT",
+                                      matchConfidence: 88,
+                                      notes: newSuspect.notes,
+                                    });
+                                  } catch (linkErr) {
+                                    console.warn("Link to case warning:", linkErr);
+                                  }
+
                                   onAddSuspect(newSuspect);
                                   toast.success(`Attached ${candidateName} to Case.`);
                                   onOpenChange(false);

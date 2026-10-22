@@ -48,7 +48,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { createCriminal } from "@/features/criminals/actions";
+import { createCriminal, uploadMugshot, uploadCriminalBiometric } from "@/features/criminals/actions";
 import { CriminalStatus } from "@prisma/client";
 
 // Form Constants
@@ -182,6 +182,8 @@ export function CriminalNewForm({
   // Sidebar States: Profile Photo
   const [mugshotUrl, setMugshotUrl] = React.useState<string | null>(null);
   const [photoPreview, setPhotoPreview] = React.useState<string | null>(null);
+  const [mugshotFile, setMugshotFile] = React.useState<File | null>(null);
+  const [biometricFile, setBiometricFile] = React.useState<File | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   // Sidebar States: Aliases List
@@ -280,17 +282,17 @@ export function CriminalNewForm({
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      const dataUrl = reader.result as string;
-      setPhotoPreview(dataUrl);
-      setMugshotUrl(dataUrl);
-      toast.success("Photo selected");
-    };
-    reader.readAsDataURL(file);
+    setMugshotFile(file);
+    const objectUrl = URL.createObjectURL(file);
+    setPhotoPreview(objectUrl);
+    toast.success("Photo selected");
   };
 
   const handleRemovePhoto = () => {
+    if (photoPreview && photoPreview.startsWith("blob:")) {
+      URL.revokeObjectURL(photoPreview);
+    }
+    setMugshotFile(null);
     setPhotoPreview(null);
     setMugshotUrl(null);
     if (fileInputRef.current) {
@@ -306,6 +308,7 @@ export function CriminalNewForm({
       toast.error("Biometric file exceeds 10 MB limit");
       return;
     }
+    setBiometricFile(file);
     setBiometricFileName(file.name);
     toast.success(`${activeBiometricTab.toUpperCase()} biometric record attached`);
   };
@@ -371,6 +374,22 @@ export function CriminalNewForm({
     setIsSubmitting(true);
 
     try {
+      // 1. Upload mugshot file directly to Tigris S3 if provided
+      let finalMugshotStorageKey = mugshotUrl || undefined;
+      if (mugshotFile) {
+        toast.info("Uploading photo to secure Tigris S3 storage...");
+        const mugshotData = new FormData();
+        mugshotData.append("file", mugshotFile);
+        const uploadRes = await uploadMugshot(mugshotData);
+        if (uploadRes.success && uploadRes.storageKey) {
+          finalMugshotStorageKey = uploadRes.storageKey;
+        } else if (uploadRes.error) {
+          toast.error(`Photo upload failed: ${uploadRes.error}`);
+          setIsSubmitting(false);
+          return;
+        }
+      }
+
       // Split full name into first and last name
       const nameParts = fullName.trim().split(/\s+/);
       const firstName = nameParts[0] || fullName.trim();
@@ -394,7 +413,7 @@ export function CriminalNewForm({
         description: description.trim(),
         status: prismaStatus,
         lastKnownLocation: knownAddresses || "Chennai, Tamil Nadu",
-        mugshotUrl: mugshotUrl || undefined,
+        mugshotUrl: finalMugshotStorageKey,
         demographics: {
           fullName,
           knownAs,
@@ -422,14 +441,27 @@ export function CriminalNewForm({
 
       const result = await createCriminal(payload);
 
-      if (result.error) {
-        toast.error(result.error);
+      if (result.error || !result.data) {
+        toast.error(result.error || "Failed to create criminal record");
         setIsSubmitting(false);
         return;
       }
 
-      toast.success("Criminal record successfully created!");
-      router.push("/dashboard/criminals");
+      // 2. Upload biometric asset to Tigris S3 if provided
+      if (biometricFile && result.data.id) {
+        toast.info(`Uploading ${activeBiometricTab.toUpperCase()} biometric card to S3...`);
+        const bioData = new FormData();
+        bioData.append("criminalId", result.data.id);
+        bioData.append("biometricType", activeBiometricTab);
+        bioData.append("file", biometricFile);
+        await uploadCriminalBiometric(bioData).catch((err) => {
+          console.warn("Biometric attachment upload warning:", err);
+        });
+      }
+
+      toast.success("Criminal record successfully created and indexed!");
+      const targetId = result.data.criminalId || result.data.id;
+      router.push(`/dashboard/criminals/${targetId}`);
       router.refresh();
     } catch (err) {
       console.error("Failed to submit criminal record:", err);

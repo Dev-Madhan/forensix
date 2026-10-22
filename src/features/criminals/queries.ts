@@ -203,6 +203,14 @@ export async function getCriminalById(id: string) {
         orderBy: { createdAt: "desc" },
         take: 30,
       },
+      records: {
+        orderBy: { incidentDate: "desc" },
+        include: {
+          recordedBy: {
+            select: { id: true, name: true, badgeId: true },
+          },
+        },
+      },
     },
   }).catch(() => null);
 
@@ -256,6 +264,14 @@ export async function getCriminalById(id: string) {
         surveillanceHits: {
           orderBy: { createdAt: "desc" },
           take: 30,
+        },
+        records: {
+          orderBy: { incidentDate: "desc" },
+          include: {
+            recordedBy: {
+              select: { id: true, name: true, badgeId: true },
+            },
+          },
         },
       },
     }).catch(() => null);

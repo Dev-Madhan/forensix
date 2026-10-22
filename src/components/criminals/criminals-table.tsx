@@ -41,16 +41,90 @@ import {
   Globe,
   Radio,
   Zap,
+  Download,
+  FileSpreadsheet,
+  Layers,
+  CheckSquare,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useCriminalRealtime } from "@/hooks/use-criminal-realtime";
 import {
   triggerLiveRadarSimulatedDetection,
   updateCriminalStatusAndRisk,
+  bulkToggleCriminalWatchlist,
+  bulkUpdateCriminalStatus,
 } from "@/features/criminals/actions";
+import { CriminalStatus } from "@prisma/client";
 
 import { INITIAL_CRIMINALS, type CriminalItem } from "@/constants/mock-criminals";
 export { INITIAL_CRIMINALS, type CriminalItem };
+
+/**
+ * Export suspects list to RFC 4180 compliant CSV format
+ */
+function exportCriminalsToCSV(
+  criminals: CriminalItem[],
+  filename = `forensix-criminals-${new Date().toISOString().slice(0, 10)}.csv`
+) {
+  if (!criminals || criminals.length === 0) {
+    toast.error("No criminal records to export");
+    return;
+  }
+
+  const headers = [
+    "Criminal ID",
+    "First Name",
+    "Last Name",
+    "Alias",
+    "Aliases",
+    "Date of Birth",
+    "Status",
+    "Risk Level",
+    "Crime Categories",
+    "Last Known Location",
+    "Distinctive Marks",
+    "National ID",
+  ];
+
+  const escapeCSV = (val: unknown) => {
+    if (val === null || val === undefined) return '""';
+    const str = String(val).replace(/"/g, '""');
+    return `"${str}"`;
+  };
+
+  const rows = criminals.map((c) => [
+    escapeCSV(c.criminalId),
+    escapeCSV(c.firstName),
+    escapeCSV(c.lastName),
+    escapeCSV(c.alias || ""),
+    escapeCSV((c.aliases || []).join("; ")),
+    escapeCSV(c.dateOfBirth),
+    escapeCSV(c.status),
+    escapeCSV(c.riskLevel),
+    escapeCSV(c.crimeCategories.join("; ")),
+    escapeCSV(c.lastKnownLocation),
+    escapeCSV(c.distinctiveMarks || ""),
+    escapeCSV((c as any).nationalId || c.nationality || ""),
+  ]);
+
+  const csvContent =
+    [headers.map(escapeCSV).join(","), ...rows.map((r) => r.join(","))].join("\r\n");
+
+  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.setAttribute("href", url);
+  link.setAttribute("download", filename);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+
+  toast.success(`Exported ${criminals.length} suspect records to CSV`, {
+    description: `File saved as ${filename}`,
+  });
+}
+
 
 const MotionTableBody = motion.create(TableBody);
 
@@ -216,10 +290,10 @@ export function CriminalsTable({ initialCriminals = [] }: CriminalsTableProps) {
   const [hoveredRisk, setHoveredRisk] = React.useState<string | null>(null);
   const [hoveredStatus, setHoveredStatus] = React.useState<string | null>(null);
 
-  // Selection states (first item selected by default)
-  const [selectedIds, setSelectedIds] = React.useState<Set<string>>(
-    new Set([allCriminals[0]?.id || "1"])
-  );
+  // Selection states (for bulk operations)
+  const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
+  const [isBulkUpdating, setIsBulkUpdating] = React.useState(false);
+
   // Active criminal for Profile Preview
   const [activeCriminalId, setActiveCriminalId] = React.useState<string>(
     allCriminals[0]?.id || "1"
@@ -710,6 +784,17 @@ export function CriminalsTable({ initialCriminals = [] }: CriminalsTableProps) {
               </DropdownMenu>
             </div>
 
+            {/* Export Filtered CSV Button */}
+            <Button
+              variant="outline"
+              onClick={() => exportCriminalsToCSV(filteredCriminals)}
+              className="h-10 px-3 rounded-lg border-2 border-border bg-card/60 text-xs sm:text-sm font-medium hover:bg-muted/60 hover:text-foreground cursor-pointer gap-2 transition-colors shrink-0 self-end"
+              title={`Export ${filteredCriminals.length} matching suspects to CSV`}
+            >
+              <Download className="size-3.5 text-muted-foreground" />
+              <span className="hidden sm:inline">Export CSV</span>
+            </Button>
+
             {/* Toggle button to reopen preview when closed */}
             {!showPreview && (
               <Button
@@ -772,18 +857,19 @@ export function CriminalsTable({ initialCriminals = [] }: CriminalsTableProps) {
                 className="divide-y divide-border/40"
               >
                 {currentCriminals.map((c) => {
-                  const isSelected = selectedIds.has(c.id) || activeCriminalId === c.id;
+                  const isSelected = selectedIds.has(c.id);
+                  const isActive = activeCriminalId === c.id;
                   return (
                     <TableRow
                       key={c.id}
                       data-state={isSelected ? "selected" : undefined}
                       className={cn(
                         "transition-colors hover:bg-muted/30 cursor-pointer",
-                        isSelected && "bg-[#665AEF]/15 hover:bg-[#665AEF]/20"
+                        isSelected && "bg-[#665AEF]/15 hover:bg-[#665AEF]/20",
+                        !isSelected && isActive && "bg-muted/40"
                       )}
                       onClick={() => {
                         handleOpenPreview(c.id);
-                        toggleSelect(c.id);
                       }}
                     >
                       <TableCell
@@ -793,7 +879,6 @@ export function CriminalsTable({ initialCriminals = [] }: CriminalsTableProps) {
                         <Checkbox
                           checked={isSelected}
                           onCheckedChange={() => {
-                            handleOpenPreview(c.id);
                             toggleSelect(c.id);
                           }}
                           aria-label={`Select ${c.criminalId}`}
@@ -971,6 +1056,134 @@ export function CriminalsTable({ initialCriminals = [] }: CriminalsTableProps) {
           />
         </div>
       )}
+
+      {/* Floating Bulk Operations Bar */}
+      <AnimatePresence>
+        {selectedIds.size > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 40, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 40, scale: 0.95 }}
+            transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex flex-wrap items-center gap-2.5 sm:gap-3 px-4 py-2.5 rounded-2xl bg-card/95 backdrop-blur-2xl border-2 border-[#665AEF]/40 shadow-2xl shadow-black/60 text-foreground"
+          >
+            <div className="flex items-center gap-2 pr-2.5 sm:pr-3 border-r-2 border-border/60">
+              <span className="flex size-2 rounded-full bg-[#665AEF] animate-pulse" />
+              <span className="text-xs font-semibold font-mono tracking-wider text-foreground whitespace-nowrap">
+                {selectedIds.size} SELECTED
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {/* Export Selected Suspects CSV */}
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  const selectedItems = allCriminals.filter((c) => selectedIds.has(c.id));
+                  exportCriminalsToCSV(
+                    selectedItems,
+                    `selected-suspects-${new Date().toISOString().slice(0, 10)}.csv`
+                  );
+                }}
+                className="h-8 px-2.5 sm:px-3 rounded-lg border-2 border-border bg-card/80 hover:bg-muted/60 text-xs font-medium cursor-pointer gap-1.5"
+              >
+                <FileSpreadsheet className="size-3.5 text-emerald-400" />
+                <span>Export CSV</span>
+              </Button>
+
+              {/* Priority Watchlist Bulk Toggle */}
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={isBulkUpdating}
+                onClick={async () => {
+                  setIsBulkUpdating(true);
+                  const ids = Array.from(selectedIds);
+                  toast.promise(
+                    bulkToggleCriminalWatchlist(ids, true).finally(() => setIsBulkUpdating(false)),
+                    {
+                      loading: `Adding ${ids.length} suspects to priority watchlist...`,
+                      success: (res) => {
+                        if (res.error) throw new Error(res.error);
+                        return `Placed ${ids.length} suspects on Priority Watchlist`;
+                      },
+                      error: "Failed to update watchlist",
+                    }
+                  );
+                }}
+                className="h-8 px-2.5 sm:px-3 rounded-lg border-2 border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 text-xs font-medium cursor-pointer gap-1.5"
+              >
+                <Shield className="size-3.5 text-amber-400" />
+                <span className="hidden sm:inline">Add to Watchlist</span>
+                <span className="sm:hidden">Watchlist</span>
+              </Button>
+
+              {/* Bulk Status Update Dropdown */}
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={isBulkUpdating}
+                      className="h-8 px-2.5 sm:px-3 rounded-lg border-2 border-border bg-card/80 hover:bg-muted/60 text-xs font-medium cursor-pointer gap-1.5"
+                    />
+                  }
+                >
+                  <Layers className="size-3.5 text-[#665AEF]" />
+                  <span>Update Status</span>
+                  <ChevronDown className="size-3 opacity-60" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="center"
+                  side="top"
+                  sideOffset={8}
+                  className="w-40 p-1 rounded-xl shadow-xl bg-card/95 backdrop-blur-xl border-2 border-border"
+                >
+                  {[
+                    { label: "Active", value: "ACTIVE" },
+                    { label: "Wanted", value: "WANTED" },
+                    { label: "In Custody", value: "IN_CUSTODY" },
+                  ].map((st) => (
+                    <DropdownMenuItem
+                      key={st.value}
+                      onClick={async () => {
+                        setIsBulkUpdating(true);
+                        const ids = Array.from(selectedIds);
+                        toast.promise(
+                          bulkUpdateCriminalStatus(ids, st.value as CriminalStatus).finally(() =>
+                            setIsBulkUpdating(false)
+                          ),
+                          {
+                            loading: `Setting status to ${st.label}...`,
+                            success: () => `Updated ${ids.length} suspects to ${st.label}`,
+                            error: "Failed to update status",
+                          }
+                        );
+                      }}
+                      className="cursor-pointer text-xs font-medium px-2.5 py-1.5 rounded-md hover:bg-accent/80"
+                    >
+                      Mark as {st.label}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {/* Clear Selection */}
+              <Button
+                size="icon-xs"
+                variant="ghost"
+                onClick={() => setSelectedIds(new Set())}
+                title="Clear Selection"
+                className="size-7 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/60 cursor-pointer ml-1"
+              >
+                <X className="size-4" />
+              </Button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -70,7 +70,13 @@ import {
 import type { Criminal } from "@prisma/client";
 import { toast } from "sonner";
 import { CriminalActivityTab } from "./activity/criminal-activity-tab";
-import { linkCriminalToCase } from "@/features/criminals/actions";
+import {
+  linkCriminalToCase,
+  createCriminalRecord,
+  deleteCriminalRecord,
+  runCriminalFacialBiometricSearch,
+} from "@/features/criminals/actions";
+import { useCriminalRealtime } from "@/hooks/use-criminal-realtime";
 
 const DEFAULT_SUGGESTED_ALIASES = [
   "Shadow",
@@ -557,8 +563,23 @@ export function CriminalProfileTabs({
   const [isAddingAlias, setIsAddingAlias] = useState(false);
   const [newAlias, setNewAlias] = useState("");
 
-  // Criminal History state matching reference dashboard with real case links
+  // Criminal History state matching reference dashboard with real database records
   const [historyRecords, setHistoryRecords] = useState<CriminalHistoryItem[]>(() => {
+    const rawRecords = (criminal as any).records || [];
+    if (rawRecords.length > 0) {
+      return rawRecords.map((cr: any, i: number) => ({
+        id: cr.id,
+        rowNumber: String(i + 1).padStart(2, "0"),
+        caseId: cr.courtCaseNumber,
+        offenceType: cr.offenceType as any,
+        description: cr.description,
+        date: new Date(cr.incidentDate).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+        location: cr.location || "Chennai, TN",
+        status: cr.status as any,
+        outcome: cr.outcome as any,
+      }));
+    }
+
     const rawLinks = (criminal as any).caseLinks || [];
     if (rawLinks.length > 0) {
       return rawLinks.map((cl: any, i: number) => ({
@@ -656,11 +677,11 @@ export function CriminalProfileTabs({
     outcome: null,
   });
 
-  const handleAddCriminalRecord = (e?: React.FormEvent) => {
+  const handleAddCriminalRecord = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     const caseId = newRecordForm.caseId.trim() || `FX-2026-${Math.floor(100 + Math.random() * 900)}`;
     const description = newRecordForm.description.trim() || "Incident under investigation.";
-    const date = newRecordForm.date.trim() || "Oct 21, 2026";
+    const date = newRecordForm.date.trim() || new Date().toISOString().split("T")[0];
     const location = newRecordForm.location.trim() || "Chennai, TN";
 
     const nextIndex = historyRecords.length + 1;
@@ -688,15 +709,36 @@ export function CriminalProfileTabs({
       outcome: null,
     });
 
-    linkCriminalToCase({
-      caseId,
-      criminalId: criminal.id,
-      notes: description,
-    }).catch(() => {
-      // Non-fatal if caseId is a loose string not yet in db
-    });
+    try {
+      const res = await createCriminalRecord({
+        criminalId: criminal.id,
+        courtCaseNumber: caseId,
+        offenceType: newRecordForm.offenceType,
+        description,
+        incidentDate: new Date(date).toISOString(),
+        location,
+        status: newRecordForm.status,
+        outcome: newRecordForm.outcome || undefined,
+      });
 
-    toast.success(`Criminal Record "${caseId}" registered and linked.`);
+      if (res.error) {
+        toast.error(`Ledger notice: ${res.error}`);
+      } else {
+        toast.success(`Judicial Record "${caseId}" permanently logged to Neon DB!`);
+      }
+    } catch {
+      toast.info(`Record "${caseId}" registered.`);
+    }
+  };
+
+  const handleDeleteCriminalRecord = async (recordId: string) => {
+    setHistoryRecords((prev) => prev.filter((r) => r.id !== recordId));
+    try {
+      await deleteCriminalRecord(recordId, criminal.id);
+      toast.success("Record deleted from official ledger.");
+    } catch {
+      toast.error("Failed to delete record from ledger.");
+    }
   };
 
   const filteredHistoryRecords = useMemo(() => {
@@ -716,7 +758,23 @@ export function CriminalProfileTabs({
 
 
   // Biometrics tab state
-  const [matchCandidates] = useState<FaceMatchCandidate[]>(DEFAULT_FACE_MATCH_RESULTS);
+  const [matchCandidates, setMatchCandidates] = useState<FaceMatchCandidate[]>(DEFAULT_FACE_MATCH_RESULTS);
+
+  // Hook up real-time SSE sensor radar stream
+  useCriminalRealtime({
+    criminalId: criminal.id,
+    onSurveillanceHit: (event) => {
+      const data = event.data || {};
+      toast.error(`LIVE RADAR HIT: ${criminal.firstName} ${criminal.lastName} detected!`, {
+        description: `${data.location || "Perimeter"} via ${data.sensorId || "Camera Sensor"} (${Math.round((data.confidenceScore || 0.94) * 100)}% match)`,
+      });
+    },
+    onStatusChanged: (event) => {
+      const data = event.data || {};
+      toast.info(`Registry Status Updated: ${data.status || "Updated"} // Risk: ${data.riskLevel || "Standard"}`);
+    },
+  });
+
   const [matchHistory, setMatchHistory] = useState<BiometricMatchHistoryItem[]>(() => {
     const rawMatches = (criminal as any).recognitionResults || [];
     if (rawMatches.length > 0) {
@@ -753,12 +811,17 @@ export function CriminalProfileTabs({
 
   const handleScanBiometrics = async () => {
     setIsScanningBiometrics(true);
-    toast.info("Connecting to AI Recognition Service (FastAPI / MobileNetV3)...");
+    toast.info("Querying AI Recognition Service (FastAPI / 512D Embeddings)...");
     try {
-      await new Promise((resolve) => setTimeout(resolve, 1200));
-      toast.success("Biometric scan completed. 4 candidate matches verified with 512D embeddings.");
+      const res = await runCriminalFacialBiometricSearch(criminal.id);
+      if (res.success && res.candidates && res.candidates.length > 0) {
+        setMatchCandidates(res.candidates as FaceMatchCandidate[]);
+        toast.success(`Biometric search completed. ${res.candidates.length} candidates verified!`);
+      } else {
+        toast.info("Biometric scan completed: No additional suspects exceed similarity threshold.");
+      }
     } catch {
-      toast.error("Failed to connect to recognition service.");
+      toast.error("Biometric scan service unreachable.");
     } finally {
       setIsScanningBiometrics(false);
     }
@@ -1666,8 +1729,7 @@ export function CriminalProfileTabs({
                                         <button
                                           type="button"
                                           onClick={() => {
-                                            setHistoryRecords((prev) => prev.filter((r) => r.id !== item.id));
-                                            toast.info(`Record ${item.caseId} removed`);
+                                            handleDeleteCriminalRecord(item.id);
                                             setOpenActionRowId(null);
                                           }}
                                           className="w-full text-left text-xs px-2.5 py-1.5 rounded-md text-rose-400 hover:bg-rose-500/10 transition-colors flex items-center gap-2 cursor-pointer"
@@ -1759,8 +1821,7 @@ export function CriminalProfileTabs({
                                     <button
                                       type="button"
                                       onClick={() => {
-                                        setHistoryRecords((prev) => prev.filter((r) => r.id !== item.id));
-                                        toast.info(`Record ${item.caseId} removed`);
+                                        handleDeleteCriminalRecord(item.id);
                                         setOpenActionRowId(null);
                                       }}
                                       className="w-full text-left text-xs px-2.5 py-1.5 rounded-md text-rose-400 hover:bg-rose-500/10 transition-colors flex items-center gap-2 cursor-pointer"

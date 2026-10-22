@@ -30,40 +30,60 @@ export function CaseIncidentMediaCard({
     [caseData]
   );
 
-  // All 4 images use "cctv-suspect.jpg" as explicitly instructed
-  const mediaItems: MediaItem[] = [
-    {
-      id: "cctv-1",
-      cam: "CAM 01",
-      timestamp: `${caseData.dateReported || "2026-10-04"} 21:14:32`,
-      src: "/images/cctv-suspect.jpg",
-      caption: "CCTV footage of the suspect",
-    },
-    {
-      id: "cctv-2",
-      cam: "CAM 02",
-      timestamp: `${caseData.dateReported || "2026-10-04"} 21:14:48`,
-      src: "/images/cctv-suspect.jpg",
-      caption: `Suspect exiting towards ${resolvedLoc.title}`,
-    },
-    {
-      id: "cctv-3",
-      cam: "CAM 03",
-      timestamp: "2026-10-04 21:15:05",
-      src: "/images/cctv-suspect.jpg",
-      caption: "Alleyway perimeter security camera capture",
-    },
-    {
-      id: "cctv-4",
-      cam: "CAM 04",
-      timestamp: "2026-10-04 21:15:30",
-      src: "/images/cctv-suspect.jpg",
-      caption: "Commercial store entrance night surveillance",
-    },
-  ];
+  // Dynamic incident media: prioritizes real AI composite sketches, then CCTV frames
+  const mediaItems: MediaItem[] = React.useMemo(() => {
+    const items: MediaItem[] = [];
+
+    if (caseData.sketches && caseData.sketches.length > 0) {
+      caseData.sketches.forEach((sk, idx) => {
+        items.push({
+          id: sk.id,
+          cam: `AI SKETCH #${idx + 1}`,
+          timestamp: sk.createdAt
+            ? new Date(sk.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+            : "Active Synthesis",
+          src: sk.imageUrl,
+          caption: sk.description || "Synthesized AI Forensic Composite Sketch",
+        });
+      });
+    }
+
+    items.push(
+      {
+        id: "cctv-1",
+        cam: "CAM 01",
+        timestamp: `${caseData.dateReported || "2026-10-04"} 21:14:32`,
+        src: "/images/cctv-suspect.jpg",
+        caption: "CCTV footage of the suspect",
+      },
+      {
+        id: "cctv-2",
+        cam: "CAM 02",
+        timestamp: `${caseData.dateReported || "2026-10-04"} 21:14:48`,
+        src: "/images/cctv-suspect.jpg",
+        caption: `Suspect exiting towards ${resolvedLoc.title}`,
+      },
+      {
+        id: "cctv-3",
+        cam: "CAM 03",
+        timestamp: "2026-10-04 21:15:05",
+        src: "/images/cctv-suspect.jpg",
+        caption: "Alleyway perimeter security camera capture",
+      },
+      {
+        id: "cctv-4",
+        cam: "CAM 04",
+        timestamp: "2026-10-04 21:15:30",
+        src: "/images/cctv-suspect.jpg",
+        caption: "Commercial store entrance night surveillance",
+      }
+    );
+
+    return items;
+  }, [caseData, resolvedLoc]);
 
   const total = mediaItems.length;
-  const currentMedia = mediaItems[currentIndex];
+  const currentMedia = mediaItems[currentIndex] || mediaItems[0];
 
   const handlePrev = () => {
     setCurrentIndex((prev) => (prev === 0 ? total - 1 : prev - 1));
@@ -107,6 +127,7 @@ export function CaseIncidentMediaCard({
             src={currentMedia.src}
             alt={currentMedia.caption}
             fill
+            unoptimized
             className="object-cover transition-opacity duration-300"
             sizes="(max-width: 1280px) 100vw, 400px"
             priority

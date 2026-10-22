@@ -19,10 +19,22 @@ import {
   Clock,
   Layers,
   Sparkles,
+  Loader2,
+  Fingerprint,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { Blocks } from "loading-dev";
+import { toast } from "sonner";
+import { SuspectMatchPanel, MatchCandidate } from "./suspect-match-panel";
+import { saveRecognitionMatch } from "@/features/sketches/actions";
 
 export function CompositeOutputPreview() {
   const {
@@ -40,12 +52,22 @@ export function CompositeOutputPreview() {
     sketchMetadata,
     llmAnalysis,
     generateVariation,
+    selectedCase,
+    selectedCaseId,
+    isSavingToVault,
+    savedSketchId,
+    saveToVault,
+    criminalsCatalog,
   } = useSketch();
 
   const [isExpanded, setIsExpanded] = useState(false);
   const [activeTab, setActiveTab] = useState<"sketch" | "dossier">("sketch");
 
-
+  // Biometric Recognition Modal State
+  const [isBioModalOpen, setIsBioModalOpen] = useState(false);
+  const [isSearchingBio, setIsSearchingBio] = useState(false);
+  const [matches, setMatches] = useState<MatchCandidate[]>([]);
+  const [confirmedMatches, setConfirmedMatches] = useState<Record<string, boolean>>({});
 
   // When new image is generated, default to sketch tab
   useEffect(() => {
@@ -53,6 +75,79 @@ export function CompositeOutputPreview() {
       setActiveTab("sketch");
     }
   }, [generatedImageUrl]);
+
+  const handleSaveToVault = async () => {
+    await saveToVault();
+  };
+
+  const handleOpenBiometrics = async () => {
+    if (!generatedImageUrl) return;
+    setIsBioModalOpen(true);
+    setIsSearchingBio(true);
+    try {
+      const res = await fetch("/api/ai/recognition", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          case_id: selectedCaseId || selectedCase?.id || "case-default",
+          image_reference: generatedImageUrl,
+          limit: 5,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error?.message || "Failed to search biometric index.");
+      }
+      setMatches(data.matches || []);
+    } catch (err: unknown) {
+      console.error("Biometric search error:", err);
+      toast.error(err instanceof Error ? err.message : "Failed to run biometric search.");
+    } finally {
+      setIsSearchingBio(false);
+    }
+  };
+
+  const handleConfirmMatch = async (criminalId: string, score: number) => {
+    let sketchIdToLink = savedSketchId;
+    if (!sketchIdToLink) {
+      // Auto-save to vault first
+      toast.info("Auto-saving sketch to case vault before registering suspect link...");
+      const saveRes = await saveToVault();
+      if (!saveRes.success || !saveRes.sketch?.id) {
+        toast.error("Could not link suspect: failed to save sketch to case vault.");
+        return;
+      }
+      sketchIdToLink = saveRes.sketch.id;
+    }
+
+    if (!sketchIdToLink) {
+      toast.error("Target sketch ID could not be resolved.");
+      return;
+    }
+
+    try {
+      const res = await saveRecognitionMatch({
+        sketchId: sketchIdToLink,
+        criminalId,
+        matchScore: score,
+        status: "CONFIRMED",
+      });
+
+      if (res.error) {
+        throw new Error(res.error);
+      }
+
+      setConfirmedMatches((prev) => ({ ...prev, [criminalId]: true }));
+      toast.success(
+        `Suspect match confirmed! Direct involvement registered for Case ${
+          selectedCase?.caseNumber || "active case"
+        }.`
+      );
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Confirmation error.");
+    }
+  };
 
   const toggleFilter = () => {
     setForensicFilter((prev) => (prev === "normal" ? "darkroom_negative" : "normal"));
@@ -104,6 +199,51 @@ export function CompositeOutputPreview() {
           <div className="w-full sm:w-auto flex items-center justify-between sm:justify-end gap-2">
             {activeTab === "sketch" && (
               <div className="flex-1 sm:flex-initial flex items-center gap-2">
+                {/* Save to Case Vault Button */}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSaveToVault}
+                  disabled={isSavingToVault}
+                  className={`flex-1 sm:flex-initial justify-center h-7 px-2 sm:px-2.5 text-[11px] font-medium border rounded cursor-pointer transition-colors flex items-center gap-1.5 shadow-sm ${
+                    savedSketchId
+                      ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-400"
+                      : "border-blue-500/40 bg-blue-500/15 hover:bg-blue-500/30 text-blue-400 hover:text-white"
+                  }`}
+                  title={savedSketchId ? "Linked to Case File" : "Save and stream to Tigris S3 Case Vault"}
+                >
+                  {isSavingToVault ? (
+                    <>
+                      <Loader2 className="size-3 animate-spin" />
+                      <span>Saving...</span>
+                    </>
+                  ) : savedSketchId ? (
+                    <>
+                      <CheckCircle2 className="size-3 text-emerald-400" />
+                      <span>Saved</span>
+                    </>
+                  ) : (
+                    <>
+                      <ShieldCheck className="size-3" />
+                      <span>Save Case</span>
+                    </>
+                  )}
+                </Button>
+
+                {/* Scan Biometrics Button */}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleOpenBiometrics}
+                  className="flex-1 sm:flex-initial justify-center h-7 px-2 sm:px-2.5 text-[11px] font-medium border border-purple-500/50 bg-purple-500/15 hover:bg-purple-500/30 text-purple-300 hover:text-white rounded cursor-pointer transition-colors flex items-center gap-1.5 shadow-sm"
+                  title="Scan indexed mugshot archives using InsightFace ArcFace 512D and Neon pgvector"
+                >
+                  <Fingerprint className="size-3 text-purple-400" />
+                  <span>Biometrics</span>
+                </Button>
+
                 {/* Generate Variation Button */}
                 <Button
                   type="button"
@@ -387,6 +527,31 @@ export function CompositeOutputPreview() {
           </div>
         </div>
       )}
+
+      {/* Biometric Suspect Recognition Dialog */}
+      <Dialog open={isBioModalOpen} onOpenChange={setIsBioModalOpen}>
+        <DialogContent className="max-w-3xl bg-[#0c0c11] border-border/80 text-foreground p-5 max-h-[88vh] overflow-y-auto">
+          <DialogHeader className="pb-3 border-b border-border/40">
+            <DialogTitle className="flex items-center gap-2 text-base font-semibold">
+              <Fingerprint className="size-5 text-purple-400" />
+              Biometric Suspect Recognition Matcher
+            </DialogTitle>
+            <DialogDescription className="text-xs text-muted-foreground">
+              Deep feature vector projection (InsightFace ArcFace 512D) matching across registered criminal mugshots using Neon pgvector HNSW indexing.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="pt-2">
+            <SuspectMatchPanel
+              matches={matches}
+              isSearching={isSearchingBio}
+              criminalsCatalog={criminalsCatalog}
+              onConfirmMatch={handleConfirmMatch}
+              confirmedMatches={confirmedMatches}
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

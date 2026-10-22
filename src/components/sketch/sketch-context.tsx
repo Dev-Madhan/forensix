@@ -1,8 +1,15 @@
 "use client";
 
-import React, { createContext, useContext, useState } from "react";
+import React, { createContext, useContext, useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { GenerationMode, PendingModeSwitch } from "@/types/sketch-generation";
 import { toast } from "sonner";
+import {
+  getStudioInitialData,
+  saveSketchToVault,
+  StudioCaseOption,
+  StudioCriminalOption,
+} from "@/features/sketches/actions";
 
 export interface FeatureItem {
   id: string;
@@ -53,6 +60,23 @@ interface SketchContextType {
   // Mobile Tab Navigation
   activeMobileTab: MobileTab;
   setActiveMobileTab: React.Dispatch<React.SetStateAction<MobileTab>>;
+
+  // Active Case & Investigation Binding
+  availableCases: StudioCaseOption[];
+  criminalsCatalog: StudioCriminalOption[];
+  selectedCaseId: string;
+  setSelectedCaseId: (id: string) => void;
+  selectedCase: StudioCaseOption | null;
+  selectedWitnessId: string | null;
+  setSelectedWitnessId: (id: string | null) => void;
+  isLoadingCases: boolean;
+  refreshCases: () => Promise<void>;
+
+  // Vault Saving
+  isSavingToVault: boolean;
+  savedSketchId: string | null;
+  savedFileUrl: string | null;
+  saveToVault: () => Promise<{ success: boolean; sketch?: any; fileUrl?: string; error?: string }>;
 
   // Generation Mode State Machine
   generationMode: GenerationMode;
@@ -139,6 +163,133 @@ interface SketchContextType {
 const SketchContext = createContext<SketchContextType | undefined>(undefined);
 
 export function SketchProvider({ children }: { children: React.ReactNode }) {
+  const searchParams = useSearchParams();
+  const urlCaseIdentifier = searchParams.get("caseId") || searchParams.get("caseNumber") || "";
+
+  // Active Case & Witnesses State
+  const [availableCases, setAvailableCases] = useState<StudioCaseOption[]>([]);
+  const [criminalsCatalog, setCriminalsCatalog] = useState<StudioCriminalOption[]>([]);
+  const [selectedCaseId, setSelectedCaseId] = useState<string>("");
+  const [selectedWitnessId, setSelectedWitnessId] = useState<string | null>(null);
+  const [isLoadingCases, setIsLoadingCases] = useState<boolean>(true);
+
+  // Vault Stored State
+  const [isSavingToVault, setIsSavingToVault] = useState<boolean>(false);
+  const [savedSketchId, setSavedSketchId] = useState<string | null>(null);
+  const [savedFileUrl, setSavedFileUrl] = useState<string | null>(null);
+
+  // Load cases and hydrate active case
+  const loadCases = React.useCallback(async (targetId?: string) => {
+    try {
+      setIsLoadingCases(true);
+      const data = await getStudioInitialData(targetId || undefined);
+      if (data?.criminals) {
+        setCriminalsCatalog(data.criminals);
+      }
+      if (data?.cases && data.cases.length > 0) {
+        setAvailableCases(data.cases);
+        const active = targetId
+          ? data.cases.find(
+              (c) =>
+                c.id === targetId ||
+                c.caseNumber.toLowerCase() === targetId.toLowerCase()
+            ) || data.cases[0]
+          : data.cases[0];
+
+        setSelectedCaseId(active.id);
+        if (active.witnesses && active.witnesses.length > 0) {
+          setSelectedWitnessId(active.witnesses[0].id);
+          // Auto-hydrate witness statement into prompt if prompt is currently empty
+          if (active.witnesses[0].statement) {
+            setPromptText((prev) => (prev.trim().length === 0 ? (active.witnesses[0].statement || "") : prev));
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("Failed to hydrate studio cases:", err);
+    } finally {
+      setIsLoadingCases(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadCases(urlCaseIdentifier);
+  }, [urlCaseIdentifier, loadCases]);
+
+  const selectedCase = React.useMemo(() => {
+    return availableCases.find((c) => c.id === selectedCaseId) || availableCases[0] || null;
+  }, [availableCases, selectedCaseId]);
+
+  // Synchronize witness selection when case changes
+  useEffect(() => {
+    if (selectedCase?.witnesses && selectedCase.witnesses.length > 0) {
+      const currentValid = selectedCase.witnesses.some((w) => w.id === selectedWitnessId);
+      if (!currentValid) {
+        setSelectedWitnessId(selectedCase.witnesses[0].id);
+      }
+    } else {
+      setSelectedWitnessId(null);
+    }
+  }, [selectedCase, selectedWitnessId]);
+
+  const refreshCases = async () => {
+    await loadCases(selectedCaseId);
+  };
+
+  const saveToVault = async (): Promise<{
+    success: boolean;
+    sketch?: any;
+    fileUrl?: string;
+    error?: string;
+  }> => {
+    if (!generatedImageUrl) {
+      toast.error("No generated sketch available to save.");
+      return { success: false, error: "No sketch generated" };
+    }
+
+    const caseIdToUse = selectedCaseId || selectedCase?.id;
+    if (!caseIdToUse) {
+      toast.error("Please select a target case before saving.");
+      return { success: false, error: "No case selected" };
+    }
+
+    setIsSavingToVault(true);
+    try {
+      const res = await saveSketchToVault({
+        caseId: caseIdToUse,
+        witnessId: selectedWitnessId,
+        imageDataUrl: generatedImageUrl,
+        promptUsed: promptText.trim() || undefined,
+        description: `Forensic composite sketch generated for ${selectedCase?.caseNumber || caseIdToUse}`,
+        metadata: {
+          engine: sketchMetadata?.engine || "Forensic Diffusion SD1.5",
+          confidenceScore: sketchMetadata?.confidenceScore || llmAnalysis?.confidence_score || 96.4,
+          style: sketchStyle,
+          demographics: `${gender}, ${ageGroup}, ${ethnicity}`,
+        },
+      });
+
+      if (!res.success || res.error) {
+        throw new Error(res.error || "Failed to save sketch to vault.");
+      }
+
+      setSavedSketchId(res.sketch?.id || null);
+      setSavedFileUrl(res.fileUrl || null);
+      toast.success(
+        `Sketch saved to Case Vault (${res.caseNumber || selectedCase?.caseNumber || "Case"})!`,
+        {
+          description: "Permanent Tigris S3 asset created and linked to Case Evidence.",
+        }
+      );
+      return { success: true, sketch: res.sketch, fileUrl: res.fileUrl };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Error saving sketch to vault.";
+      toast.error(msg);
+      return { success: false, error: msg };
+    } finally {
+      setIsSavingToVault(false);
+    }
+  };
   // Feature selections
   const [selectedFeatures, setSelectedFeatures] = useState<Record<string, FeatureItem>>({});
 
@@ -398,11 +549,17 @@ export function SketchProvider({ children }: { children: React.ReactNode }) {
         components[subcat] = feat.id;
       });
 
+      setSavedSketchId(null);
+      setSavedFileUrl(null);
+
+      const effectiveCaseId = selectedCaseId || selectedCase?.id || "CASE-2026-X49";
+      const effectiveWitnessId = selectedWitnessId || "WITNESS-01";
+
       const requestPayload = isPromptMode
         ? {
             mode: "PROMPT_GENERATION" as const,
-            case_id: "CASE-2026-X49",
-            witness_id: "WITNESS-01",
+            case_id: effectiveCaseId,
+            witness_id: effectiveWitnessId,
             prompt: promptText.trim(),
             sketch_style: sketchStyle,
             camera_angle: cameraAngle,
@@ -415,8 +572,8 @@ export function SketchProvider({ children }: { children: React.ReactNode }) {
           }
         : {
             mode: "DATASET_COMPOSITE" as const,
-            case_id: "CASE-2026-X49",
-            witness_id: "WITNESS-01",
+            case_id: effectiveCaseId,
+            witness_id: effectiveWitnessId,
             attributes,
             components,
             sketch_style: sketchStyle,
@@ -609,6 +766,21 @@ export function SketchProvider({ children }: { children: React.ReactNode }) {
         llmAnalysis,
         generateSketch,
         generateVariation,
+
+        // Case and Vault values
+        availableCases,
+        criminalsCatalog,
+        selectedCaseId,
+        setSelectedCaseId,
+        selectedCase,
+        selectedWitnessId,
+        setSelectedWitnessId,
+        isLoadingCases,
+        refreshCases,
+        isSavingToVault,
+        savedSketchId,
+        savedFileUrl,
+        saveToVault,
       }}
     >
       {children}

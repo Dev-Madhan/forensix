@@ -39,12 +39,16 @@ import {
   ALL_ALLOWED_MIME_TYPES,
   tigrisEvidenceValidator,
 } from "@/lib/evidence-upload-config";
+import { uploadEvidence } from "@/features/evidence/actions";
+import { mapPrismaEvidenceToItem } from "@/features/cases/resolve-case";
 import type { EvidenceItem, EvidenceType, EvidenceSource } from "./types";
 
 interface EvidenceUploadDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onAddEvidence: (item: EvidenceItem) => void;
+  caseId?: string;
+  caseNumber?: string;
 }
 
 function formatBytes(bytes: number): string {
@@ -108,6 +112,8 @@ export function EvidenceUploadDialog({
   open,
   onOpenChange,
   onAddEvidence,
+  caseId,
+  caseNumber,
 }: EvidenceUploadDialogProps) {
   const [fileName, setFileName] = useState("");
   const [fileType, setFileType] = useState<EvidenceType>("Video");
@@ -159,7 +165,7 @@ export function EvidenceUploadDialog({
     }
   }, [open, clearFiles]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!fileName.trim() && acceptedFiles.length === 0) {
@@ -167,118 +173,51 @@ export function EvidenceUploadDialog({
       return;
     }
 
+    if (acceptedFiles.length === 0) {
+      toast.error("Please select a file to upload to the forensic vault");
+      return;
+    }
+
     setIsSubmitting(true);
+    const resolvedCaseIdentifier = caseId || caseNumber || "FX-2026-184";
 
-    setTimeout(() => {
-      // If multiple files were dropped, register each one
-      if (acceptedFiles.length > 1) {
-        acceptedFiles.forEach((file, index) => {
-          const detectedType = inferEvidenceType(file.name, file.type);
-          const newItem: EvidenceItem = {
-            id: String(Math.floor(Math.random() * 900) + 100 + index),
-            name: file.name,
-            description: description.trim() || `Field acquired forensic evidence file: ${file.name}`,
-            type: detectedType,
-            source: source,
-            addedBy: {
-              name: "Arjun Karthik",
-              avatar: "/images/avatar-investigator.jpg",
-              initials: "AK",
-            },
-            dateAdded: new Date().toLocaleDateString("en-US", {
-              month: "short",
-              day: "numeric",
-              year: "numeric",
-            }),
-            timeAdded: new Date().toLocaleTimeString("en-US", {
-              hour: "2-digit",
-              minute: "2-digit",
-              hour12: true,
-            }),
-            status: "Under Review",
-            fileSize: formatBytes(file.size),
-            hash: `${Math.random().toString(36).substring(2, 6)}...${Math.random().toString(36).substring(2, 6)}`,
-            location: "/evidence/2026/fx-184/uploads/",
-            thumbnailType: getThumbnailType(detectedType),
-            previewImage: detectedType === "Image" ? "/images/cctv-suspect.jpg" : undefined,
-            fullDescription: description.trim() || "Uploaded to secure forensic chain of custody repository.",
-            aiAnalysis: {
-              score: Math.floor(Math.random() * 20 + 75),
-              title: "Initial AI Telemetry Analyzed",
-              subtitle: "Automated forensic pipeline verified integrity hash and media markers.",
-              attributes: [
-                "SHA-256 Validated",
-                "Exif Metadata Intact",
-                "Resolution Checked",
-                "Added to Index",
-              ],
-            },
-          };
+    try {
+      for (let i = 0; i < acceptedFiles.length; i++) {
+        const file = acceptedFiles[i];
+        const detectedType = inferEvidenceType(file.name, file.type);
+        const titleVal = acceptedFiles.length === 1 && fileName.trim() ? fileName.trim() : file.name;
+
+        const formData = new FormData();
+        formData.append("caseId", resolvedCaseIdentifier);
+        const rawFile = (file as any).file instanceof File ? (file as any).file : (file as unknown as File);
+        formData.append("file", rawFile);
+        formData.append("title", titleVal);
+        formData.append("description", description.trim() || `Field acquired forensic evidence file: ${file.name}`);
+        formData.append("category", detectedType.toUpperCase());
+        formData.append("source", source.toUpperCase().replace(/\s+/g, "_"));
+        formData.append("status", "VERIFIED");
+        formData.append("locationFound", `/evidence/uploads/${file.name}`);
+
+        const res = await uploadEvidence(formData);
+        if (res.error) {
+          toast.error(`Upload error for ${file.name}: ${res.error}`);
+        } else if (res.data) {
+          const newItem = mapPrismaEvidenceToItem(res.data);
           onAddEvidence(newItem);
-        });
-
-        setIsSubmitting(false);
-        onOpenChange(false);
-        clearFiles();
-        toast.success(`${acceptedFiles.length} forensic files registered successfully`);
-        return;
+        }
       }
 
-      // Single file or manual entry
-      const singleFile = acceptedFiles[0];
-      const finalName = fileName.trim() || (singleFile ? singleFile.name : "Evidence_File.mp4");
-      const finalType = singleFile ? inferEvidenceType(singleFile.name, singleFile.type) : fileType;
-      const finalSize = singleFile ? formatBytes(singleFile.size) : `${(Math.random() * 50 + 2).toFixed(1)} MB`;
-
-      const newItem: EvidenceItem = {
-        id: String(Math.floor(Math.random() * 90) + 10),
-        name: finalName.includes(".") ? finalName : `${finalName}.mp4`,
-        description: description.trim() || "Field acquired forensic evidence file",
-        type: finalType,
-        source: source,
-        addedBy: {
-          name: "Arjun Karthik",
-          avatar: "/images/avatar-investigator.jpg",
-          initials: "AK",
-        },
-        dateAdded: new Date().toLocaleDateString("en-US", {
-          month: "short",
-          day: "numeric",
-          year: "numeric",
-        }),
-        timeAdded: new Date().toLocaleTimeString("en-US", {
-          hour: "2-digit",
-          minute: "2-digit",
-          hour12: true,
-        }),
-        status: "Under Review",
-        fileSize: finalSize,
-        hash: `${Math.random().toString(36).substring(2, 6)}...${Math.random().toString(36).substring(2, 6)}`,
-        location: "/evidence/2026/fx-184/uploads/",
-        thumbnailType: getThumbnailType(finalType),
-        previewImage: finalType === "Image" ? "/images/cctv-suspect.jpg" : undefined,
-        fullDescription: description.trim() || "Uploaded to secure forensic chain of custody repository.",
-        aiAnalysis: {
-          score: Math.floor(Math.random() * 20 + 75),
-          title: "Initial AI Telemetry Analyzed",
-          subtitle: "Automated forensic pipeline verified integrity hash and media markers.",
-          attributes: [
-            "SHA-256 Validated",
-            "Exif Metadata Intact",
-            "Resolution Checked",
-            "Added to Index",
-          ],
-        },
-      };
-
-      onAddEvidence(newItem);
-      setIsSubmitting(false);
+      toast.success(`${acceptedFiles.length} file(s) cryptographically hashed and uploaded to Tigris vault`);
       onOpenChange(false);
       clearFiles();
       setFileName("");
       setDescription("");
-      toast.success(`Evidence ${newItem.name} registered successfully`);
-    }, 600);
+    } catch (err: any) {
+      console.error("Upload failed:", err);
+      toast.error("Failed to upload evidence to Tigris storage");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (

@@ -20,6 +20,20 @@ export async function uploadEvidence(formData: FormData) {
 
   const caseId = formData.get("caseId") as string;
   const file = formData.get("file") as File;
+  const title = (formData.get("title") as string)?.trim() || file?.name || "Evidence";
+  const description = (formData.get("description") as string)?.trim() || null;
+  const category = (formData.get("category") as string)?.trim() || "DOCUMENT";
+  const source = (formData.get("source") as string)?.trim() || "CRIME_SCENE";
+  const status = (formData.get("status") as string)?.trim() || "VERIFIED";
+  const locationFound = (formData.get("locationFound") as string)?.trim() || null;
+  const criminalId = (formData.get("criminalId") as string)?.trim() || null;
+  let metadata: Record<string, any> | null = null;
+  try {
+    const metaStr = formData.get("metadata") as string;
+    if (metaStr) metadata = JSON.parse(metaStr);
+  } catch {
+    // Ignore JSON parse errors for optional metadata
+  }
 
   if (!caseId || !file) {
     return { error: "Case ID and File are required" };
@@ -35,17 +49,17 @@ export async function uploadEvidence(formData: FormData) {
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    // Calculate SHA256 for integrity
+    // Calculate SHA256 for cryptographic integrity
     const hashSum = crypto.createHash("sha256");
     hashSum.update(buffer);
     const sha256Hash = hashSum.digest("hex");
 
-    // Secure Storage Key
+    // Secure Storage Key in Tigris S3
     const safeFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
     const evidenceId = crypto.randomUUID();
     const storageKey = `cases/${caseId}/evidence/${evidenceId}/${safeFileName}`;
 
-    // Upload to Tigris
+    // Upload binary stream to Tigris Object Storage
     await tigris.send(
       new PutObjectCommand({
         Bucket: TIGRIS_BUCKET,
@@ -55,31 +69,44 @@ export async function uploadEvidence(formData: FormData) {
       })
     );
 
-    // Create Database Record
+    const fileUrl = `https://fly.storage.tigris.dev/${TIGRIS_BUCKET}/${storageKey}`;
+
+    // Create Database Record with complete metadata
     const evidence = await prisma.evidence.create({
       data: {
         caseId,
+        criminalId: criminalId || undefined,
+        title,
+        description,
+        category,
+        source,
+        status,
+        locationFound,
         fileName: file.name,
         storageKey,
         mimeType: file.type,
         fileSize: file.size,
         sha256Hash,
+        fileUrl,
+        metadata: metadata || undefined,
         uploadedBy: session.user.id,
       },
     });
 
-    // Audit log
+    // Write persistent Audit Log
     await prisma.auditLog.create({
       data: {
         action: "EVIDENCE_UPLOADED",
         entityType: "Evidence",
         entityId: evidence.id,
         userId: session.user.id,
-        details: { caseId, fileName: file.name, sha256Hash },
+        details: { caseId, fileName: file.name, title, category, sha256Hash },
       },
     });
 
+    // Revalidate routes
     revalidatePath(`/dashboard/cases/${caseId}`);
+    revalidatePath(`/case-details/${caseId}`);
     return { success: true, data: evidence };
   } catch (error) {
     console.error("Failed to upload evidence:", error);
@@ -130,9 +157,50 @@ export async function deleteEvidence(evidenceId: string, caseId: string) {
     });
 
     revalidatePath(`/dashboard/cases/${caseId}`);
+    revalidatePath(`/case-details/${caseId}`);
     return { success: true };
   } catch (error) {
     console.error("Failed to delete evidence:", error);
     return { error: "Failed to delete evidence" };
   }
 }
+
+export async function updateEvidenceStatus(
+  evidenceId: string,
+  caseId: string,
+  status: string,
+  notes?: string
+) {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+
+  if (!session || !session.user) {
+    return { error: "Unauthorized" };
+  }
+
+  try {
+    const updated = await prisma.evidence.update({
+      where: { id: evidenceId },
+      data: { status },
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        action: "EVIDENCE_STATUS_UPDATED",
+        entityType: "Evidence",
+        entityId: evidenceId,
+        userId: session.user.id,
+        details: { caseId, status, notes },
+      },
+    });
+
+    revalidatePath(`/dashboard/cases/${caseId}`);
+    revalidatePath(`/case-details/${caseId}`);
+    return { success: true, data: updated };
+  } catch (error) {
+    console.error("Failed to update evidence status:", error);
+    return { error: "Failed to update evidence status" };
+  }
+}
+

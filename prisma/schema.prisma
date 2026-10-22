@@ -103,6 +103,7 @@ model User {
   reports          Report[]      @relation("ReportAuthor")
   auditLogs        AuditLog[]
   assignedSuspects CaseSuspect[]
+  criminalRecords  CriminalRecord[]
   sessions         Session[]
   accounts         Account[]
 
@@ -168,13 +169,41 @@ model Criminal {
   mugshotUrl         String?
   demographics       Json? // e.g., height, eye color, tattoos
   lastKnownLocation  String?
+  fingerprintScanUrl String?
+  dnaProfileCode     String?
+  faceEmbeddingId    String?
+  biometricEnrolledAt DateTime?
+  watchlistStatus    String?             @default("STANDARD")
   embedding          Unsupported("vector(512)")?
   caseLinks          CaseSuspect[]
+  records            CriminalRecord[]
   evidences          Evidence[]          @relation("CriminalEvidence")
   surveillanceHits   SurveillanceHit[]
   recognitionResults RecognitionResult[]
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
+}
+
+model CriminalRecord {
+  id              String    @id @default(cuid())
+  criminalId      String
+  criminal        Criminal  @relation(fields: [criminalId], references: [id], onDelete: Cascade)
+  courtCaseNumber String
+  offenceType     String
+  description     String    @db.Text
+  incidentDate    DateTime
+  location        String
+  courtName       String?
+  status          String    @default("Under Investigation")
+  outcome         String?
+  sentenceDetails String?
+  recordedById    String?
+  recordedBy      User?     @relation(fields: [recordedById], references: [id], onDelete: SetNull)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([criminalId])
+  @@index([courtCaseNumber])
 }
 
 model CaseSuspect {
@@ -245,19 +274,32 @@ model Report {
 }
 
 model Evidence {
-  id         String    @id @default(cuid())
-  caseId     String
-  criminalId String?
-  fileName   String
-  storageKey String
-  mimeType   String
-  fileSize   Int
-  sha256Hash String
-  uploadedBy String
-  uploadedAt DateTime  @default(now())
+  id            String    @id @default(cuid())
+  caseId        String
+  criminalId    String?
+  title         String?
+  description   String?   @db.Text
+  category      String?   @default("DOCUMENT") // VIDEO, IMAGE, DOCUMENT, AUDIO, BALLISTIC, BIOMETRIC, PHYSICAL
+  source        String?   @default("CRIME_SCENE") // CCTV, CRIME_SCENE, INVESTIGATOR, PHONE_RECORD, LAB_ANALYSIS
+  status        String?   @default("VERIFIED") // VERIFIED, UNDER_REVIEW, FLAGGED
+  locationFound String?   // Physical retrieval location (e.g. "Main Vault", "Sector 4 Alley")
+  fileName      String
+  storageKey    String
+  mimeType      String
+  fileSize      Int
+  sha256Hash    String
+  fileUrl       String?   // Public/CDN or presigned storage URL
+  metadata      Json?     // AI markers, camera IDs, resolution, sensor telemetry
+  uploadedBy    String
+  uploadedAt    DateTime  @default(now())
+  updatedAt     DateTime  @default(now()) @updatedAt
 
   case     Case      @relation(fields: [caseId], references: [id], onDelete: Cascade)
   criminal Criminal? @relation("CriminalEvidence", fields: [criminalId], references: [id], onDelete: SetNull)
+
+  @@index([caseId])
+  @@index([category])
+  @@index([status])
 }
 
 model AuditLog {

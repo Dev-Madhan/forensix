@@ -10,7 +10,12 @@ export interface RealtimeCriminalEvent {
     | "CASE_LINKED"
     | "CASE_UNLINKED"
     | "STATUS_CHANGED"
-    | "LEDGER_ENTRY";
+    | "LEDGER_ENTRY"
+    | "RECORD_CREATED"
+    | "RECORD_DELETED"
+    | "WATCHLIST_TOGGLED"
+    | "PHOTO_UPDATED"
+    | "BIOMETRIC_ENROLLED";
   criminalId: string;
   timestamp: string;
   data: Record<string, any>;

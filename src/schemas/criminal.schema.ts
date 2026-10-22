@@ -71,3 +71,20 @@ export const RecordSurveillanceHitSchema = z.object({
 
 export type RecordSurveillanceHitInput = z.infer<typeof RecordSurveillanceHitSchema>;
 
+export const CreateCriminalRecordSchema = z.object({
+  criminalId: z.string().min(1, "Criminal ID is required"),
+  courtCaseNumber: z.string().min(1, "Court Case Number is required"),
+  offenceType: z.string().min(1, "Offence Type is required"),
+  description: z.string().min(1, "Description is required"),
+  incidentDate: z
+    .union([z.string(), z.date()])
+    .transform((val) => (val instanceof Date ? val : new Date(val))),
+  location: z.string().min(1, "Location is required"),
+  courtName: z.string().optional(),
+  status: z.string().default("Under Investigation"),
+  outcome: z.string().optional().nullable(),
+  sentenceDetails: z.string().optional().nullable(),
+});
+
+export type CreateCriminalRecordInput = z.infer<typeof CreateCriminalRecordSchema>;
+

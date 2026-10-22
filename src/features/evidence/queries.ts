@@ -22,3 +22,28 @@ export async function getEvidenceSignedUrl(
     return "";
   }
 }
+
+/**
+ * Retrieves all digital and physical evidence records associated with a specific case
+ */
+export async function getCaseEvidences(caseId: string) {
+  try {
+    const { prisma } = await import("@/lib/prisma");
+    return await prisma.evidence.findMany({
+      where: {
+        OR: [
+          { caseId },
+          { case: { caseNumber: { equals: caseId, mode: "insensitive" } } },
+        ],
+      },
+      include: {
+        criminal: true,
+      },
+      orderBy: { uploadedAt: "desc" },
+    });
+  } catch (error) {
+    console.error("Failed to query case evidences:", error);
+    return [];
+  }
+}
+
