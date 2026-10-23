@@ -43,20 +43,67 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Modal } from "@/components/ui/modal";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
-import type { Criminal } from "@prisma/client";
+import { SurveillanceHitStatus, type Criminal } from "@prisma/client";
+import { acknowledgeSurveillanceHit } from "@/features/criminals/actions";
 import {
   fetchCriminalActivityLogs,
   fetchCriminalRecognitionSummary,
   fetchCriminalAccessHandlers,
   recordCriminalActivityEvent,
   verifyCriminalLedgerIntegrity,
+  recordSurveillanceHitAction,
   type CriminalActivityItem,
   type CriminalActivityCategory,
   type CriminalRecognitionSummary,
   type CriminalAccessHandlerItem,
 } from "@/features/criminals/activity-actions";
+import { TacticalSightingRadar } from "./tactical-sighting-radar";
+
+export const SENSOR_PRESETS = [
+  {
+    sensorId: "ANPR-CAM-01",
+    sensorName: "Anna Salai Junction High-Speed ANPR",
+    location: "Anna Salai - Mount Road Corridor, Chennai",
+    latitude: 13.0827,
+    longitude: 80.2707,
+  },
+  {
+    sensorId: "CCTV-AI-08",
+    sensorName: "Chennai Central Station Gate 3 Optical Node",
+    location: "Park Town Terminal, Chennai",
+    latitude: 13.0827,
+    longitude: 80.2755,
+  },
+  {
+    sensorId: "CHECKPOINT-NORTH-02",
+    sensorName: "Grand Northern Trunk Highway Scanner",
+    location: "GNT Highway Checkpoint 2, Chennai",
+    latitude: 13.1200,
+    longitude: 80.2500,
+  },
+  {
+    sensorId: "TRAFFIC-RADAR-14",
+    sensorName: "Kathipara Junction Automated Surveillance",
+    location: "Kathipara Grade Separator, Guindy",
+    latitude: 13.0067,
+    longitude: 80.2033,
+  },
+  {
+    sensorId: "AIRPORT-FACIAL-05",
+    sensorName: "Meenambakkam Terminal Automated AI Camera",
+    location: "Chennai International Airport Terminal 2",
+    latitude: 12.9856,
+    longitude: 80.1693,
+  },
+];
 
 /**
  * Maps specific actions and categories to distinct, purposeful visual signatures.
@@ -334,6 +381,66 @@ export function CriminalActivityTab({ criminal }: CriminalActivityTabProps) {
     }
   };
 
+  // ANPR Surveillance Modal Form State
+  const [isSurveillanceModalOpen, setIsSurveillanceModalOpen] = useState(false);
+  const [selectedSensorIndex, setSelectedSensorIndex] = useState<number | "custom">(0);
+  const [sightingSensorId, setSightingSensorId] = useState(SENSOR_PRESETS[0].sensorId);
+  const [sightingSensorName, setSightingSensorName] = useState(SENSOR_PRESETS[0].sensorName);
+  const [sightingLocation, setSightingLocation] = useState(SENSOR_PRESETS[0].location);
+  const [sightingLat, setSightingLat] = useState(SENSOR_PRESETS[0].latitude);
+  const [sightingLng, setSightingLng] = useState(SENSOR_PRESETS[0].longitude);
+  const [sightingConfidence, setSightingConfidence] = useState(94);
+  const [sightingDetails, setSightingDetails] = useState("");
+  const [isSightingSubmitting, setIsSightingSubmitting] = useState(false);
+
+  const handleSelectPreset = (index: number) => {
+    setSelectedSensorIndex(index);
+    const preset = SENSOR_PRESETS[index];
+    setSightingSensorId(preset.sensorId);
+    setSightingSensorName(preset.sensorName);
+    setSightingLocation(preset.location);
+    setSightingLat(preset.latitude);
+    setSightingLng(preset.longitude);
+  };
+
+  const handleSubmitSurveillanceHit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!sightingSensorId.trim() || !sightingLocation.trim()) {
+      toast.error("Sensor ID and location are mandatory.");
+      return;
+    }
+    setIsSightingSubmitting(true);
+    try {
+      const res = await recordSurveillanceHitAction({
+        criminalId: criminal.id,
+        sensorId: sightingSensorId.trim(),
+        sensorName: sightingSensorName.trim() || sightingSensorId.trim(),
+        location: sightingLocation.trim(),
+        latitude: sightingLat,
+        longitude: sightingLng,
+        confidenceScore: sightingConfidence / 100,
+        details:
+          sightingDetails.trim() ||
+          `Automated optical detection registered at ${sightingLocation.trim()} with ${sightingConfidence}% confidence`,
+        status: SurveillanceHitStatus.UNACKNOWLEDGED,
+      });
+
+      if (res.success) {
+        toast.success("ANPR Surveillance Sighting registered & cryptographically logged.");
+        setIsSurveillanceModalOpen(false);
+        setSightingDetails("");
+        await loadLogs(true);
+      } else {
+        toast.error(res.error || "Failed to log surveillance detection.");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Internal error logging surveillance sighting.");
+    } finally {
+      setIsSightingSubmitting(false);
+    }
+  };
+
   return (
     <div className="flex flex-col gap-5 w-full">
       {/* ── Key Metrics Cards ───────────────────────────────────────────── */}
@@ -391,6 +498,14 @@ export function CriminalActivityTab({ criminal }: CriminalActivityTabProps) {
         })}
       </div>
 
+      {/* ── Geospatial Tactical Radar Map ────────────────────────────── */}
+      <TacticalSightingRadar
+        activities={activities}
+        criminalName={criminalName}
+        criminalId={criminal.criminalId}
+        onSelectEvent={(eventId) => setExpandedId(eventId)}
+      />
+
       {/* ── Main Layout: Timeline (8 cols) + Sidebar (4 cols) ──────────── */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-5 w-full">
         {/* ── Primary Column: Audit Log Feed ──────────────────────────── */}
@@ -438,6 +553,17 @@ export function CriminalActivityTab({ criminal }: CriminalActivityTabProps) {
                   >
                     <Download className="size-3.5" />
                     <span>Export</span>
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsSurveillanceModalOpen(true)}
+                    className="h-8 px-2.5 text-xs text-rose-400 border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 hover:text-rose-300 gap-1.5 cursor-pointer"
+                  >
+                    <Camera className="size-3.5 text-rose-400" />
+                    <span>ANPR Sighting</span>
                   </Button>
 
                   <Button
@@ -651,7 +777,7 @@ export function CriminalActivityTab({ criminal }: CriminalActivityTabProps) {
                                         {getInitials(item.officer.name)}
                                       </AvatarFallback>
                                     </Avatar>
-                                    <span className="text-xs font-medium text-foreground truncate max-w-[140px]">
+                                    <span className="text-xs font-medium text-foreground truncate max-w-35">
                                       {item.officer.name}
                                     </span>
                                     <span className="text-[10px] font-mono text-muted-foreground">
@@ -661,7 +787,7 @@ export function CriminalActivityTab({ criminal }: CriminalActivityTabProps) {
 
                                   {/* Location Tag */}
                                   {item.metadata.location && (
-                                    <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground px-2 py-0.5 rounded-md bg-muted/30 border border-border/40 truncate max-w-[200px]">
+                                    <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground px-2 py-0.5 rounded-md bg-muted/30 border border-border/40 truncate max-w-50">
                                       <MapPin className="size-3 text-rose-400 shrink-0" />
                                       <span className="truncate">{item.metadata.location}</span>
                                     </span>
@@ -681,6 +807,42 @@ export function CriminalActivityTab({ criminal }: CriminalActivityTabProps) {
                                       <FolderKanban className="size-3" />
                                       {item.metadata.caseNumber}
                                     </span>
+                                  )}
+
+                                  {/* Surveillance Hit Acknowledge Action */}
+                                  {item.metadata.hitId && (
+                                    <Button
+                                      type="button"
+                                      size="xs"
+                                      variant="outline"
+                                      disabled={item.metadata.hitStatus !== "UNACKNOWLEDGED"}
+                                      onClick={async () => {
+                                        try {
+                                          const res = await acknowledgeSurveillanceHit(
+                                            item.metadata.hitId as string,
+                                            SurveillanceHitStatus.INVESTIGATING
+                                          );
+                                          if (res.error) {
+                                            toast.error(res.error);
+                                          } else {
+                                            toast.success("Surveillance sighting acknowledged", {
+                                              description: "Status advanced to INVESTIGATING.",
+                                            });
+                                            loadLogs(true);
+                                          }
+                                        } catch {
+                                          toast.error("Failed to acknowledge sighting");
+                                        }
+                                      }}
+                                      className="h-6 px-2 text-[10px] font-medium border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 cursor-pointer disabled:opacity-50"
+                                    >
+                                      <CheckCircle2 className="size-3 mr-1 text-rose-400" />
+                                      <span>
+                                        {item.metadata.hitStatus === "UNACKNOWLEDGED"
+                                          ? "Acknowledge Hit"
+                                          : "Acknowledged"}
+                                      </span>
+                                    </Button>
                                   )}
                                 </div>
 
@@ -1057,19 +1219,49 @@ export function CriminalActivityTab({ criminal }: CriminalActivityTabProps) {
               <label className="text-[11px] font-medium text-foreground">
                 Category
               </label>
-              <select
-                value={logCategory}
-                onChange={(e) =>
-                  setLogCategory(e.target.value as CriminalActivityCategory)
-                }
-                className="w-full h-9 bg-card/60 border border-border/80 rounded-md text-xs px-2.5 text-foreground focus:outline-none focus:border-primary"
-              >
-                <option value="SURVEILLANCE">Surveillance & AI</option>
-                <option value="EVIDENCE">Evidence Custody</option>
-                <option value="CASE_LINK">Case Linkage</option>
-                <option value="PROFILE_UPDATE">Profile Update</option>
-                <option value="LEGAL_AUDIT">Legal / Court Filing</option>
-              </select>
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full h-9 bg-card/60 border border-border/80 rounded-md text-xs px-2.5 text-foreground justify-between flex items-center cursor-pointer"
+                    />
+                  }
+                >
+                  <span className="truncate">
+                    {logCategory === "SURVEILLANCE" && "Surveillance & AI"}
+                    {logCategory === "EVIDENCE" && "Evidence Custody"}
+                    {logCategory === "CASE_LINK" && "Case Linkage"}
+                    {logCategory === "PROFILE_UPDATE" && "Profile Update"}
+                    {logCategory === "LEGAL_AUDIT" && "Legal / Court Filing"}
+                  </span>
+                  <ChevronDown className="size-3.5 text-muted-foreground opacity-70 shrink-0 ml-1.5" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="start"
+                  side="bottom"
+                  sideOffset={4}
+                  className="w-52 p-1 rounded-xl shadow-2xl bg-card/95 backdrop-blur-xl border-2 border-border z-50"
+                >
+                  {[
+                    { val: "SURVEILLANCE", label: "Surveillance & AI" },
+                    { val: "EVIDENCE", label: "Evidence Custody" },
+                    { val: "CASE_LINK", label: "Case Linkage" },
+                    { val: "PROFILE_UPDATE", label: "Profile Update" },
+                    { val: "LEGAL_AUDIT", label: "Legal / Court Filing" },
+                  ].map((cat) => (
+                    <DropdownMenuItem
+                      key={cat.val}
+                      onClick={() => setLogCategory(cat.val as CriminalActivityCategory)}
+                      className="cursor-pointer px-2.5 py-1.5 text-xs rounded-lg hover:bg-muted font-medium text-foreground flex items-center justify-between"
+                    >
+                      <span>{cat.label}</span>
+                      {logCategory === cat.val && <Check className="size-3.5 text-[#665AEF]" />}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
             <div className="space-y-1.5">
               <label className="text-[11px] font-medium text-foreground">
@@ -1218,6 +1410,207 @@ export function CriminalActivityTab({ criminal }: CriminalActivityTabProps) {
             This export contains the genuine cryptographic chain-of-custody ledger directly extracted from the PostgreSQL audit records, including sequential SHA-256 block hashes, authenticated officer credentials, biometric matches, and timestamped forensic entries.
           </p>
         </div>
+      </Modal>
+      {/* ── ANPR Surveillance Sighting Modal ────────────────────────────── */}
+      <Modal
+        isOpen={isSurveillanceModalOpen}
+        onClose={() => setIsSurveillanceModalOpen(false)}
+        maxWidth="max-w-lg"
+        title={
+          <div className="flex items-center gap-2">
+            <Camera className="size-4 text-rose-400 shrink-0" />
+            <span>Log ANPR / Sensor Sighting</span>
+          </div>
+        }
+        description={`Record real-time ANPR, optical sensor, or checkpoint detection for ${criminalName}`}
+      >
+        <form onSubmit={handleSubmitSurveillanceHit} className="space-y-4 text-xs">
+          {/* Preset Selector */}
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-medium text-foreground flex items-center justify-between">
+              <span>Surveillance Sensor / Node *</span>
+              <span className="text-[10px] text-muted-foreground font-mono">
+                {selectedSensorIndex === "custom" ? "Custom Node" : "Standardized Node"}
+              </span>
+            </label>
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full h-9 bg-card/60 border border-border/80 rounded-md text-xs px-2.5 text-foreground justify-between flex items-center cursor-pointer"
+                  />
+                }
+              >
+                <div className="flex items-center gap-2 truncate">
+                  <Camera className="size-3.5 text-rose-400 shrink-0" />
+                  <span className="truncate font-medium">
+                    {selectedSensorIndex === "custom"
+                      ? "Custom Sensor / Radar"
+                      : SENSOR_PRESETS[selectedSensorIndex].sensorName}
+                  </span>
+                </div>
+                <ChevronDown className="size-3.5 text-muted-foreground opacity-70 shrink-0 ml-1.5" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="start"
+                side="bottom"
+                sideOffset={4}
+                className="w-80 p-1.5 rounded-xl shadow-2xl bg-card/95 backdrop-blur-xl border-2 border-border z-50 max-h-72 overflow-y-auto"
+              >
+                {SENSOR_PRESETS.map((preset, idx) => (
+                  <DropdownMenuItem
+                    key={preset.sensorId}
+                    onClick={() => handleSelectPreset(idx)}
+                    className="cursor-pointer px-2.5 py-2 text-xs rounded-lg hover:bg-muted font-medium text-foreground flex flex-col items-start gap-0.5"
+                  >
+                    <div className="flex items-center justify-between w-full">
+                      <span className="font-semibold text-foreground truncate">
+                        {preset.sensorName}
+                      </span>
+                      {selectedSensorIndex === idx && (
+                        <Check className="size-3.5 text-[#665AEF] shrink-0 ml-1.5" />
+                      )}
+                    </div>
+                    <span className="text-[10px] font-mono text-muted-foreground truncate">
+                      {preset.sensorId} · {preset.location}
+                    </span>
+                  </DropdownMenuItem>
+                ))}
+                <div className="border-t border-border/40 my-1" />
+                <DropdownMenuItem
+                  onClick={() => setSelectedSensorIndex("custom")}
+                  className="cursor-pointer px-2.5 py-1.5 text-xs rounded-lg hover:bg-muted font-medium text-foreground flex items-center justify-between"
+                >
+                  <span className="text-primary font-semibold">Enter Custom Sensor / Location</span>
+                  {selectedSensorIndex === "custom" && (
+                    <Check className="size-3.5 text-[#665AEF]" />
+                  )}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+
+          {/* Sensor ID & Location Inputs */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-medium text-foreground">
+                Sensor Identifier *
+              </label>
+              <Input
+                value={sightingSensorId}
+                onChange={(e) => setSightingSensorId(e.target.value)}
+                placeholder="e.g. ANPR-CAM-01"
+                className="h-9 text-xs font-mono bg-card/60 border border-border/80 rounded-md focus-visible:border-rose-500"
+                required
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-medium text-foreground">
+                Confidence Match *
+              </label>
+              <div className="flex items-center gap-2">
+                {[95, 88, 75].map((conf) => (
+                  <button
+                    key={conf}
+                    type="button"
+                    onClick={() => setSightingConfidence(conf)}
+                    className={cn(
+                      "flex-1 h-9 rounded-md text-xs font-mono font-medium border transition-colors cursor-pointer",
+                      sightingConfidence === conf
+                        ? "bg-rose-500/15 border-rose-500/50 text-rose-400 font-semibold"
+                        : "bg-card/40 border-border/70 text-muted-foreground hover:bg-muted"
+                    )}
+                  >
+                    {conf}%
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-medium text-foreground">
+              Detection Location *
+            </label>
+            <Input
+              value={sightingLocation}
+              onChange={(e) => setSightingLocation(e.target.value)}
+              placeholder="e.g. Anna Salai - Mount Road Junction"
+              className="h-9 text-xs bg-card/60 border border-border/80 rounded-md focus-visible:border-rose-500"
+              required
+            />
+          </div>
+
+          {/* Geographic Coordinates */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-medium text-muted-foreground">
+                Latitude
+              </label>
+              <Input
+                type="number"
+                step="any"
+                value={sightingLat}
+                onChange={(e) => setSightingLat(parseFloat(e.target.value) || 0)}
+                className="h-9 text-xs font-mono bg-card/60 border border-border/80 rounded-md"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-medium text-muted-foreground">
+                Longitude
+              </label>
+              <Input
+                type="number"
+                step="any"
+                value={sightingLng}
+                onChange={(e) => setSightingLng(parseFloat(e.target.value) || 0)}
+                className="h-9 text-xs font-mono bg-card/60 border border-border/80 rounded-md"
+              />
+            </div>
+          </div>
+
+          {/* Sighting Details / Vehicle Narrative */}
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-medium text-foreground">
+              Sighting Narrative / License Plate Details
+            </label>
+            <textarea
+              value={sightingDetails}
+              onChange={(e) => setSightingDetails(e.target.value)}
+              placeholder="e.g. Black SUV TN-01-AB-1234 heading southbound, high probability match with passenger profile..."
+              rows={3}
+              className="w-full bg-card/60 border border-border/80 rounded-md p-2.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-rose-500 resize-none"
+            />
+          </div>
+
+          <div className="flex items-center gap-1.5 p-2.5 rounded-md bg-black/20 border border-border/40 text-[10px] text-muted-foreground font-mono">
+            <Lock className="size-3 text-emerald-400 shrink-0" />
+            <span>Detection creates a PostgreSQL SurveillanceHit record and appends a SHA-256 custody block.</span>
+          </div>
+
+          <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 pt-2 border-t border-border/50">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setIsSurveillanceModalOpen(false)}
+              className="text-xs rounded-md cursor-pointer h-9 sm:h-8"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              size="sm"
+              disabled={isSightingSubmitting}
+              className="text-xs font-medium rounded-md cursor-pointer h-9 sm:h-8 bg-rose-600 hover:bg-rose-500 text-white gap-1.5"
+            >
+              <Camera className="size-3.5" />
+              {isSightingSubmitting ? "Ingesting Sighting..." : "Log Optical Sighting"}
+            </Button>
+          </div>
+        </form>
       </Modal>
     </div>
   );

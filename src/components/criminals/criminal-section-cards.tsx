@@ -6,6 +6,7 @@ import NumberFlow from "@number-flow/react";
 import { useInView } from "react-intersection-observer";
 import { Card } from "@/components/ui/card";
 import { Users, Bot, Eye, AlertTriangle, ArrowUp } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export interface CriminalMetrics {
   totalRecords: number;
@@ -14,8 +15,10 @@ export interface CriminalMetrics {
   highRiskSubjects: number;
 }
 
-interface CriminalSectionCardsProps {
+export interface CriminalSectionCardsProps {
   metrics?: Partial<CriminalMetrics>;
+  activeFilterKey?: string | null;
+  onSelectFilter?: (key: string) => void;
 }
 
 function RollingNumber({ value }: { value: number }) {
@@ -39,9 +42,14 @@ function RollingNumber({ value }: { value: number }) {
   );
 }
 
-export function CriminalSectionCards({ metrics }: CriminalSectionCardsProps) {
+export function CriminalSectionCards({
+  metrics,
+  activeFilterKey,
+  onSelectFilter,
+}: CriminalSectionCardsProps) {
   const cards = [
     {
+      key: "TOTAL",
       title: "Total Records",
       value: metrics?.totalRecords ?? 0,
       change: "Active",
@@ -49,6 +57,7 @@ export function CriminalSectionCards({ metrics }: CriminalSectionCardsProps) {
       icon: Users,
     },
     {
+      key: "AI",
       title: "Identified via AI",
       value: metrics?.identifiedViaAI ?? 0,
       change: "Enrolled",
@@ -56,6 +65,7 @@ export function CriminalSectionCards({ metrics }: CriminalSectionCardsProps) {
       icon: Bot,
     },
     {
+      key: "WATCHLIST",
       title: "Active Watchlist",
       value: metrics?.activeWatchlist ?? 0,
       change: "Active",
@@ -63,6 +73,7 @@ export function CriminalSectionCards({ metrics }: CriminalSectionCardsProps) {
       icon: Eye,
     },
     {
+      key: "HIGH_RISK",
       title: "High Risk Subjects",
       value: metrics?.highRiskSubjects ?? 0,
       change: "Priority",
@@ -79,6 +90,7 @@ export function CriminalSectionCards({ metrics }: CriminalSectionCardsProps) {
     >
       {cards.map((card, index) => {
         const Icon = card.icon;
+        const isActive = activeFilterKey === card.key;
         return (
           <motion.div
             key={card.title}
@@ -93,13 +105,31 @@ export function CriminalSectionCards({ metrics }: CriminalSectionCardsProps) {
             }}
             className="h-full"
           >
-            <Card className="flex flex-col justify-between gap-3 rounded-xl border border-border/70 bg-card/70 p-4.5 sm:p-5 shadow-xs hover:border-border/90 hover:bg-card/90 transition-all duration-200 h-full">
-              {/* Header: Title and Icon aligned across top, matching dashboard */}
+            <Card
+              onClick={() => onSelectFilter?.(card.key)}
+              className={cn(
+                "flex flex-col justify-between gap-3 rounded-xl border p-4.5 sm:p-5 shadow-xs transition-all duration-200 h-full cursor-pointer select-none",
+                isActive
+                  ? "border-[#665AEF] bg-[#665AEF]/10 ring-2 ring-[#665AEF]/30 shadow-md shadow-[#665AEF]/10"
+                  : "border-border/70 bg-card/70 hover:border-border/90 hover:bg-card/90"
+              )}
+            >
+              {/* Header: Title and Icon aligned across top */}
               <div className="flex items-center justify-between gap-2">
-                <span className="text-xs sm:text-sm font-medium text-muted-foreground truncate">
+                <span
+                  className={cn(
+                    "text-xs sm:text-sm font-medium truncate transition-colors",
+                    isActive ? "text-white font-semibold" : "text-muted-foreground"
+                  )}
+                >
                   {card.title}
                 </span>
-                <Icon className="size-4.5 sm:size-5 text-[#665AEF] shrink-0" />
+                <Icon
+                  className={cn(
+                    "size-4.5 sm:size-5 shrink-0 transition-colors",
+                    isActive ? "text-white" : "text-[#665AEF]"
+                  )}
+                />
               </div>
 
               {/* Content: Hero metric rolling value and trend text */}
@@ -115,6 +145,11 @@ export function CriminalSectionCards({ metrics }: CriminalSectionCardsProps) {
                   <span className="text-muted-foreground text-[11px] sm:text-xs truncate">
                     {card.timeframe}
                   </span>
+                  {isActive && (
+                    <span className="ml-auto text-[10px] font-mono font-semibold text-[#a594fd] uppercase tracking-wider bg-[#665AEF]/20 px-1.5 py-0.5 rounded">
+                      Filtered
+                    </span>
+                  )}
                 </div>
               </div>
             </Card>

@@ -38,7 +38,7 @@ import {
 } from "lucide-react";
 import { useMediaDrop } from "react-mediadrop";
 import type { Criminal } from "@prisma/client";
-import { CriminalStatus } from "@prisma/client";
+import { CriminalStatus, CriminalRiskLevel } from "@prisma/client";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -52,7 +52,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { updateCriminal, uploadMugshot } from "@/features/criminals/actions";
+import { updateCriminal, uploadMugshot, updateCriminalFingerprint, updateCriminalDnaProfile } from "@/features/criminals/actions";
+import { getCriminalSlug } from "@/features/criminals/slug";
 import { cn } from "@/lib/utils";
 
 interface CriminalEditFormProps {
@@ -85,7 +86,14 @@ const STATUS_OPTIONS: { label: string; value: CriminalStatus; color: string }[] 
   { label: "Inactive", value: CriminalStatus.INACTIVE, color: "bg-muted-foreground" },
 ];
 
-const RISK_LEVELS = ["High", "Medium", "Low"];
+const WATCHLIST_OPTIONS = [
+  { label: "Standard Watchlist", value: "STANDARD", color: "bg-blue-400" },
+  { label: "Priority Watchlist", value: "PRIORITY", color: "bg-rose-400" },
+  { label: "Red Notice / High Alert", value: "RED_NOTICE", color: "bg-red-500" },
+  { label: "Special Surveillance", value: "SPECIAL_SURVEILLANCE", color: "bg-amber-400" },
+];
+
+const RISK_LEVELS = ["Critical", "High", "Medium", "Low"];
 const GENDER_OPTIONS = ["Male", "Female", "Non-Binary", "Other"];
 const NATIONALITY_OPTIONS = [
   "Indian",
@@ -159,7 +167,9 @@ export function CriminalEditForm({
   );
   const [status, setStatus] = React.useState<CriminalStatus>(criminal.status);
   const [riskLevel, setRiskLevel] = React.useState<string>(
-    (demographics.riskLevel as string) || "High"
+    criminal.riskLevel
+      ? criminal.riskLevel.charAt(0).toUpperCase() + criminal.riskLevel.slice(1).toLowerCase()
+      : (demographics.riskLevel as string) || "High"
   );
   const [primaryCategory, setPrimaryCategory] = React.useState<string>(
     (demographics.primaryCategory as string) || "Theft"
@@ -253,6 +263,17 @@ export function CriminalEditForm({
     criminal.description ||
       "Armed robbery at commercial establishments. Often operates during late hours. Known to use a knife/weapon and flee via two-wheeler."
   );
+
+  // Biometrics & Watchlist Status State
+  const [fingerprintUrl, setFingerprintUrl] = React.useState<string | null>(criminal.fingerprintScanUrl || null);
+  const [newFingerprintFile, setNewFingerprintFile] = React.useState<File | null>(null);
+  const [dnaProfileCode, setDnaProfileCode] = React.useState<string>(criminal.dnaProfileCode || "");
+  const [watchlistStatus, setWatchlistStatus] = React.useState<string>(
+    criminal.watchlistStatus || (demographics.watchlistStatus as string) || "STANDARD"
+  );
+  const [isEditingDna, setIsEditingDna] = React.useState(false);
+  const [hoveredWatchlist, setHoveredWatchlist] = React.useState<string | null>(null);
+  const fingerprintInputRef = React.useRef<HTMLInputElement>(null);
 
   // Aliases with Suggested Tags
   const [aliases, setAliases] = React.useState<string[]>(() => {
@@ -362,7 +383,11 @@ export function CriminalEditForm({
   const handleReset = () => {
     setFullName((demographics.fullName as string) || `${criminal.firstName} ${criminal.lastName}`.trim());
     setStatus(criminal.status);
-    setRiskLevel((demographics.riskLevel as string) || "High");
+    setRiskLevel(
+      criminal.riskLevel
+        ? criminal.riskLevel.charAt(0).toUpperCase() + criminal.riskLevel.slice(1).toLowerCase()
+        : (demographics.riskLevel as string) || "High"
+    );
     setPrimaryCategory((demographics.primaryCategory as string) || "Theft");
     setSecondaryCategory((demographics.secondaryCategory as string) || "Armed Robbery, Assault");
     setDateOfBirth(initialDob && isValid(initialDob) ? initialDob : undefined);
@@ -391,6 +416,11 @@ export function CriminalEditForm({
     setKnownAssociates((demographics.knownAssociates as string) || "Selvam, Muthu (Local Gang)");
     setModusOperandi((demographics.modusOperandi as string) || "Armed robbery at commercial establishments.");
     setDescription(criminal.description || "");
+    setFingerprintUrl(criminal.fingerprintScanUrl || null);
+    setNewFingerprintFile(null);
+    setDnaProfileCode(criminal.dnaProfileCode || "");
+    setWatchlistStatus(criminal.watchlistStatus || (demographics.watchlistStatus as string) || "STANDARD");
+    setIsEditingDna(false);
     setNewMugshotFile(null);
     setMugshotPreview(null);
     toast.info("All fields have been reset to current database values.");
@@ -461,6 +491,24 @@ export function CriminalEditForm({
         aliases,
       };
 
+      const normalizedRiskLevel = (riskLevel.toUpperCase() as CriminalRiskLevel);
+
+      // Upload new fingerprint scan if staged
+      let finalFingerprintKey = fingerprintUrl;
+      if (newFingerprintFile) {
+        const fpData = new FormData();
+        fpData.append("file", newFingerprintFile);
+        const fpRes = await updateCriminalFingerprint(criminal.id, fpData);
+        if (fpRes.success && fpRes.storageKey) {
+          finalFingerprintKey = fpRes.storageKey;
+        }
+      }
+
+      // Update DNA profile code if modified
+      if (dnaProfileCode.trim() && dnaProfileCode !== (criminal.dnaProfileCode || "")) {
+        await updateCriminalDnaProfile(criminal.id, dnaProfileCode.trim());
+      }
+
       const result = await updateCriminal({
         id: criminal.id,
         firstName,
@@ -473,7 +521,11 @@ export function CriminalEditForm({
         lastKnownLocation: lastKnownLocation.trim() || undefined,
         description: description.trim() || undefined,
         status,
+        riskLevel: normalizedRiskLevel,
         mugshotUrl: finalMugshotUrl,
+        fingerprintScanUrl: finalFingerprintKey,
+        dnaProfileCode: dnaProfileCode.trim() || undefined,
+        watchlistStatus,
         demographics: updatedDemographics,
       });
 
@@ -484,7 +536,13 @@ export function CriminalEditForm({
       }
 
       toast.success("Criminal record successfully updated!");
-      router.push(`/dashboard/criminals/${criminal.criminalId}`);
+      const canonicalSlug = getCriminalSlug({
+        firstName,
+        lastName,
+        criminalId: criminal.criminalId,
+        id: criminal.id,
+      });
+      router.push(`/dashboard/criminals/${canonicalSlug}`);
       router.refresh();
     } catch (err) {
       console.error("Save criminal error:", err);
@@ -511,7 +569,7 @@ export function CriminalEditForm({
         <div>
           <div className="flex items-center gap-2 text-sm text-muted-foreground -mt-1 sm:-mt-1.5 mb-2 sm:mb-2.5">
             <Link
-              href={`/dashboard/criminals/${criminal.criminalId}`}
+              href={`/dashboard/criminals/${getCriminalSlug(criminal)}`}
               className="inline-flex items-center gap-1.5 hover:text-foreground transition-colors group cursor-pointer text-xs sm:text-sm font-medium"
             >
               <ArrowLeft className="size-3.5 sm:size-4 transition-transform group-hover:-translate-x-1" />
@@ -542,7 +600,7 @@ export function CriminalEditForm({
           </Button>
 
           <Link
-            href={`/dashboard/criminals/${criminal.criminalId}`}
+            href={`/dashboard/criminals/${getCriminalSlug(criminal)}`}
             className="inline-flex items-center justify-center h-9 px-3 rounded-lg border-2 border-border/80 bg-card/60 text-xs sm:text-sm font-medium hover:bg-muted/60 text-foreground cursor-pointer shadow-2xs transition-colors"
           >
             Cancel
@@ -613,7 +671,7 @@ export function CriminalEditForm({
                     value={criminal.criminalId}
                     disabled
                     readOnly
-                    className="h-10 font-heading font-bold text-base sm:text-sm bg-muted/40 border-2 border-border/60 text-muted-foreground tracking-wide cursor-not-allowed font-mono"
+                    className="h-10 font-bold text-base sm:text-sm bg-muted/40 border-2 border-border/60 text-muted-foreground tracking-wide cursor-not-allowed font-mono"
                   />
                 </div>
 
@@ -1267,7 +1325,7 @@ export function CriminalEditForm({
               <div className="space-y-3">
                 <div className="flex flex-col sm:flex-row items-stretch gap-3 sm:gap-4">
                   {/* Photo Display Card */}
-                  <div className="relative w-full sm:w-44 h-60 sm:h-auto sm:min-h-[220px] rounded-xl overflow-hidden border-2 border-border/80 bg-black/40 shadow-sm shrink-0 group flex items-center justify-center">
+                  <div className="relative w-full sm:w-44 h-60 sm:h-auto sm:min-h-55 rounded-xl overflow-hidden border-2 border-border/80 bg-black/40 shadow-sm shrink-0 group flex items-center justify-center">
                     {/* Ambient Blurred Backdrop for seamless aspect ratio framing */}
                     <div className="absolute inset-0 overflow-hidden pointer-events-none">
                       <Image
@@ -1277,7 +1335,7 @@ export function CriminalEditForm({
                         className="object-cover blur-2xl scale-125 opacity-35 brightness-70 transition-transform duration-300 group-hover:scale-130"
                         unoptimized
                       />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-black/50" />
+                      <div className="absolute inset-0 bg-linear-to-t from-black/80 via-black/20 to-black/50" />
                     </div>
 
                     {/* Foreground Subject Mugshot (fully uncropped on mobile, properly framed on desktop) */}
@@ -1317,7 +1375,7 @@ export function CriminalEditForm({
                     )}
 
                     {/* Bottom ID label */}
-                    <div className="absolute inset-x-0 bottom-0 z-20 bg-gradient-to-t from-black/95 via-black/60 to-transparent px-3 py-2.5 pt-6">
+                    <div className="absolute inset-x-0 bottom-0 z-20 bg-linear-to-t from-black/95 via-black/60 to-transparent px-3 py-2.5 pt-6">
                       <p className="text-xs font-mono font-semibold text-white truncate">
                         {criminal.criminalId}
                       </p>
@@ -1331,7 +1389,7 @@ export function CriminalEditForm({
                   <div
                     {...getRootProps()}
                     className={cn(
-                      "flex-1 min-h-[140px] sm:min-h-[210px] rounded-xl border-2 border-dashed transition-all cursor-pointer flex flex-col items-center justify-center p-3.5 sm:p-4 text-center select-none group relative overflow-hidden",
+                      "flex-1 min-h-35 sm:min-h-52.5 rounded-xl border-2 border-dashed transition-all cursor-pointer flex flex-col items-center justify-center p-3.5 sm:p-4 text-center select-none group relative overflow-hidden",
                       isDragActive && !isDragReject && "border-[#665AEF] bg-[#665AEF]/15 scale-[0.99] shadow-md shadow-[#665AEF]/10",
                       isDragReject && "border-rose-500 bg-rose-500/10",
                       !isDragActive && "border-border/80 bg-muted/10 hover:bg-muted/25 hover:border-[#665AEF]/60"
@@ -1403,17 +1461,41 @@ export function CriminalEditForm({
                 </div>
 
                 <div className="grid grid-cols-2 gap-2.5 sm:gap-3.5">
+                  {/* Invisible Fingerprint File Input */}
+                  <input
+                    type="file"
+                    ref={fingerprintInputRef}
+                    accept="image/png,image/jpeg,image/webp"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        setNewFingerprintFile(file);
+                        toast.success(`Fingerprint card "${file.name}" staged for upload`);
+                      }
+                    }}
+                  />
+
                   {/* Fingerprints */}
                   <div className="p-2.5 sm:p-3.5 rounded-xl border-2 border-border/70 bg-card/60 hover:bg-muted/30 hover:border-[#665AEF]/40 transition-all duration-200 flex flex-col justify-between gap-1 sm:gap-1.5 group">
                     <div className="flex items-center justify-between gap-1.5">
                       <span className="font-semibold text-foreground text-xs sm:text-sm truncate">
                         Fingerprints
                       </span>
-                      <span className="size-1.5 rounded-full bg-emerald-400 shrink-0 animate-pulse" />
+                      <span className={cn("size-1.5 rounded-full shrink-0", (fingerprintUrl || newFingerprintFile) ? "bg-emerald-400 animate-pulse" : "bg-amber-400")} />
                     </div>
-                    <span className="text-[10px] sm:text-[11px] text-emerald-400 font-medium truncate leading-tight">
-                      10 Digits Cataloged
-                    </span>
+                    <div className="flex items-center justify-between gap-1">
+                      <span className={cn("text-[10px] sm:text-[11px] font-medium truncate leading-tight", (fingerprintUrl || newFingerprintFile) ? "text-emerald-400" : "text-amber-400")}>
+                        {newFingerprintFile ? `Staged: ${newFingerprintFile.name}` : fingerprintUrl ? "AFIS Scan Verified" : "Pending Enrollment"}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => fingerprintInputRef.current?.click()}
+                        className="text-[10px] font-semibold text-[#a594fd] hover:text-white underline shrink-0 cursor-pointer"
+                      >
+                        {fingerprintUrl ? "Replace" : "Upload"}
+                      </button>
+                    </div>
                   </div>
 
                   {/* Iris Scan */}
@@ -1435,11 +1517,40 @@ export function CriminalEditForm({
                       <span className="font-semibold text-foreground text-xs sm:text-sm truncate">
                         DNA Profile
                       </span>
-                      <span className="size-1.5 rounded-full bg-emerald-400 shrink-0 animate-pulse" />
+                      <span className={cn("size-1.5 rounded-full shrink-0", dnaProfileCode ? "bg-emerald-400 animate-pulse" : "bg-amber-400")} />
                     </div>
-                    <span className="text-[10px] sm:text-[11px] text-emerald-400 font-medium truncate leading-tight">
-                      CODIS Profile Linked
-                    </span>
+                    {isEditingDna ? (
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <Input
+                          value={dnaProfileCode}
+                          onChange={(e) => setDnaProfileCode(e.target.value)}
+                          placeholder="e.g. CODIS-TN-2026-99"
+                          className="h-6 text-[10px] font-mono px-1.5 py-0 bg-background/80 border-border"
+                          autoFocus
+                        />
+                        <Button
+                          type="button"
+                          size="icon-xs"
+                          onClick={() => setIsEditingDna(false)}
+                          className="size-6 bg-emerald-600 hover:bg-emerald-500 text-white shrink-0 cursor-pointer"
+                        >
+                          <Check className="size-3" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center justify-between gap-1">
+                        <span className={cn("text-[10px] sm:text-[11px] font-medium truncate leading-tight font-mono", dnaProfileCode ? "text-emerald-400" : "text-amber-400")}>
+                          {dnaProfileCode || "Pending CODIS"}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setIsEditingDna(true)}
+                          className="text-[10px] font-semibold text-[#a594fd] hover:text-white underline shrink-0 cursor-pointer"
+                        >
+                          Edit
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   {/* Vector Embedding */}
@@ -1794,7 +1905,7 @@ export function CriminalEditForm({
                   size="sm"
                   onClick={() => setIsAddingAlias(!isAddingAlias)}
                   className={cn(
-                    "h-8 px-3 gap-1.5 rounded-lg border-2 text-xs font-semibold cursor-pointer transition-colors shadow-2xs overflow-hidden relative min-w-[76px]",
+                    "h-8 px-3 gap-1.5 rounded-lg border-2 text-xs font-semibold cursor-pointer transition-colors shadow-2xs overflow-hidden relative min-w-19",
                     isAddingAlias
                       ? "border-rose-500/40 bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 hover:border-rose-500/60"
                       : "border-border/80 bg-background/50 hover:bg-muted/60 hover:border-[#665AEF]/50 text-foreground"
@@ -2118,7 +2229,7 @@ export function CriminalEditForm({
           </Button>
 
           <Link
-            href={`/dashboard/criminals/${criminal.criminalId}`}
+            href={`/dashboard/criminals/${getCriminalSlug(criminal)}`}
             className="inline-flex items-center justify-center h-9 px-3 rounded-lg border-2 border-border/80 bg-card/60 text-xs sm:text-sm font-medium hover:bg-muted/60 text-foreground cursor-pointer shadow-2xs transition-colors"
           >
             Cancel

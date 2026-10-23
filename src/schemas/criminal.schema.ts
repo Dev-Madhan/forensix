@@ -18,6 +18,14 @@ export const CreateCriminalSchema = z.object({
   riskLevel: z.nativeEnum(CriminalRiskLevel).default(CriminalRiskLevel.MEDIUM),
   lastKnownLocation: z.string().optional(),
   mugshotUrl: z.string().optional(),
+  fingerprintScanUrl: z.string().optional().nullable(),
+  dnaProfileCode: z.string().optional().nullable(),
+  watchlistStatus: z.string().optional().nullable(),
+  biometricEnrolledAt: z
+    .union([z.string(), z.date()])
+    .optional()
+    .nullable()
+    .transform((val) => (val ? new Date(val) : undefined)),
   demographics: z.record(z.string(), z.any()).optional(),
 });
 
@@ -41,6 +49,14 @@ export const UpdateCriminalSchema = z.object({
   riskLevel: z.nativeEnum(CriminalRiskLevel).optional(),
   lastKnownLocation: z.string().optional(),
   mugshotUrl: z.string().optional(),
+  fingerprintScanUrl: z.string().optional().nullable(),
+  dnaProfileCode: z.string().optional().nullable(),
+  watchlistStatus: z.string().optional().nullable(),
+  biometricEnrolledAt: z
+    .union([z.string(), z.date()])
+    .optional()
+    .nullable()
+    .transform((val) => (val ? new Date(val) : undefined)),
   demographics: z.record(z.string(), z.any()).optional(),
 });
 

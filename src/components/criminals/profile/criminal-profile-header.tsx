@@ -26,7 +26,9 @@ import {
   Loader2,
   CheckCircle2,
   MapPin,
+  FolderPlus,
 } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -40,9 +42,24 @@ import { Modal } from "@/components/ui/modal";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import type { Criminal } from "@prisma/client";
-import { toggleCriminalWatchlist, updateCriminalPhoto } from "@/features/criminals/actions";
+import {
+  CriminalStatus,
+  CriminalRiskLevel,
+  SuspectRole,
+  SuspectCaseStatus,
+  type Criminal,
+} from "@prisma/client";
+import {
+  toggleCriminalWatchlist,
+  updateCriminalPhoto,
+  markCriminalForSurveillance,
+  archiveCriminal,
+  updateCriminalStatusAndRisk,
+  linkCriminalToCase,
+} from "@/features/criminals/actions";
+import { getCriminalSlug } from "@/features/criminals/slug";
 import { SuspectAvatar } from "@/components/criminals/suspect-avatar";
+import { LinkCriminalCaseDialog } from "@/components/criminals/link-criminal-case-dialog";
 
 interface CriminalProfileHeaderProps {
   criminal: Criminal;
@@ -54,12 +71,35 @@ export function CriminalProfileHeader({
   criminal,
   mugshotDisplayUrl,
 }: CriminalProfileHeaderProps) {
+  const router = useRouter();
+  const profileSlug = getCriminalSlug(criminal);
   const demographics = (criminal.demographics as Record<string, unknown> | null) || {};
 
   // Dynamic States
   const [isOnWatchlist, setIsOnWatchlist] = useState(
     demographics.watchlistStatus === "On Watchlist" || criminal.status === "WANTED"
   );
+  const [currentStatus, setCurrentStatus] = useState<CriminalStatus>(criminal.status);
+  const [currentRisk, setCurrentRisk] = useState<CriminalRiskLevel>(criminal.riskLevel);
+  const [isSurveillanceFlagged, setIsSurveillanceFlagged] = useState<boolean>(
+    Boolean(
+      (demographics as any)?.surveillanceFlag ||
+      (demographics as any)?.surveillanceStatus === "UNDER_SURVEILLANCE"
+    )
+  );
+
+  const [isArchiveModalOpen, setIsArchiveModalOpen] = useState(false);
+  const [archiveReason, setArchiveReason] = useState("");
+  const [isArchiving, setIsArchiving] = useState(false);
+
+  const [isLinkCaseOpen, setIsLinkCaseOpen] = useState(false);
+  const [caseInput, setCaseInput] = useState("");
+  const [suspectRole, setSuspectRole] = useState<SuspectRole>(SuspectRole.UNDER_INVESTIGATION);
+  const [suspectCaseStatus, setSuspectCaseStatus] = useState<SuspectCaseStatus>(
+    SuspectCaseStatus.PERSON_OF_INTEREST
+  );
+  const [isLinkingCase, setIsLinkingCase] = useState(false);
+
   const [isPhotoLightboxOpen, setIsPhotoLightboxOpen] = useState(false);
   const [isChangePhotoOpen, setIsChangePhotoOpen] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
@@ -176,14 +216,119 @@ export function CriminalProfileHeader({
     }
   };
 
+  const handleToggleSurveillance = async () => {
+    const next = !isSurveillanceFlagged;
+    setIsSurveillanceFlagged(next);
+    try {
+      const res = await markCriminalForSurveillance(
+        criminal.id,
+        next,
+        "ACTIVE_TARGET",
+        "Marked via criminal profile header controls"
+      );
+      if (res.error) {
+        setIsSurveillanceFlagged(!next);
+        toast.error(res.error);
+      } else {
+        if (next) {
+          toast.success("Subject flagged for continuous surveillance", {
+            description: "ANPR cameras, biometric hits, and live telemetry activated.",
+          });
+        } else {
+          toast.info("Surveillance monitoring deactivated for subject.");
+        }
+      }
+    } catch {
+      setIsSurveillanceFlagged(!next);
+      toast.error("Failed to update surveillance status");
+    }
+  };
+
+  const handleArchiveRecord = async () => {
+    setIsArchiving(true);
+    try {
+      const res = await archiveCriminal(
+        criminal.id,
+        archiveReason || "Archived by investigator from profile header"
+      );
+      if (res.error) {
+        toast.error(res.error);
+      } else {
+        toast.success(`Criminal profile ${criminal.criminalId} archived successfully`);
+        setIsArchiveModalOpen(false);
+        router.push("/dashboard/criminals");
+      }
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to archive record");
+    } finally {
+      setIsArchiving(false);
+    }
+  };
+
+  const handleLinkCase = async () => {
+    if (!caseInput.trim()) {
+      toast.error("Please provide a case number or ID");
+      return;
+    }
+    setIsLinkingCase(true);
+    try {
+      const res = await linkCriminalToCase({
+        caseId: caseInput.trim(),
+        criminalId: criminal.id,
+        role: suspectRole,
+        status: suspectCaseStatus,
+      });
+      if (res.error) {
+        toast.error(res.error);
+      } else {
+        toast.success(`Attached ${fullName} to Case ${caseInput}`);
+        setIsLinkCaseOpen(false);
+        setCaseInput("");
+      }
+    } catch (e: any) {
+      toast.error(e?.message || "Failed to link to case");
+    } finally {
+      setIsLinkingCase(false);
+    }
+  };
+
+  const handleUpdateStatusAndRisk = async (
+    newStatus: CriminalStatus,
+    newRisk: CriminalRiskLevel
+  ) => {
+    setCurrentStatus(newStatus);
+    setCurrentRisk(newRisk);
+    try {
+      const res = await updateCriminalStatusAndRisk({
+        criminalId: criminal.id,
+        status: newStatus,
+        riskLevel: newRisk,
+      });
+      if (res.error) {
+        toast.error(res.error);
+        setCurrentStatus(criminal.status);
+        setCurrentRisk(criminal.riskLevel);
+      } else {
+        toast.success("Classification updated", {
+          description: `Status: ${newStatus} • Risk: ${newRisk}`,
+        });
+      }
+    } catch {
+      toast.error("Failed to update classification");
+      setCurrentStatus(criminal.status);
+      setCurrentRisk(criminal.riskLevel);
+    }
+  };
+
   const handleShareProfile = () => {
     setIsShareModalOpen(true);
   };
 
   const handleCopyLink = () => {
-    navigator.clipboard.writeText(window.location.href);
+    const canonicalUrl = `${window.location.origin}/dashboard/criminals/${profileSlug}`;
+    navigator.clipboard.writeText(canonicalUrl);
     setCopiedLink(true);
-    toast.success("Profile URL copied to clipboard");
+    toast.success("Canonical profile URL copied to clipboard");
     setTimeout(() => setCopiedLink(false), 2000);
   };
 
@@ -223,21 +368,31 @@ export function CriminalProfileHeader({
             <span className="hidden xs:inline">{isOnWatchlist ? "On Watchlist" : "Watchlist"}</span>
           </Button>
 
-          {/* Official Dossier — desktop only */}
+          {/* Print Profile — desktop only */}
           <Button
             variant="outline"
             size="sm"
-            render={<Link href={`/dashboard/criminals/${criminal.criminalId || criminal.id}/dossier`} />}
-            nativeButton={false}
+            onClick={() => window.print()}
             className="hidden sm:inline-flex h-9 gap-2 rounded-lg border-2 border-border/80 bg-card/60 text-xs font-medium hover:bg-muted/60 hover:text-foreground cursor-pointer shadow-xs"
           >
-            <FileText className="size-3.5 text-muted-foreground" />
-            <span>Official Dossier</span>
+            <Printer className="size-3.5 text-muted-foreground" />
+            <span>Print Profile</span>
+          </Button>
+
+          {/* Link to Case — desktop only */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setIsLinkCaseOpen(true)}
+            className="hidden sm:inline-flex h-9 gap-1.5 rounded-lg border-2 border-border/80 bg-card/60 text-xs font-medium hover:bg-muted/60 hover:text-foreground text-foreground cursor-pointer shadow-xs"
+          >
+            <FolderPlus className="size-3.5 text-[#665AEF]" />
+            <span>Link to Case</span>
           </Button>
 
           {/* Edit Profile — desktop only */}
           <Link
-            href={`/dashboard/criminals/${criminal.criminalId}/edit`}
+            href={`/dashboard/criminals/${profileSlug}/edit`}
             className="hidden sm:inline-flex items-center gap-2 h-9 px-3 rounded-lg border-2 border-border/80 bg-card/60 text-xs font-medium hover:bg-muted/60 hover:text-foreground text-foreground cursor-pointer shadow-xs transition-colors"
           >
             <Edit className="size-3.5 text-muted-foreground" />
@@ -262,7 +417,7 @@ export function CriminalProfileHeader({
               <DropdownMenuItem
                 render={
                   <Link
-                    href={`/dashboard/criminals/${criminal.criminalId}/edit`}
+                    href={`/dashboard/criminals/${profileSlug}/edit`}
                     className="cursor-pointer gap-2 text-xs py-2 px-2.5 rounded-md hover:bg-muted font-medium text-foreground flex items-center"
                   />
                 }
@@ -272,23 +427,19 @@ export function CriminalProfileHeader({
               </DropdownMenuItem>
 
               <DropdownMenuItem
-                render={
-                  <Link
-                    href={`/dashboard/criminals/${criminal.criminalId || criminal.id}/dossier`}
-                    className="cursor-pointer gap-2 text-xs py-2 px-2.5 rounded-md hover:bg-muted font-medium text-foreground flex items-center"
-                  />
-                }
-              >
-                <FileText className="size-3.5 text-muted-foreground" />
-                <span>Official Forensic Dossier</span>
-              </DropdownMenuItem>
-
-              <DropdownMenuItem
                 onClick={() => window.print()}
-                className="cursor-pointer gap-2 text-xs py-2 px-2.5 rounded-md hover:bg-muted font-medium text-foreground"
+                className="cursor-pointer gap-2 text-xs py-2 px-2.5 rounded-md hover:bg-muted font-medium text-foreground flex items-center"
               >
                 <Printer className="size-3.5 text-muted-foreground" />
                 <span>Print Profile</span>
+              </DropdownMenuItem>
+
+              <DropdownMenuItem
+                onClick={() => setIsLinkCaseOpen(true)}
+                className="cursor-pointer gap-2 text-xs py-2 px-2.5 rounded-md hover:bg-muted font-medium text-foreground sm:hidden"
+              >
+                <FolderPlus className="size-3.5 text-[#665AEF]" />
+                <span>Link to Case</span>
               </DropdownMenuItem>
 
               <DropdownMenuItem
@@ -300,25 +451,17 @@ export function CriminalProfileHeader({
               </DropdownMenuItem>
 
               <DropdownMenuItem
-                onClick={() =>
-                  toast.success("Surveillance flag updated", {
-                    description: "Subject marked for continuous monitoring.",
-                  })
-                }
+                onClick={handleToggleSurveillance}
                 className="cursor-pointer gap-2 text-xs py-2 px-2.5 rounded-md hover:bg-muted font-medium text-foreground"
               >
-                <Eye className="size-3.5 text-muted-foreground" />
-                <span>Mark Surveillance</span>
+                <Eye className={`size-3.5 ${isSurveillanceFlagged ? "text-amber-400" : "text-muted-foreground"}`} />
+                <span>{isSurveillanceFlagged ? "Deactivate Surveillance" : "Mark Surveillance"}</span>
               </DropdownMenuItem>
 
               <DropdownMenuSeparator className="my-1 border-border/60" />
 
               <DropdownMenuItem
-                onClick={() =>
-                  toast.error("Supervisory Authorization Required", {
-                    description: "Only administrative supervisors can archive criminal records.",
-                  })
-                }
+                onClick={() => setIsArchiveModalOpen(true)}
                 className="cursor-pointer gap-2 text-xs py-2 px-2.5 rounded-md font-medium text-destructive hover:bg-destructive/10 focus:bg-destructive/10"
               >
                 <Trash2 className="size-3.5 text-destructive" />
@@ -336,17 +479,84 @@ export function CriminalProfileHeader({
         <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold tracking-tight text-foreground font-heading">
           {fullName}
         </h1>
-        {riskLevel === "High" ? (
-          <span className="inline-flex items-center rounded-[4px] border-2 border-rose-500/40 bg-rose-500/15 px-2 py-0.5 text-[11px] font-semibold text-rose-400 tracking-wide">
-            High Risk
-          </span>
-        ) : riskLevel === "Medium" ? (
-          <span className="inline-flex items-center rounded-[4px] border-2 border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold text-amber-400 tracking-wide">
-            Medium Risk
-          </span>
-        ) : (
-          <span className="inline-flex items-center rounded-[4px] border-2 border-emerald-500/40 bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-400 tracking-wide">
-            Low Risk
+
+        {/* Interactive Risk Level Dropdown */}
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <button
+                type="button"
+                className={`inline-flex items-center gap-1.5 rounded-lg border-2 px-2.5 py-0.5 text-[11px] font-semibold tracking-wide cursor-pointer transition-colors ${
+                  currentRisk === "CRITICAL"
+                    ? "border-purple-500/50 bg-purple-500/15 text-purple-400 hover:bg-purple-500/25"
+                    : currentRisk === "HIGH"
+                    ? "border-rose-500/40 bg-rose-500/15 text-rose-400 hover:bg-rose-500/25"
+                    : currentRisk === "MEDIUM"
+                    ? "border-amber-500/40 bg-amber-500/15 text-amber-400 hover:bg-amber-500/25"
+                    : "border-emerald-500/40 bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25"
+                }`}
+              />
+            }
+          >
+            <span>{currentRisk} Risk</span>
+            <ChevronDown className="size-3 opacity-60" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-36 p-1 border-2 border-border bg-card/95 backdrop-blur-xl">
+            {(["CRITICAL", "HIGH", "MEDIUM", "LOW"] as CriminalRiskLevel[]).map((r) => (
+              <DropdownMenuItem
+                key={r}
+                onClick={() => handleUpdateStatusAndRisk(currentStatus, r)}
+                className="text-xs font-medium cursor-pointer"
+              >
+                {r} Risk
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        {/* Interactive Status Dropdown */}
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <button
+                type="button"
+                className={`inline-flex items-center gap-1.5 rounded-lg border-2 px-2.5 py-0.5 text-[11px] font-semibold tracking-wide cursor-pointer transition-colors ${
+                  currentStatus === "WANTED"
+                    ? "border-rose-500/40 bg-rose-500/15 text-rose-400 hover:bg-rose-500/25"
+                    : currentStatus === "ACTIVE"
+                    ? "border-emerald-500/40 bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25"
+                    : currentStatus === "ARCHIVED"
+                    ? "border-blue-500/40 bg-blue-500/15 text-blue-400 hover:bg-blue-500/25"
+                    : "border-border bg-muted/40 text-muted-foreground hover:bg-muted/60"
+                }`}
+              />
+            }
+          >
+            <span>{currentStatus === "ARCHIVED" ? "In Custody / Archived" : currentStatus}</span>
+            <ChevronDown className="size-3 opacity-60" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-44 p-1 border-2 border-border bg-card/95 backdrop-blur-xl">
+            {[
+              { label: "Active", value: CriminalStatus.ACTIVE },
+              { label: "Wanted", value: CriminalStatus.WANTED },
+              { label: "In Custody (Archived)", value: CriminalStatus.ARCHIVED },
+              { label: "Inactive", value: CriminalStatus.INACTIVE },
+            ].map((st) => (
+              <DropdownMenuItem
+                key={st.value}
+                onClick={() => handleUpdateStatusAndRisk(st.value, currentRisk)}
+                className="text-xs font-medium cursor-pointer"
+              >
+                Mark as {st.label}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        {isSurveillanceFlagged && (
+          <span className="inline-flex items-center gap-1 rounded-lg border-2 border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold text-amber-400 animate-pulse">
+            <Eye className="size-3" />
+            <span>24/7 Monitored</span>
           </span>
         )}
       </div>
@@ -371,7 +581,7 @@ export function CriminalProfileHeader({
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-12 gap-3 sm:gap-4 lg:gap-5 w-full">
         {/* CARD 1: MUGSHOT PHOTO */}
         <div className="sm:col-span-1 xl:col-span-2 2xl:col-span-2 flex flex-col">
-          <div className="relative h-full min-h-[200px] sm:min-h-[260px] w-full rounded-xl overflow-hidden border-2 border-border/80 bg-card/60 shadow-xs group">
+          <div className="relative h-full min-h-50 sm:min-h-65 w-full rounded-xl overflow-hidden border-2 border-border/80 bg-card/60 shadow-xs group">
             {resolvedPhoto ? (
               <Image
                 src={resolvedPhoto}
@@ -391,7 +601,7 @@ export function CriminalProfileHeader({
             )}
 
             {/* Gradient shadow overlay at bottom for change photo button */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-black/30 pointer-events-none" />
+            <div className="absolute inset-0 bg-linear-to-t from-black/85 via-black/10 to-black/30 pointer-events-none" />
 
             {/* Top Right: Expand / Fullscreen icon */}
             <Button
@@ -610,15 +820,23 @@ export function CriminalProfileHeader({
               <div className="space-y-2 pt-3 text-xs grid grid-cols-1 xs:grid-cols-2 sm:grid-cols-1 gap-y-2 gap-x-4">
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-muted-foreground text-[11px]">Current Status</span>
-                  <span className="inline-flex items-center rounded-[4px] border border-emerald-500/40 bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-400">
-                    {criminal.status === "ACTIVE" ? "Active" : criminal.status}
+                  <span className="inline-flex items-center rounded-lg border border-emerald-500/40 bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-400">
+                    {currentStatus === "ARCHIVED" ? "In Custody" : currentStatus}
                   </span>
                 </div>
 
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-muted-foreground text-[11px]">Risk Level</span>
-                  <span className="inline-flex items-center rounded-[4px] border border-rose-500/40 bg-rose-500/15 px-2 py-0.5 text-[11px] font-semibold text-rose-400">
-                    {riskLevel}
+                  <span className={`inline-flex items-center rounded-lg border px-2 py-0.5 text-[11px] font-semibold ${
+                    currentRisk === "CRITICAL"
+                      ? "border-purple-500/40 bg-purple-500/15 text-purple-400"
+                      : currentRisk === "HIGH"
+                      ? "border-rose-500/40 bg-rose-500/15 text-rose-400"
+                      : currentRisk === "MEDIUM"
+                      ? "border-amber-500/40 bg-amber-500/15 text-amber-400"
+                      : "border-emerald-500/40 bg-emerald-500/15 text-emerald-400"
+                  }`}>
+                    {currentRisk}
                   </span>
                 </div>
 
@@ -634,7 +852,7 @@ export function CriminalProfileHeader({
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-muted-foreground text-[11px]">Watchlist Status</span>
                   <span
-                    className={`inline-flex items-center rounded-[4px] border px-2 py-0.5 text-[11px] font-semibold ${
+                    className={`inline-flex items-center rounded-lg border px-2 py-0.5 text-[11px] font-semibold ${
                       isOnWatchlist
                         ? "border-[#665AEF]/50 bg-[#665AEF]/15 text-[#a594fd]"
                         : "border-border/70 bg-muted/40 text-muted-foreground"
@@ -646,7 +864,7 @@ export function CriminalProfileHeader({
 
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-muted-foreground text-[11px]">Custody Status</span>
-                  <span className="inline-flex items-center rounded-[4px] border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold text-amber-400">
+                  <span className="inline-flex items-center rounded-lg border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-[11px] font-semibold text-amber-400">
                     At Large / Wanted
                   </span>
                 </div>
@@ -702,7 +920,7 @@ export function CriminalProfileHeader({
         }
       >
         <div className="space-y-4">
-          <div className="relative aspect-[3/4] w-full max-h-[540px] rounded-xl overflow-hidden border border-border/80 bg-black">
+          <div className="relative aspect-3/4 w-full max-h-135 rounded-xl overflow-hidden border border-border/80 bg-black">
             {resolvedPhoto ? (
               <Image
                 src={resolvedPhoto}
@@ -758,7 +976,7 @@ export function CriminalProfileHeader({
           />
 
           {newPhotoPreview ? (
-            <div className="relative aspect-[3/4] w-48 mx-auto rounded-xl overflow-hidden border-2 border-[#665AEF]/50 shadow-md">
+            <div className="relative aspect-3/4 w-48 mx-auto rounded-xl overflow-hidden border-2 border-[#665AEF]/50 shadow-md">
               <Image
                 src={newPhotoPreview}
                 alt="New Photo Preview"
@@ -839,7 +1057,7 @@ export function CriminalProfileHeader({
       >
         <div className="space-y-4 py-2">
           <div className="space-y-1.5">
-            <Label className="text-xs text-muted-foreground">Direct Dossier URL</Label>
+            <Label className="text-xs text-muted-foreground">Direct Profile URL</Label>
             <div className="flex gap-2">
               <Input
                 readOnly
@@ -858,6 +1076,68 @@ export function CriminalProfileHeader({
           </div>
         </div>
       </Modal>
+
+      {/* 5. ARCHIVE RECORD CONFIRMATION MODAL */}
+      <Modal
+        isOpen={isArchiveModalOpen}
+        onClose={() => setIsArchiveModalOpen(false)}
+        title="Archive Subject Profile"
+        description={`Archive ${fullName} (${criminal.criminalId}) record from active operations. An immutable entry will be written to the forensic audit log.`}
+      >
+        <div className="space-y-4 py-2">
+          <div className="space-y-1.5">
+            <Label className="text-xs text-muted-foreground">Reason for Archiving</Label>
+            <Input
+              placeholder="e.g. Subject deceased, trial concluded, extradited..."
+              value={archiveReason}
+              onChange={(e) => setArchiveReason(e.target.value)}
+              className="h-9 text-xs"
+            />
+          </div>
+
+          <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive flex items-start gap-2.5">
+            <AlertTriangle className="size-4 shrink-0 mt-0.5" />
+            <p>
+              Archiving marks this subject as INACTIVE/ARCHIVED. Intelligence monitors and ANPR real-time surveillance triggers will be deactivated.
+            </p>
+          </div>
+
+          <div className="flex justify-end gap-2.5 pt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={isArchiving}
+              onClick={() => setIsArchiveModalOpen(false)}
+              className="h-9 px-4 cursor-pointer"
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              disabled={isArchiving}
+              onClick={handleArchiveRecord}
+              className="h-9 px-4 bg-destructive hover:bg-destructive/90 text-white cursor-pointer gap-2"
+            >
+              {isArchiving ? (
+                <>
+                  <Loader2 className="size-3.5 animate-spin" />
+                  <span>Archiving...</span>
+                </>
+              ) : (
+                <span>Confirm Archive</span>
+              )}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* 6. LINK TO CASE MODAL — Professional Themed Dialog */}
+      <LinkCriminalCaseDialog
+        isOpen={isLinkCaseOpen}
+        onClose={() => setIsLinkCaseOpen(false)}
+        criminal={criminal}
+        onSuccess={() => router.refresh()}
+      />
     </div>
   );
 }

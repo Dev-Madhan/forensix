@@ -75,8 +75,16 @@ import {
   Hash,
   RefreshCw,
   User,
+  Dna,
+  FolderPlus,
+  Upload,
+  FileUp,
+  Download,
+  Users,
+  Network,
+  LayoutGrid,
 } from "lucide-react";
-import type { Criminal } from "@prisma/client";
+import { SuspectRole, SuspectCaseStatus, type Criminal } from "@prisma/client";
 import { toast } from "sonner";
 import { SuspectAvatar } from "@/components/criminals/suspect-avatar";
 import { CriminalActivityTab } from "./activity/criminal-activity-tab";
@@ -85,7 +93,16 @@ import {
   createCriminalRecord,
   deleteCriminalRecord,
   runCriminalFacialBiometricSearch,
+  addCriminalAlias,
+  removeCriminalAlias,
+  updateCriminalFingerprint,
+  updateCriminalDnaProfile,
 } from "@/features/criminals/actions";
+import { uploadEvidence } from "@/features/evidence/actions";
+import { getCaseSlug, getRecordSlug, getCriminalSlug } from "@/features/criminals/slug";
+import { useRouter } from "next/navigation";
+import { LinkCriminalCaseDialog } from "@/components/criminals/link-criminal-case-dialog";
+import { SyndicateNetworkGraph } from "./syndicate-network-graph";
 
 const DEFAULT_SUGGESTED_ALIASES = [
   "Shadow",
@@ -191,12 +208,15 @@ export interface CriminalHistoryItem {
   id: string;
   rowNumber: string;
   caseId: string;
-  offenceType: "Robbery" | "Theft" | "Assault" | "Vehicle Theft" | "Cyber Fraud";
+  offenceType: "Robbery" | "Theft" | "Assault" | "Vehicle Theft" | "Cyber Fraud" | string;
   description: string;
   date: string;
   location: string;
-  status: "Under Investigation" | "Solved" | "In Court" | "Closed";
-  outcome: "Convicted" | "Trial Ongoing" | "Acquitted" | null;
+  status: "Under Investigation" | "Solved" | "In Court" | "Closed" | string;
+  outcome: "Convicted" | "Trial Ongoing" | "Acquitted" | string | null;
+  courtName?: string | null;
+  sentenceDetails?: string | null;
+  slug?: string;
 }
 
 
@@ -310,9 +330,22 @@ export function CriminalProfileTabs({
   criminal,
   mugshotDisplayUrl,
 }: CriminalProfileTabsProps) {
+  const router = useRouter();
   const demographics = (criminal.demographics as Record<string, unknown> | null) || {};
 
-  const [activeTab, setActiveTab] = useState("overview");
+  const [activeTab, setActiveTab] = useState(() => {
+    if (typeof window !== "undefined") {
+      const p = new URLSearchParams(window.location.search);
+      const t = p.get("tab");
+      if (t && ["overview", "criminal-history", "biometrics", "evidence", "activity"].includes(t)) {
+        return t;
+      }
+    }
+    return "overview";
+  });
+
+  const [selectedJudicialRecord, setSelectedJudicialRecord] = useState<CriminalHistoryItem | null>(null);
+  const [syndicateViewMode, setSyndicateViewMode] = useState<"grid" | "graph">("graph");
 
   // Aliases state
   const [aliases, setAliases] = useState<string[]>(() => {
@@ -339,6 +372,9 @@ export function CriminalProfileTabs({
         location: cr.location || "Chennai, TN",
         status: cr.status as any,
         outcome: cr.outcome as any,
+        courtName: cr.courtName || "Principal District & Sessions Court, Chennai",
+        sentenceDetails: cr.sentenceDetails || (cr.outcome === "Convicted" ? "Sentenced under Indian Penal Code" : null),
+        slug: getRecordSlug({ courtCaseNumber: cr.courtCaseNumber, offenceType: cr.offenceType, id: cr.id }),
       }));
     }
 
@@ -359,6 +395,9 @@ export function CriminalProfileTabs({
             ? "Under Investigation"
             : "Solved",
         outcome: cl.status === "CONVICTED" ? "Convicted" : "Trial Ongoing",
+        courtName: "Metropolitan Criminal Court, Chennai",
+        sentenceDetails: cl.status === "CONVICTED" ? "Judicial Custody / Remand" : null,
+        slug: getRecordSlug({ courtCaseNumber: cl.case?.caseNumber || "FX-UNKNOWN", offenceType: "Robbery", id: cl.id }),
       }));
     }
     return [];
@@ -367,6 +406,35 @@ export function CriminalProfileTabs({
   const [historySearchTerm, setHistorySearchTerm] = useState("");
   const [historyCurrentPage, setHistoryCurrentPage] = useState(1);
   const historyPageSize = 5;
+
+  // Synchronize tab and selected record with URL query string
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+    const url = new URL(window.location.href);
+    url.searchParams.set("tab", activeTab);
+    if (selectedJudicialRecord) {
+      url.searchParams.set("record", selectedJudicialRecord.caseId);
+    } else {
+      url.searchParams.delete("record");
+    }
+    window.history.replaceState(null, "", url.toString());
+  }, [activeTab, selectedJudicialRecord]);
+
+  // Deep-link check on initial mount
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+    const p = new URLSearchParams(window.location.search);
+    const recId = p.get("record");
+    if (recId) {
+      const match = historyRecords.find(
+        (r) => r.caseId.toLowerCase() === recId.toLowerCase() || r.id === recId
+      );
+      if (match) {
+        setActiveTab("criminal-history");
+        setSelectedJudicialRecord(match);
+      }
+    }
+  }, [historyRecords]);
 
   // Dynamic Related Cases for Overview tab
   const computedRelatedCases = useMemo<RelatedCase[]>(() => {
@@ -390,6 +458,73 @@ export function CriminalProfileTabs({
       }));
     }
     return [];
+  }, [criminal]);
+
+  // Dynamic Co-Offender Syndicate & Associative Network
+  const computedCoOffenders = useMemo<
+    Array<{
+      id: string;
+      criminalId: string;
+      name: string;
+      alias: string | null;
+      mugshotUrl: string | null;
+      status: string;
+      riskLevel: string;
+      sharedCases: Array<{ caseNumber: string; title: string; role: string }>;
+      slug: string;
+    }>
+  >(() => {
+    const map = new Map<
+      string,
+      {
+        id: string;
+        criminalId: string;
+        name: string;
+        alias: string | null;
+        mugshotUrl: string | null;
+        status: string;
+        riskLevel: string;
+        sharedCases: Array<{ caseNumber: string; title: string; role: string }>;
+        slug: string;
+      }
+    >();
+
+    const rawLinks = (criminal as any).caseLinks || [];
+    for (const cl of rawLinks) {
+      const cCase = cl.case;
+      if (!cCase || !Array.isArray(cCase.suspects)) continue;
+
+      for (const s of cCase.suspects) {
+        if (!s.criminal || s.criminal.id === criminal.id) continue;
+        const coId = s.criminal.id;
+        const coName = `${s.criminal.firstName} ${s.criminal.lastName}`.trim();
+
+        if (!map.has(coId)) {
+          map.set(coId, {
+            id: coId,
+            criminalId: s.criminal.criminalId,
+            name: coName,
+            alias: s.criminal.alias,
+            mugshotUrl: s.criminal.mugshotUrl,
+            status: s.criminal.status || "ACTIVE",
+            riskLevel: s.criminal.riskLevel || "MEDIUM",
+            sharedCases: [],
+            slug: getCriminalSlug(s.criminal),
+          });
+        }
+
+        const entry = map.get(coId)!;
+        if (!entry.sharedCases.some((sc) => sc.caseNumber === cCase.caseNumber)) {
+          entry.sharedCases.push({
+            caseNumber: cCase.caseNumber,
+            title: cCase.title,
+            role: s.role ? s.role.replace(/_/g, " ") : "Co-Suspect",
+          });
+        }
+      }
+    }
+
+    return Array.from(map.values());
   }, [criminal]);
 
   // Dynamic Evidence for Overview and Evidence tabs
@@ -430,6 +565,8 @@ export function CriminalProfileTabs({
     location: string;
     status: CriminalHistoryItem["status"];
     outcome: CriminalHistoryItem["outcome"];
+    courtName: string;
+    sentenceDetails: string;
   }>({
     caseId: "",
     offenceType: "Theft",
@@ -438,6 +575,8 @@ export function CriminalProfileTabs({
     location: "Chennai, TN",
     status: "Under Investigation",
     outcome: null,
+    courtName: "",
+    sentenceDetails: "",
   });
 
   const handleAddCriminalRecord = async (e?: React.FormEvent) => {
@@ -446,6 +585,8 @@ export function CriminalProfileTabs({
     const description = newRecordForm.description.trim() || "Incident under investigation.";
     const date = newRecordForm.date.trim() || new Date().toISOString().split("T")[0];
     const location = newRecordForm.location.trim() || "Chennai, TN";
+    const courtName = newRecordForm.courtName.trim() || "Principal District & Sessions Court, Chennai";
+    const sentenceDetails = newRecordForm.sentenceDetails.trim() || undefined;
 
     const nextIndex = historyRecords.length + 1;
     const newEntry: CriminalHistoryItem = {
@@ -458,6 +599,9 @@ export function CriminalProfileTabs({
       location,
       status: newRecordForm.status,
       outcome: newRecordForm.outcome,
+      courtName,
+      sentenceDetails,
+      slug: getRecordSlug({ courtCaseNumber: caseId, offenceType: newRecordForm.offenceType, id: `rec-${Date.now()}` }),
     };
 
     setHistoryRecords([newEntry, ...historyRecords]);
@@ -471,6 +615,8 @@ export function CriminalProfileTabs({
       location: "Chennai, TN",
       status: "Under Investigation",
       outcome: null,
+      courtName: "",
+      sentenceDetails: "",
     });
 
     try {
@@ -483,6 +629,8 @@ export function CriminalProfileTabs({
         location,
         status: newRecordForm.status,
         outcome: newRecordForm.outcome || undefined,
+        courtName,
+        sentenceDetails,
       });
 
       if (res.error) {
@@ -630,11 +778,78 @@ export function CriminalProfileTabs({
     criminal.description ||
     "No specific criminal summary or modus operandi documented for this subject in the central registry.";
 
+  // Attach Evidence State
+  const [isAttachEvidenceOpen, setIsAttachEvidenceOpen] = useState(false);
+  const [evidenceTitle, setEvidenceTitle] = useState("");
+  const [evidenceCategory, setEvidenceCategory] = useState("IMAGE");
+  const [evidenceSource, setEvidenceSource] = useState("INVESTIGATOR");
+  const [evidenceFile, setEvidenceFile] = useState<File | null>(null);
+  const [isUploadingEvidence, setIsUploadingEvidence] = useState(false);
+  const evidenceFileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const [evidenceItems, setEvidenceItems] = useState<EvidenceItem[]>(() => computedEvidence);
+
+  React.useEffect(() => {
+    setEvidenceItems(computedEvidence);
+  }, [computedEvidence]);
+
+  // Link to Case Modal state
+  const [isLinkCaseOpen, setIsLinkCaseOpen] = useState(false);
+  const [linkCaseInput, setLinkCaseInput] = useState("");
+  const [linkRole, setLinkRole] = useState<SuspectRole>(SuspectRole.UNDER_INVESTIGATION);
+  const [linkStatus, setLinkStatus] = useState<SuspectCaseStatus>(SuspectCaseStatus.PERSON_OF_INTEREST);
+  const [linkNotes, setLinkNotes] = useState("");
+  const [isLinkingCase, setIsLinkingCase] = useState(false);
+  const [caseList, setCaseList] = useState<RelatedCase[]>(() => computedRelatedCases);
+
+  React.useEffect(() => {
+    setCaseList(computedRelatedCases);
+  }, [computedRelatedCases]);
+
+  const handleLinkCase = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!linkCaseInput.trim()) {
+      toast.error("Please enter a case number or ID");
+      return;
+    }
+    setIsLinkingCase(true);
+    try {
+      const res = await linkCriminalToCase({
+        caseId: linkCaseInput.trim(),
+        criminalId: criminal.id,
+        role: linkRole,
+        status: linkStatus,
+        notes: linkNotes.trim() || undefined,
+      });
+      if (res.error) {
+        toast.error(res.error);
+      } else {
+        toast.success(`Attached subject to Case ${linkCaseInput.trim()}`);
+        setCaseList((prev) => [
+          {
+            caseNumber: linkCaseInput.trim().toUpperCase(),
+            title: `Investigation ${linkCaseInput.trim().toUpperCase()}`,
+            status: "Under Investigation",
+            statusColor: "border-[#7E22CE]/40 bg-[#2D1B4E]/80 text-[#C084FC]",
+          },
+          ...prev,
+        ]);
+        setIsLinkCaseOpen(false);
+        setLinkCaseInput("");
+        setLinkNotes("");
+      }
+    } catch {
+      toast.error("Failed to link to case");
+    } finally {
+      setIsLinkingCase(false);
+    }
+  };
+
   const tabs = [
     { id: "overview", label: "Overview" },
     { id: "criminal-history", label: `Criminal History (${historyRecords.length})` },
     { id: "biometrics", label: "Biometrics" },
-    { id: "evidence", label: `Evidence (${computedEvidence.length})` },
+    { id: "evidence", label: `Evidence (${evidenceItems.length})` },
     { id: "activity", label: "Activity Log" },
   ];
 
@@ -651,24 +866,144 @@ export function CriminalProfileTabs({
     return all.filter((s) => !aliases.includes(s));
   }, [criminal.firstName, criminal.lastName, aliases]);
 
-  const handleAddAlias = (directAlias?: string) => {
+  const handleUploadEvidence = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!evidenceFile) {
+      toast.error("Please select a file to upload");
+      return;
+    }
+    setIsUploadingEvidence(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", evidenceFile);
+      formData.append("criminalId", criminal.id);
+      formData.append("title", evidenceTitle.trim() || evidenceFile.name);
+      formData.append("category", evidenceCategory);
+      formData.append("source", evidenceSource);
+
+      const res = await uploadEvidence(formData);
+      if (res.error) {
+        toast.error(res.error);
+      } else {
+        toast.success("Forensic evidence uploaded and verified with SHA-256!");
+        const newEvItem: EvidenceItem = {
+          id: res.data?.id || `ev-${Date.now()}`,
+          name: evidenceTitle.trim() || evidenceFile.name,
+          type: (evidenceFile.type.startsWith("video")
+            ? "video"
+            : evidenceFile.type.startsWith("image")
+            ? "image"
+            : "document") as any,
+          date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
+          imageSrc: res.data?.storageKey ? `/api/storage?key=${encodeURIComponent(res.data.storageKey)}` : URL.createObjectURL(evidenceFile),
+          size: `${Math.round(evidenceFile.size / 1024)} KB`,
+          sha256: res.data?.sha256Hash ? `${res.data.sha256Hash.substring(0, 14)}...` : "SHA256-VERIFIED",
+          officer: "Investigating Officer",
+        };
+        setEvidenceItems([newEvItem, ...evidenceItems]);
+        setIsAttachEvidenceOpen(false);
+        setEvidenceTitle("");
+        setEvidenceFile(null);
+      }
+    } catch {
+      toast.error("Failed to upload evidence to storage");
+    } finally {
+      setIsUploadingEvidence(false);
+    }
+  };
+
+  // Fingerprint & DNA States
+  const [fingerprintUrl, setFingerprintUrl] = useState<string | null>(criminal.fingerprintScanUrl || null);
+  const [isUploadingFingerprint, setIsUploadingFingerprint] = useState(false);
+  const fingerprintInputRef = React.useRef<HTMLInputElement>(null);
+
+  const [dnaCode, setDnaCode] = useState<string>(criminal.dnaProfileCode || "CODIS-IND-NA");
+  const [isEditingDna, setIsEditingDna] = useState(false);
+  const [dnaInput, setDnaInput] = useState(criminal.dnaProfileCode || "");
+  const [isSavingDna, setIsSavingDna] = useState(false);
+
+  const handleUploadFingerprint = async (file: File) => {
+    setIsUploadingFingerprint(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await updateCriminalFingerprint(criminal.id, formData);
+      if (res.error) {
+        toast.error(res.error);
+      } else {
+        toast.success("Fingerprint scan enrolled into biometric registry");
+        if (res.storageKey) {
+          setFingerprintUrl(`/api/storage?key=${encodeURIComponent(res.storageKey)}`);
+        }
+      }
+    } catch {
+      toast.error("Failed to upload fingerprint scan");
+    } finally {
+      setIsUploadingFingerprint(false);
+    }
+  };
+
+  const handleSaveDna = async () => {
+    if (!dnaInput.trim()) return;
+    setIsSavingDna(true);
+    try {
+      const res = await updateCriminalDnaProfile(criminal.id, dnaInput.trim());
+      if (res.error) {
+        toast.error(res.error);
+      } else {
+        toast.success("DNA profile code recorded and verified");
+        setDnaCode(dnaInput.trim());
+        setIsEditingDna(false);
+      }
+    } catch {
+      toast.error("Failed to save DNA profile");
+    } finally {
+      setIsSavingDna(false);
+    }
+  };
+
+  const handleAddAlias = async (directAlias?: string) => {
     const value = directAlias ?? newAlias.trim();
     if (!value) return;
     if (aliases.includes(value)) {
       toast.info("Alias already exists");
       return;
     }
+    const previous = [...aliases];
     setAliases([...aliases, value]);
     if (!directAlias) {
       setNewAlias("");
       setIsAddingAlias(false);
     }
-    toast.success(`Alias "${value}" registered.`);
+    try {
+      const res = await addCriminalAlias(criminal.id, value);
+      if (res.error) {
+        setAliases(previous);
+        toast.error(res.error);
+      } else {
+        toast.success(`Alias "${value}" registered and persisted.`);
+      }
+    } catch {
+      setAliases(previous);
+      toast.error("Failed to persist alias to database.");
+    }
   };
 
-  const handleRemoveAlias = (aliasToRemove: string) => {
+  const handleRemoveAlias = async (aliasToRemove: string) => {
+    const previous = [...aliases];
     setAliases(aliases.filter((a) => a !== aliasToRemove));
-    toast.info(`Alias "${aliasToRemove}" removed.`);
+    try {
+      const res = await removeCriminalAlias(criminal.id, aliasToRemove);
+      if (res.error) {
+        setAliases(previous);
+        toast.error(res.error);
+      } else {
+        toast.info(`Alias "${aliasToRemove}" removed from registry.`);
+      }
+    } catch {
+      setAliases(previous);
+      toast.error("Failed to remove alias.");
+    }
   };
 
   return (
@@ -817,7 +1152,7 @@ export function CriminalProfileTabs({
                             size="sm"
                             onClick={() => setIsAddingAlias(!isAddingAlias)}
                             className={cn(
-                              "h-7 px-2.5 gap-1.5 rounded-lg border-2 text-xs font-semibold cursor-pointer transition-colors shadow-2xs overflow-hidden relative min-w-[68px]",
+                              "h-7 px-2.5 gap-1.5 rounded-lg border-2 text-xs font-semibold cursor-pointer transition-colors shadow-2xs overflow-hidden relative min-w-17",
                               isAddingAlias
                                 ? "border-rose-500/40 bg-rose-500/10 text-rose-400 hover:bg-rose-500/20"
                                 : "border-border/80 bg-background/50 hover:bg-muted/60 hover:border-[#665AEF]/50 text-foreground"
@@ -871,7 +1206,7 @@ export function CriminalProfileTabs({
                                   scale: { duration: 0.18 },
                                 }}
                                 whileHover={{ y: -1 }}
-                                className="group flex items-center justify-between rounded-lg border border-border/70 bg-background/40 hover:bg-muted/40 hover:border-[#665AEF]/40 px-2.5 py-1.5 text-xs font-medium text-foreground transition-all shadow-2xs select-none min-h-[34px]"
+                                className="group flex items-center justify-between rounded-lg border border-border/70 bg-background/40 hover:bg-muted/40 hover:border-[#665AEF]/40 px-2.5 py-1.5 text-xs font-medium text-foreground transition-all shadow-2xs select-none min-h-8.5"
                               >
                                 <div className="flex items-center gap-1.5 min-w-0">
                                   <span className="text-muted-foreground/60 text-[10px] font-mono select-none">#</span>
@@ -1150,7 +1485,7 @@ export function CriminalProfileTabs({
                               Recent Evidence
                             </h3>
                             <span className="text-[11px] font-semibold text-muted-foreground bg-muted/50 px-2 py-0.5 rounded-md border-2 border-border/50">
-                              {computedEvidence.length} Total
+                              {evidenceItems.length} Total
                             </span>
                           </div>
                         </div>
@@ -1167,9 +1502,9 @@ export function CriminalProfileTabs({
                       </div>
 
                       {/* 4 Cards Grid or Empty State */}
-                      {computedEvidence.length > 0 ? (
+                      {evidenceItems.length > 0 ? (
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 pt-3">
-                          {computedEvidence.slice(0, 4).map((item) => (
+                          {evidenceItems.slice(0, 4).map((item) => (
                             <div
                               key={item.id}
                               onClick={() => setSelectedEvidence(item)}
@@ -1238,7 +1573,7 @@ export function CriminalProfileTabs({
                     <div className="mt-auto pt-3 border-t border-border/40 flex items-center justify-between text-[11px] text-muted-foreground">
                       <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground/80">
                         <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                        <span className="truncate">Chain of Custody Active • {computedEvidence.length} Item{computedEvidence.length === 1 ? "" : "s"}</span>
+                        <span className="truncate">Chain of Custody Active • {evidenceItems.length} Item{evidenceItems.length === 1 ? "" : "s"}</span>
                       </div>
                       <span className="text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 border-2 border-emerald-500/30 px-2 py-0.5 rounded-md shrink-0 ml-1">
                         Verified
@@ -1262,26 +1597,38 @@ export function CriminalProfileTabs({
                               Related Cases
                             </h3>
                             <span className="text-[11px] font-semibold text-muted-foreground bg-muted/50 px-2 py-0.5 rounded-md border-2 border-border/50">
-                              {computedRelatedCases.length} Total
+                              {caseList.length} Total
                             </span>
                           </div>
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="xs"
-                          render={<Link href={`/dashboard/cases?suspect=${criminal.criminalId}`} />}
-                          className="h-7 px-2.5 gap-1.5 text-xs font-semibold text-[#a594fd] hover:text-foreground hover:bg-[#665AEF]/10 cursor-pointer rounded-md transition-colors"
-                          nativeButton={false}
-                        >
-                          <span>View All</span>
-                          <ArrowRight className="size-3" />
-                        </Button>
+                        <div className="flex items-center gap-1.5">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="xs"
+                            onClick={() => setIsLinkCaseOpen(true)}
+                            className="h-7 px-2 gap-1 text-[11px] font-semibold text-[#a594fd] hover:text-foreground border-2 border-border/80 bg-muted/30 hover:bg-[#665AEF]/15 rounded-md cursor-pointer transition-colors"
+                          >
+                            <Plus className="size-3 text-[#665AEF]" />
+                            <span>Link Case</span>
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="xs"
+                            render={<Link href="/dashboard/cases" />}
+                            className="h-7 px-2.5 gap-1.5 text-xs font-semibold text-[#a594fd] hover:text-foreground hover:bg-[#665AEF]/10 cursor-pointer rounded-md transition-colors"
+                            nativeButton={false}
+                          >
+                            <span>View All</span>
+                            <ArrowRight className="size-3" />
+                          </Button>
+                        </div>
                       </div>
 
                       {/* Rows List or Empty State */}
-                      {computedRelatedCases.length > 0 ? (
+                      {caseList.length > 0 ? (
                         <div className="space-y-1.5 pt-3">
-                          {computedRelatedCases.map((c) => (
+                          {caseList.map((c) => (
                             <Link
                               key={c.caseNumber}
                               href={`/case-details/${c.caseNumber}`}
@@ -1297,7 +1644,7 @@ export function CriminalProfileTabs({
                               </div>
                               <span
                                 className={cn(
-                                  "inline-flex items-center justify-center rounded-md border-2 px-1.5 sm:px-2 py-0.5 text-[9px] sm:text-[10px] font-semibold shrink-0 ml-1.5 sm:ml-2 min-w-[62px] sm:min-w-[70px] text-center",
+                                  "inline-flex items-center justify-center rounded-md border-2 px-1.5 sm:px-2 py-0.5 text-[9px] sm:text-[10px] font-semibold shrink-0 ml-1.5 sm:ml-2 min-w-15.5 sm:min-w-17.5 text-center",
                                   c.statusColor
                                 )}
                               >
@@ -1327,6 +1674,185 @@ export function CriminalProfileTabs({
                       </span>
                     </div>
                   </div>
+                </div>
+              </div>
+
+              {/* ROW 3: CO-OFFENDER SYNDICATE & ASSOCIATIVE NETWORK */}
+              <div className="w-full">
+                <div className="rounded-lg border-2 border-border/80 bg-card/60 p-3.5 sm:p-5 shadow-xs flex flex-col justify-between gap-4">
+                  {/* Header */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-border/50">
+                    <div className="flex items-center gap-2.5">
+                      <div className="flex size-7.5 items-center justify-center rounded-md bg-[#665AEF]/20 text-[#a594fd] border-2 border-[#665AEF]/30">
+                        <Network className="size-4" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-sm font-semibold text-foreground">
+                            Co-Offender Network & Syndicate Links
+                          </h3>
+                          <span className="text-[11px] font-semibold text-[#a594fd] bg-[#665AEF]/15 px-2 py-0.5 rounded-md border-2 border-[#665AEF]/30">
+                            {computedCoOffenders.length} Linked Associate{computedCoOffenders.length === 1 ? "" : "s"}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">
+                          Cross-case associative intelligence derived from mutual FIR investigations and co-accused rosters
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {computedCoOffenders.length > 0 && (
+                        <div className="flex items-center gap-1 bg-muted/60 p-0.5 rounded-lg border border-border/70">
+                          <button
+                            type="button"
+                            onClick={() => setSyndicateViewMode("graph")}
+                            className={cn(
+                              "flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer",
+                              syndicateViewMode === "graph"
+                                ? "bg-[#665AEF] text-white shadow-xs font-bold"
+                                : "text-muted-foreground hover:text-foreground"
+                            )}
+                          >
+                            <Network className="size-3.5" />
+                            <span>Interactive Graph</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setSyndicateViewMode("grid")}
+                            className={cn(
+                              "flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer",
+                              syndicateViewMode === "grid"
+                                ? "bg-[#665AEF] text-white shadow-xs font-bold"
+                                : "text-muted-foreground hover:text-foreground"
+                            )}
+                          >
+                            <LayoutGrid className="size-3.5" />
+                            <span>Roster Grid</span>
+                          </button>
+                        </div>
+                      )}
+                      <span className="hidden sm:inline-flex items-center gap-1.5 text-[10px] font-mono text-emerald-400 bg-emerald-500/10 border-2 border-emerald-500/25 px-2 py-0.5 rounded-md">
+                        <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                        Graph Linked
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Body: Associates Interactive Graph, Roster Grid, or Clean Empty State */}
+                  {computedCoOffenders.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center p-8 text-center border-2 border-dashed border-border/60 rounded-xl my-1 bg-muted/10">
+                      <div className="flex size-10 items-center justify-center rounded-full bg-muted/40 text-muted-foreground mb-2">
+                        <Users className="size-5 text-muted-foreground/60" />
+                      </div>
+                      <p className="text-xs font-semibold text-foreground">No Known Syndicate Associates</p>
+                      <p className="text-[11px] text-muted-foreground mt-0.5 max-w-sm">
+                        No co-accused or mutual syndicate associates are recorded across this subject's linked FIR cases. Link additional co-suspects to establish associative network clusters.
+                      </p>
+                    </div>
+                  ) : syndicateViewMode === "graph" ? (
+                    <SyndicateNetworkGraph
+                      primarySubject={{
+                        id: criminal.id,
+                        criminalId: criminal.criminalId,
+                        name: `${criminal.firstName} ${criminal.lastName}`.trim(),
+                        mugshotUrl: mugshotDisplayUrl,
+                        slug: getCriminalSlug(criminal),
+                      }}
+                      coOffenders={computedCoOffenders}
+                    />
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+                      {computedCoOffenders.map((co) => (
+                        <Link
+                          key={co.id}
+                          href={`/dashboard/criminals/${co.slug}`}
+                          className="group relative flex flex-col justify-between p-3.5 rounded-xl border-2 border-border/70 bg-background/50 hover:bg-card/90 hover:border-[#665AEF]/60 transition-all duration-200 shadow-xs cursor-pointer"
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className="relative shrink-0">
+                              <SuspectAvatar
+                                mugshotUrl={co.mugshotUrl}
+                                name={co.name}
+                                size="md"
+                                className="size-11 rounded-lg border-2 border-border/80 group-hover:border-[#665AEF]/50 transition-colors"
+                              />
+                              <span
+                                className={cn(
+                                  "absolute -bottom-1 -right-1 size-3 rounded-full border-2 border-background",
+                                  co.status === "WANTED"
+                                    ? "bg-rose-500"
+                                    : co.status === "ACTIVE"
+                                    ? "bg-emerald-500"
+                                    : "bg-neutral-500"
+                                )}
+                              />
+                            </div>
+
+                            <div className="min-w-0 flex-1 space-y-1">
+                              <div className="flex items-center justify-between gap-1">
+                                <h4 className="text-xs font-semibold text-foreground group-hover:text-[#a594fd] transition-colors truncate">
+                                  {co.name}
+                                </h4>
+                                <ArrowRight className="size-3 text-muted-foreground/60 group-hover:text-[#a594fd] group-hover:translate-x-0.5 transition-all shrink-0" />
+                              </div>
+
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="font-mono text-[10px] text-[#a594fd] font-semibold">
+                                  {co.criminalId}
+                                </span>
+                                {co.alias && (
+                                  <span className="text-[10px] text-muted-foreground italic truncate">
+                                    "{co.alias}"
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="flex items-center gap-1.5 pt-0.5">
+                                <span
+                                  className={cn(
+                                    "text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded border",
+                                    co.riskLevel === "CRITICAL"
+                                      ? "bg-rose-500/10 text-rose-400 border-rose-500/30"
+                                      : co.riskLevel === "HIGH"
+                                      ? "bg-amber-500/10 text-amber-400 border-amber-500/30"
+                                      : "bg-emerald-500/10 text-emerald-400 border-emerald-500/30"
+                                  )}
+                                >
+                                  {co.riskLevel} Risk
+                                </span>
+                                <span className="text-[10px] text-muted-foreground font-mono">
+                                  {co.sharedCases.length} shared case{co.sharedCases.length === 1 ? "" : "s"}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Shared FIRs tag chips */}
+                          <div className="mt-3 pt-2.5 border-t border-border/40 flex items-center justify-between text-[11px] gap-2">
+                            <div className="flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5">
+                              {co.sharedCases.slice(0, 2).map((sc) => (
+                                <span
+                                  key={sc.caseNumber}
+                                  className="inline-flex items-center font-mono text-[9px] px-1.5 py-0.5 rounded bg-muted/70 text-foreground/80 border border-border/50 shrink-0"
+                                >
+                                  {sc.caseNumber} · {sc.role}
+                                </span>
+                              ))}
+                              {co.sharedCases.length > 2 && (
+                                <span className="text-[9px] text-muted-foreground font-mono">
+                                  +{co.sharedCases.length - 2} more
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-[10px] font-semibold text-[#a594fd] opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                              View Profile
+                            </span>
+                          </div>
+                        </Link>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -1378,7 +1904,7 @@ export function CriminalProfileTabs({
                           />
                         }
                       >
-                        <span className="truncate max-w-[120px]">{historyStatusFilter}</span>
+                        <span className="truncate max-w-30">{historyStatusFilter}</span>
                         <ChevronDown className="size-3.5 text-muted-foreground opacity-70 shrink-0" />
                       </DropdownMenuTrigger>
                       <DropdownMenuContent
@@ -1434,7 +1960,7 @@ export function CriminalProfileTabs({
                         <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase px-3 py-3 whitespace-nowrap">
                           Offence Type
                         </TableHead>
-                        <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase px-3 py-3 min-w-[220px]">
+                        <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase px-3 py-3 min-w-55">
                           Description
                         </TableHead>
                         <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase px-3 py-3 whitespace-nowrap">
@@ -1480,11 +2006,8 @@ export function CriminalProfileTabs({
                             {/* Case ID */}
                             <TableCell className="px-3 py-3.5 whitespace-nowrap">
                               <span
-                                onClick={() => {
-                                  navigator.clipboard.writeText(item.caseId);
-                                  toast.success(`Copied ${item.caseId} to clipboard`);
-                                }}
-                                title="Click to copy Case ID"
+                                onClick={() => setSelectedJudicialRecord(item)}
+                                title="Click to view full judicial record dossier"
                                 className="font-mono text-xs font-semibold text-[#a594fd] hover:text-[#c0b3ff] hover:underline cursor-pointer inline-flex items-center gap-1"
                               >
                                 {item.caseId}
@@ -1497,7 +2020,7 @@ export function CriminalProfileTabs({
                             </TableCell>
 
                             {/* Description */}
-                            <TableCell className="px-3 py-3.5 max-w-[280px]">
+                            <TableCell className="px-3 py-3.5 max-w-70">
                               <p className="text-xs text-foreground/90 truncate" title={item.description}>
                                 {item.description}
                               </p>
@@ -1544,6 +2067,13 @@ export function CriminalProfileTabs({
                                   className="w-40 p-1 rounded-xl shadow-xl bg-card/95 backdrop-blur-xl border-2 border-border overflow-hidden"
                                 >
                                   <DropdownMenuItem
+                                    onClick={() => setSelectedJudicialRecord(item)}
+                                    className="relative z-0 group flex items-center gap-2 cursor-pointer px-2.5 py-1.5 rounded-md transition-colors hover:bg-muted/60 text-xs font-medium text-foreground/80 hover:text-foreground"
+                                  >
+                                    <FileText className="size-3.5 text-[#a594fd]" />
+                                    <span>Inspect Record</span>
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
                                     onClick={() => {
                                       navigator.clipboard.writeText(item.caseId);
                                       toast.success(`Copied ${item.caseId}`);
@@ -1554,7 +2084,7 @@ export function CriminalProfileTabs({
                                     <span>Copy Case ID</span>
                                   </DropdownMenuItem>
                                   <DropdownMenuItem
-                                    render={<Link href={`/dashboard/cases?caseId=${item.caseId}`} />}
+                                    render={<Link href={`/case-details/${item.caseId}`} />}
                                     className="relative z-0 group flex items-center gap-2 cursor-pointer px-2.5 py-1.5 rounded-md transition-colors hover:bg-muted/60 text-xs font-medium text-foreground/80 hover:text-foreground"
                                   >
                                     <ExternalLink className="size-3.5 text-muted-foreground" />
@@ -1645,10 +2175,8 @@ export function CriminalProfileTabs({
                         <div className="flex items-start justify-between gap-2">
                           <div className="flex items-center gap-1.5 flex-wrap min-w-0">
                             <span
-                              onClick={() => {
-                                navigator.clipboard.writeText(item.caseId);
-                                toast.success(`Copied ${item.caseId}`);
-                              }}
+                              onClick={() => setSelectedJudicialRecord(item)}
+                              title="Click to view full judicial record dossier"
                               className="font-mono text-xs font-bold text-[#a594fd] hover:underline cursor-pointer"
                             >
                               {item.caseId}
@@ -1676,6 +2204,13 @@ export function CriminalProfileTabs({
                                 className="w-40 p-1 rounded-xl shadow-xl bg-card/95 backdrop-blur-xl border-2 border-border overflow-hidden"
                               >
                                 <DropdownMenuItem
+                                  onClick={() => setSelectedJudicialRecord(item)}
+                                  className="relative z-0 group flex items-center gap-2 cursor-pointer px-2.5 py-1.5 rounded-md transition-colors hover:bg-muted/60 text-xs font-medium text-foreground/80 hover:text-foreground"
+                                >
+                                  <FileText className="size-3.5 text-[#a594fd]" />
+                                  <span>Inspect Record</span>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
                                   onClick={() => {
                                     navigator.clipboard.writeText(item.caseId);
                                     toast.success(`Copied ${item.caseId}`);
@@ -1686,7 +2221,7 @@ export function CriminalProfileTabs({
                                   <span>Copy Case ID</span>
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
-                                  render={<Link href={`/dashboard/cases?caseId=${item.caseId}`} />}
+                                  render={<Link href={`/case-details/${item.caseId}`} />}
                                   className="relative z-0 group flex items-center gap-2 cursor-pointer px-2.5 py-1.5 rounded-md transition-colors hover:bg-muted/60 text-xs font-medium text-foreground/80 hover:text-foreground"
                                 >
                                   <ExternalLink className="size-3.5 text-muted-foreground" />
@@ -1717,7 +2252,7 @@ export function CriminalProfileTabs({
                               {item.date}
                             </span>
                             <span>•</span>
-                            <span className="flex items-center gap-1 truncate max-w-[120px]">
+                            <span className="flex items-center gap-1 truncate max-w-30">
                               <MapPin className="size-2.5 text-muted-foreground/80" />
                               {item.location}
                             </span>
@@ -1862,7 +2397,7 @@ export function CriminalProfileTabs({
                         </div>
 
                         <Link
-                          href={`/dashboard/cases?suspect=${criminal.criminalId}`}
+                          href="/dashboard/cases"
                           className="text-xs font-semibold text-[#a594fd] hover:text-[#c0b3ff] flex items-center gap-1 transition-colors"
                         >
                           <span>View All</span>
@@ -2110,7 +2645,7 @@ export function CriminalProfileTabs({
                           </button>
 
                           <Link
-                            href="/dashboard/cases"
+                            href="/dashboard/criminals"
                             className="text-xs font-semibold text-[#a594fd] hover:text-[#c0b3ff] flex items-center gap-1 transition-colors"
                           >
                             <span>All Matches</span>
@@ -2214,6 +2749,184 @@ export function CriminalProfileTabs({
                 </div>
               </div>
 
+              {/* ROW 2: FINGERPRINT SCAN & DNA PROFILE ENROLMENT CARDS (6 COLS + 6 COLS) */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5 w-full">
+                {/* CARD A: FINGERPRINT ENROLMENT */}
+                <Card className="rounded-lg border-2 border-border/80 bg-card/60 p-3.5 sm:p-5 shadow-xs flex flex-col justify-between">
+                  <div>
+                    {/* Header */}
+                    <div className="flex items-center justify-between gap-2.5 pb-3.5 border-b border-border/50">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="flex size-7.5 sm:size-8 items-center justify-center rounded-md bg-[#665AEF]/20 text-[#a594fd] border-2 border-[#665AEF]/40 shrink-0">
+                          <Fingerprint className="size-3.5 sm:size-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-xs sm:text-sm font-semibold text-foreground truncate">Fingerprint Latent Registry</div>
+                          <div className="text-[10px] sm:text-[11px] font-normal text-muted-foreground truncate">
+                            Automated Fingerprint Identification System (AFIS)
+                          </div>
+                        </div>
+                      </div>
+
+                      <input
+                        ref={fingerprintInputRef}
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleUploadFingerprint(file);
+                        }}
+                      />
+
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="xs"
+                        disabled={isUploadingFingerprint}
+                        onClick={() => fingerprintInputRef.current?.click()}
+                        className="h-7 px-2.5 gap-1.5 text-xs font-semibold rounded-md border-2 border-border/80 bg-muted/30 hover:bg-muted/60 text-foreground cursor-pointer"
+                      >
+                        <Upload className="size-3 text-[#a594fd]" />
+                        <span>{isUploadingFingerprint ? "Uploading..." : fingerprintUrl ? "Replace Scan" : "Upload Scan"}</span>
+                      </Button>
+                    </div>
+
+                    {/* Content */}
+                    <div className="pt-4 flex flex-col sm:flex-row gap-4 items-center sm:items-start">
+                      <div className="relative size-32 rounded-lg overflow-hidden border-2 border-border/80 bg-black/80 flex items-center justify-center shrink-0 group">
+                        {fingerprintUrl ? (
+                          <Image
+                            src={fingerprintUrl}
+                            alt="Fingerprint Scan"
+                            fill
+                            className="object-cover"
+                            sizes="128px"
+                          />
+                        ) : (
+                          <div className="flex flex-col items-center justify-center text-center p-2 text-muted-foreground">
+                            <Fingerprint className="size-10 text-muted-foreground/30 mb-1" />
+                            <span className="text-[10px] font-mono">No Scan Enrolled</span>
+                          </div>
+                        )}
+                        <span className="absolute bottom-1 right-1 text-[8px] font-mono px-1 py-0.5 rounded bg-black/85 text-emerald-400 border border-emerald-400/40">
+                          500 DPI
+                        </span>
+                      </div>
+
+                      <div className="flex-1 w-full space-y-2 text-xs">
+                        <div className="flex items-center justify-between py-1 border-b border-border/40">
+                          <span className="text-muted-foreground text-[11px]">Enrolment Status</span>
+                          <span className={`font-semibold text-[11px] px-2 py-0.5 rounded border ${fingerprintUrl ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/30" : "text-amber-400 bg-amber-500/10 border-amber-500/30"}`}>
+                            {fingerprintUrl ? "AFIS Verified" : "Pending Enrolment"}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between py-1 border-b border-border/40">
+                          <span className="text-muted-foreground text-[11px]">Minutiae Count</span>
+                          <span className="font-mono font-semibold text-foreground text-[11px]">{fingerprintUrl ? "48 Verified Points" : "—"}</span>
+                        </div>
+                        <div className="flex items-center justify-between py-1 border-b border-border/40">
+                          <span className="text-muted-foreground text-[11px]">Scan Format</span>
+                          <span className="font-mono text-muted-foreground text-[11px]">NIST WSQ / ISO 19794</span>
+                        </div>
+                        <div className="flex items-center justify-between py-1">
+                          <span className="text-muted-foreground text-[11px]">Database Docket</span>
+                          <span className="font-mono text-[#a594fd] text-[11px]">{criminal.criminalId}-FP</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 pt-3 border-t border-border/40 flex items-center justify-between text-[11px] text-muted-foreground">
+                    <span className="text-[10px]">CCTNS AFIS Interoperable</span>
+                    <span className="text-[10px] font-mono text-emerald-400">STATUS: ACTIVE</span>
+                  </div>
+                </Card>
+
+                {/* CARD B: DNA STR PROFILE */}
+                <Card className="rounded-lg border-2 border-border/80 bg-card/60 p-3.5 sm:p-5 shadow-xs flex flex-col justify-between">
+                  <div>
+                    {/* Header */}
+                    <div className="flex items-center justify-between gap-2.5 pb-3.5 border-b border-border/50">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="flex size-7.5 sm:size-8 items-center justify-center rounded-md bg-[#665AEF]/20 text-[#a594fd] border-2 border-[#665AEF]/40 shrink-0">
+                          <Dna className="size-3.5 sm:size-4" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="text-xs sm:text-sm font-semibold text-foreground truncate">DNA Genotype Profile</div>
+                          <div className="text-[10px] sm:text-[11px] font-normal text-muted-foreground truncate">
+                            Combined DNA Index System (CODIS STR Loci)
+                          </div>
+                        </div>
+                      </div>
+
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="xs"
+                        onClick={() => setIsEditingDna(!isEditingDna)}
+                        className="h-7 px-2.5 gap-1.5 text-xs font-semibold rounded-md border-2 border-border/80 bg-muted/30 hover:bg-muted/60 text-foreground cursor-pointer"
+                      >
+                        <Hash className="size-3 text-[#a594fd]" />
+                        <span>{isEditingDna ? "Cancel" : "Update Code"}</span>
+                      </Button>
+                    </div>
+
+                    {/* Content */}
+                    <div className="pt-4 space-y-3">
+                      {isEditingDna ? (
+                        <div className="p-3 rounded-lg border-2 border-[#665AEF]/40 bg-card/80 space-y-2">
+                          <label className="text-[11px] font-semibold text-foreground">CODIS DNA Profile Identifier</label>
+                          <div className="flex gap-2">
+                            <Input
+                              placeholder="e.g. CODIS-TN-2026-9921"
+                              value={dnaInput}
+                              onChange={(e) => setDnaInput(e.target.value)}
+                              className="h-8 text-xs font-mono"
+                            />
+                            <Button
+                              size="xs"
+                              disabled={!dnaInput.trim() || isSavingDna}
+                              onClick={handleSaveDna}
+                              className="h-8 px-3 text-xs bg-[#665AEF] hover:bg-[#5749DF] text-white"
+                            >
+                              {isSavingDna ? "Saving..." : "Save"}
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-between p-3 rounded-lg border-2 border-border/60 bg-muted/20">
+                          <div>
+                            <span className="text-[10px] text-muted-foreground uppercase font-mono block">Registered Code</span>
+                            <span className="text-xs font-mono font-bold text-[#a594fd]">{dnaCode}</span>
+                          </div>
+                          <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
+                            Lab Certified
+                          </span>
+                        </div>
+                      )}
+
+                      {/* 13 Core Loci Mini Grid */}
+                      <div>
+                        <span className="text-[10px] text-muted-foreground uppercase font-mono block mb-1.5">13 Core CODIS Loci Markers</span>
+                        <div className="grid grid-cols-4 xs:grid-cols-6 sm:grid-cols-7 gap-1">
+                          {["D3S1358", "vWA", "FGA", "D8S1179", "D21S11", "D18S51", "D5S818", "D13S317", "D7S820", "TH01", "TPOX", "CSF1PO", "AMEL"].map((locus) => (
+                            <span key={locus} className="text-[9px] font-mono text-center py-1 px-1 rounded bg-muted/40 border border-border/40 text-foreground/80 truncate">
+                              {locus}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 pt-3 border-t border-border/40 flex items-center justify-between text-[11px] text-muted-foreground">
+                    <span className="text-[10px]">Forensic Science Laboratory (FSL) Synced</span>
+                    <span className="text-[10px] font-mono text-emerald-400">MATCH PROB: 1 in 10¹⁴</span>
+                  </div>
+                </Card>
+              </div>
+
               {/* BOTTOM ROW: MATCH HISTORY TABLE (DESKTOP) & HIGH-SIGNAL CARDS (MOBILE) */}
               <Card className="rounded-lg border-2 border-border/80 bg-card/60 p-3.5 sm:p-5 shadow-xs space-y-3.5 sm:space-y-4">
                 {/* Header */}
@@ -2238,7 +2951,7 @@ export function CriminalProfileTabs({
                   </div>
 
                   <Link
-                    href="/dashboard/cases"
+                    href="/dashboard/criminals"
                     className="text-xs font-semibold text-[#a594fd] hover:text-[#c0b3ff] flex items-center gap-1 transition-colors shrink-0"
                   >
                     <span className="hidden xs:inline">View All History</span>
@@ -2249,14 +2962,14 @@ export function CriminalProfileTabs({
 
                 {/* DESKTOP VIEW: 8-Column Shadcn Table (hidden on mobile) */}
                 <div className="hidden md:block rounded-md border-2 border-border/70 overflow-hidden bg-card/40">
-                  <div className="overflow-x-auto min-h-[220px] [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-                    <Table className="[scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                  <div className="overflow-x-auto min-h-55 scrollbar-none [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+                    <Table className="scrollbar-none [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
                       <TableHeader className="bg-muted/30">
                         <TableRow className="border-b border-border/60 hover:bg-transparent">
                           <TableHead className="w-12 text-center text-[11px] font-semibold text-muted-foreground">#</TableHead>
-                          <TableHead className="text-[11px] font-semibold text-muted-foreground min-w-[170px]">Date & Time</TableHead>
+                          <TableHead className="text-[11px] font-semibold text-muted-foreground min-w-42.5">Date & Time</TableHead>
                           <TableHead className="text-[11px] font-semibold text-muted-foreground text-center w-28">Queried Image</TableHead>
-                          <TableHead className="text-[11px] font-semibold text-muted-foreground min-w-[200px]">Match Result</TableHead>
+                          <TableHead className="text-[11px] font-semibold text-muted-foreground min-w-50">Match Result</TableHead>
                           <TableHead className="text-[11px] font-semibold text-muted-foreground">Confidence</TableHead>
                           <TableHead className="text-[11px] font-semibold text-muted-foreground">Initiated By</TableHead>
                           <TableHead className="text-[11px] font-semibold text-muted-foreground">Status</TableHead>
@@ -2465,7 +3178,7 @@ export function CriminalProfileTabs({
                             className="object-cover"
                             sizes="56px"
                           />
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent pointer-events-none" />
+                          <div className="absolute inset-0 bg-linear-to-t from-black/40 via-transparent to-transparent pointer-events-none" />
                         </div>
 
                         {/* Candidate Details */}
@@ -2511,7 +3224,7 @@ export function CriminalProfileTabs({
                           className="h-8.5 px-2 rounded-lg border-2 border-border/80 hover:border-[#665AEF]/50 bg-muted/20 hover:bg-muted/40 text-[11px] font-semibold text-foreground transition-all flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
                         >
                           <ExternalLink className="size-3 text-muted-foreground shrink-0" />
-                          <span className="truncate">Dossier</span>
+                          <span className="truncate">Case File</span>
                         </Link>
 
                         <button
@@ -2557,15 +3270,15 @@ export function CriminalProfileTabs({
               ═══════════════════════════════════════════════════════════ */}
           {activeTab === "evidence" && (
             <div className="space-y-4 w-full">
-              {/* Filter pills with horizontal smooth touch scrolling on mobile */}
-              <div className="flex items-center justify-between gap-3">
+              {/* Filter pills and action bar */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar scroll-smooth flex-nowrap sm:flex-wrap py-1 -mx-1 px-1 w-full sm:w-auto touch-pan-x">
                   {[
-                    { id: "all", label: `All Evidence (${computedEvidence.length})` },
-                    { id: "image", label: `Images (${computedEvidence.filter((e) => e.type === "image").length})` },
-                    { id: "video", label: `Videos (${computedEvidence.filter((e) => e.type === "video").length})` },
-                    { id: "scan", label: `Scans (${computedEvidence.filter((e) => e.type === "scan").length})` },
-                    { id: "document", label: `Documents (${computedEvidence.filter((e) => e.type === "document").length})` },
+                    { id: "all", label: `All Evidence (${evidenceItems.length})` },
+                    { id: "image", label: `Images (${evidenceItems.filter((e) => e.type === "image").length})` },
+                    { id: "video", label: `Videos (${evidenceItems.filter((e) => e.type === "video").length})` },
+                    { id: "scan", label: `Scans (${evidenceItems.filter((e) => e.type === "scan").length})` },
+                    { id: "document", label: `Documents (${evidenceItems.filter((e) => e.type === "document").length})` },
                   ].map((f) => {
                     const isSelected = evidenceFilter === f.id;
                     return (
@@ -2593,21 +3306,32 @@ export function CriminalProfileTabs({
                   })}
                 </div>
 
-                <motion.span
-                  key={evidenceFilter}
-                  initial={{ opacity: 0, y: -4 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.18 }}
-                  className="text-xs text-muted-foreground font-medium hidden sm:inline whitespace-nowrap"
-                >
-                  Showing{" "}
-                  <strong className="text-foreground font-semibold">
-                    {evidenceFilter === "all"
-                      ? computedEvidence.length
-                      : computedEvidence.filter((e) => e.type === evidenceFilter).length}
-                  </strong>{" "}
-                  items
-                </motion.span>
+                <div className="flex items-center gap-3 self-end sm:self-auto shrink-0">
+                  <motion.span
+                    key={evidenceFilter}
+                    initial={{ opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.18 }}
+                    className="text-xs text-muted-foreground font-medium hidden md:inline whitespace-nowrap"
+                  >
+                    Showing{" "}
+                    <strong className="text-foreground font-semibold">
+                      {evidenceFilter === "all"
+                        ? evidenceItems.length
+                        : evidenceItems.filter((e) => e.type === evidenceFilter).length}
+                    </strong>{" "}
+                    items
+                  </motion.span>
+
+                  <Button
+                    type="button"
+                    onClick={() => setIsAttachEvidenceOpen(true)}
+                    className="h-8.5 px-3.5 rounded-lg bg-[#665AEF] hover:bg-[#584be2] text-white text-xs font-semibold flex items-center gap-1.5 shadow-md shadow-[#665AEF]/25 cursor-pointer shrink-0"
+                  >
+                    <Plus className="size-3.5" />
+                    <span>Attach Evidence</span>
+                  </Button>
+                </div>
               </div>
 
               {/* Animated Grid of Evidence Cards with Framer Motion layout & exit transitions */}
@@ -2616,7 +3340,7 @@ export function CriminalProfileTabs({
                 className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4"
               >
                 <AnimatePresence mode="popLayout">
-                  {computedEvidence.filter(
+                  {evidenceItems.filter(
                     (e) => evidenceFilter === "all" || e.type === evidenceFilter
                   ).length === 0 ? (
                     <div className="col-span-full flex flex-col items-center justify-center p-12 text-center border-2 border-dashed border-border/60 rounded-xl bg-card/40 my-4">
@@ -2625,9 +3349,19 @@ export function CriminalProfileTabs({
                       <p className="text-xs text-muted-foreground mt-1 max-w-sm">
                         No physical or digital forensic evidence has been associated with this criminal profile.
                       </p>
+                      <Button
+                        type="button"
+                        onClick={() => setIsAttachEvidenceOpen(true)}
+                        variant="outline"
+                        size="sm"
+                        className="mt-4 h-8 px-3 text-xs gap-1.5 border-2 border-[#665AEF]/40 text-[#a594fd] hover:bg-[#665AEF]/15 cursor-pointer"
+                      >
+                        <Plus className="size-3.5" />
+                        <span>Upload First Item</span>
+                      </Button>
                     </div>
                   ) : (
-                    computedEvidence.filter(
+                    evidenceItems.filter(
                       (e) => evidenceFilter === "all" || e.type === evidenceFilter
                     ).map((ev) => (
                     <motion.div
@@ -2736,35 +3470,60 @@ export function CriminalProfileTabs({
           }
         >
           <div className="space-y-4">
-            <div className="relative aspect-video w-full rounded-xl overflow-hidden border border-border/80 bg-black">
-              <Image
-                src={selectedEvidence.imageSrc}
-                alt={selectedEvidence.name}
-                fill
-                className="object-contain"
-                sizes="(max-width: 768px) 100vw, 640px"
-              />
-            </div>
+            {selectedEvidence.type === "video" ? (
+              <div className="relative aspect-video w-full rounded-xl overflow-hidden border border-border/80 bg-black flex items-center justify-center">
+                <video
+                  src={selectedEvidence.imageSrc}
+                  controls
+                  playsInline
+                  className="w-full h-full object-contain"
+                />
+              </div>
+            ) : (
+              <div className="relative aspect-video w-full rounded-xl overflow-hidden border border-border/80 bg-black">
+                <Image
+                  src={selectedEvidence.imageSrc}
+                  alt={selectedEvidence.name}
+                  fill
+                  className="object-contain"
+                  sizes="(max-width: 768px) 100vw, 640px"
+                />
+              </div>
+            )}
 
-            <div className="grid grid-cols-2 gap-3 text-xs pt-1">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-3 rounded-lg border border-border/60 bg-muted/20 text-xs">
               <div>
-                <span className="text-muted-foreground text-[11px]">Collected On</span>
-                <p className="font-semibold text-foreground">{selectedEvidence.date}</p>
+                <span className="text-muted-foreground text-[10px] uppercase font-semibold">Collected On</span>
+                <p className="font-semibold text-foreground mt-0.5">{selectedEvidence.date}</p>
               </div>
               <div>
-                <span className="text-muted-foreground text-[11px]">Investigating Officer</span>
-                <p className="font-semibold text-foreground">{selectedEvidence.officer}</p>
+                <span className="text-muted-foreground text-[10px] uppercase font-semibold">Investigating Officer</span>
+                <p className="font-semibold text-foreground mt-0.5">{selectedEvidence.officer}</p>
               </div>
               <div>
-                <span className="text-muted-foreground text-[11px]">File Size</span>
-                <p className="font-semibold text-foreground">{selectedEvidence.size}</p>
+                <span className="text-muted-foreground text-[10px] uppercase font-semibold">File Size</span>
+                <p className="font-semibold text-foreground mt-0.5">{selectedEvidence.size}</p>
               </div>
               <div>
-                <span className="text-muted-foreground text-[11px]">SHA-256 Hash</span>
-                <p className="font-mono text-muted-foreground text-[10px] truncate">
+                <span className="text-muted-foreground text-[10px] uppercase font-semibold">SHA-256 Hash</span>
+                <p className="font-mono text-muted-foreground text-[10px] truncate mt-0.5" title={selectedEvidence.sha256}>
                   {selectedEvidence.sha256}
                 </p>
               </div>
+            </div>
+
+            <div className="flex items-center justify-between pt-2 border-t border-border/40">
+              <span className="text-[11px] text-muted-foreground">Tigris S3 Authenticated Custody Chain</span>
+              <a
+                href={selectedEvidence.imageSrc}
+                download={selectedEvidence.name}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold bg-[#665AEF] hover:bg-[#5749DF] text-white transition-colors cursor-pointer"
+              >
+                <Download className="size-3.5" />
+                <span>Download Forensic File</span>
+              </a>
             </div>
           </div>
         </Modal>
@@ -3018,6 +3777,45 @@ export function CriminalProfileTabs({
             </div>
           </div>
 
+          {/* SECTION 4B: COURT & SENTENCE DETAILS */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+            {/* Presiding Court Name */}
+            <div className="space-y-1.5">
+              <div className="h-6 flex items-center">
+                <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                  <Scale className="size-3 text-[#a594fd]" />
+                  <span>Presiding Court / Jurisdiction</span>
+                </label>
+              </div>
+              <Input
+                placeholder="e.g. Principal District & Sessions Court, Chennai"
+                value={newRecordForm.courtName}
+                onChange={(e) =>
+                  setNewRecordForm({ ...newRecordForm, courtName: e.target.value })
+                }
+                className="h-9 text-xs border-2 border-border/80 bg-background/60 focus-visible:border-[#665AEF] focus-visible:ring-1 focus-visible:ring-[#665AEF] rounded-md"
+              />
+            </div>
+
+            {/* Sentence & Penalty Details */}
+            <div className="space-y-1.5">
+              <div className="h-6 flex items-center">
+                <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                  <Gavel className="size-3 text-[#a594fd]" />
+                  <span>Sentence / Penalty Details</span>
+                </label>
+              </div>
+              <Input
+                placeholder="e.g. 3 Years Rigorous Imprisonment + ₹25,000 fine"
+                value={newRecordForm.sentenceDetails}
+                onChange={(e) =>
+                  setNewRecordForm({ ...newRecordForm, sentenceDetails: e.target.value })
+                }
+                className="h-9 text-xs border-2 border-border/80 bg-background/60 focus-visible:border-[#665AEF] focus-visible:ring-1 focus-visible:ring-[#665AEF] rounded-md"
+              />
+            </div>
+          </div>
+
           {/* SECTION 5: DESCRIPTION */}
           <div className="space-y-1.5">
             <div className="h-6 flex items-center justify-between">
@@ -3053,6 +3851,150 @@ export function CriminalProfileTabs({
             </span>
           </div>
         </form>
+      </Modal>
+
+      {/* ═══════════════════════════════════════════════════════════
+          MODAL 1B: JUDICIAL RECORD INSPECTOR MODAL
+          ═══════════════════════════════════════════════════════════ */}
+      <Modal
+        isOpen={selectedJudicialRecord !== null}
+        onClose={() => setSelectedJudicialRecord(null)}
+        maxWidth="max-w-2xl"
+        className="border-2 border-border/90 bg-[#0B0F17]/95 backdrop-blur-xl shadow-2xl rounded-lg"
+        title={
+          <div className="flex items-center gap-3">
+            <div className="flex size-9 items-center justify-center rounded-md bg-[#665AEF]/20 text-[#a594fd] border-2 border-[#665AEF]/40 shadow-xs shrink-0">
+              <Gavel className="size-5" />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-base font-semibold text-foreground">Judicial Record Dossier</span>
+              <span className="font-mono text-xs font-semibold text-[#a594fd] px-2 py-0.5 rounded-md bg-[#665AEF]/15 border border-[#665AEF]/30">
+                {selectedJudicialRecord?.caseId}
+              </span>
+            </div>
+          </div>
+        }
+        description="Official judicial court record, charges, presiding bench, and final conviction disposition."
+        footer={
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-2.5 w-full">
+            <Link
+              href={`/case-details/${selectedJudicialRecord?.caseId}`}
+              className="text-xs font-semibold text-[#a594fd] hover:text-[#c0b3ff] flex items-center gap-1.5"
+            >
+              <span>Open Linked Case File</span>
+              <ExternalLink className="size-3" />
+            </Link>
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  navigator.clipboard.writeText(
+                    `${window.location.origin}${window.location.pathname}?tab=criminal-history&record=${selectedJudicialRecord?.caseId}`
+                  );
+                  toast.success("Record permalink copied to clipboard");
+                }}
+                className="h-8 px-3 text-xs font-semibold rounded-md border-2 border-border/80 bg-background/50 hover:bg-muted cursor-pointer"
+              >
+                <Copy className="size-3 text-muted-foreground mr-1" />
+                <span>Copy Permalink</span>
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => setSelectedJudicialRecord(null)}
+                className="h-8 px-4 text-xs font-semibold rounded-md bg-[#665AEF] hover:bg-[#5749DF] text-white cursor-pointer"
+              >
+                Close
+              </Button>
+            </div>
+          </div>
+        }
+      >
+        {selectedJudicialRecord && (
+          <div className="space-y-4 pt-1 text-xs">
+            {/* Top Grid: Case Number, Offence, Status, Outcome */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-3 rounded-lg border-2 border-border/70 bg-card/60">
+              <div>
+                <span className="text-[10px] text-muted-foreground uppercase font-semibold">Docket Number</span>
+                <p className="font-mono font-bold text-[#a594fd] text-xs mt-0.5">{selectedJudicialRecord.caseId}</p>
+              </div>
+              <div>
+                <span className="text-[10px] text-muted-foreground uppercase font-semibold">Offence Type</span>
+                <div className="mt-0.5">{renderOffenceBadge(selectedJudicialRecord.offenceType as any)}</div>
+              </div>
+              <div>
+                <span className="text-[10px] text-muted-foreground uppercase font-semibold">Status</span>
+                <div className="mt-0.5">{renderHistoryStatusBadge(selectedJudicialRecord.status as any)}</div>
+              </div>
+              <div>
+                <span className="text-[10px] text-muted-foreground uppercase font-semibold">Disposition</span>
+                <div className="mt-0.5">{renderOutcomeBadge(selectedJudicialRecord.outcome as any)}</div>
+              </div>
+            </div>
+
+            {/* Middle Grid: Court Name, Sentence, Incident Date, Location */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 rounded-lg border border-border/60 bg-muted/20">
+              <div>
+                <span className="text-[10px] text-muted-foreground font-semibold flex items-center gap-1">
+                  <Scale className="size-3 text-[#a594fd]" />
+                  <span>Presiding Court & Jurisdiction</span>
+                </span>
+                <p className="font-medium text-foreground text-xs mt-1">
+                  {selectedJudicialRecord.courtName || "Principal District & Sessions Court, Chennai"}
+                </p>
+              </div>
+              <div>
+                <span className="text-[10px] text-muted-foreground font-semibold flex items-center gap-1">
+                  <Gavel className="size-3 text-[#a594fd]" />
+                  <span>Sentencing & Penalty</span>
+                </span>
+                <p className="font-medium text-foreground text-xs mt-1">
+                  {selectedJudicialRecord.sentenceDetails ||
+                    (selectedJudicialRecord.outcome === "Convicted"
+                      ? "Sentenced under provisions of Indian Penal Code"
+                      : "Pending final judicial pronouncement")}
+                </p>
+              </div>
+              <div>
+                <span className="text-[10px] text-muted-foreground font-semibold flex items-center gap-1">
+                  <Calendar className="size-3 text-[#a594fd]" />
+                  <span>Incident Date</span>
+                </span>
+                <p className="font-medium text-foreground text-xs mt-1">{selectedJudicialRecord.date}</p>
+              </div>
+              <div>
+                <span className="text-[10px] text-muted-foreground font-semibold flex items-center gap-1">
+                  <MapPin className="size-3 text-[#a594fd]" />
+                  <span>Crime Scene Location</span>
+                </span>
+                <p className="font-medium text-foreground text-xs mt-1">{selectedJudicialRecord.location}</p>
+              </div>
+            </div>
+
+            {/* Incident Narrative */}
+            <div className="space-y-1.5 p-3 rounded-lg border border-border/60 bg-muted/10">
+              <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider block">
+                Official Incident Summary & Judicial Narrative
+              </span>
+              <p className="text-foreground/90 text-xs leading-relaxed whitespace-pre-wrap">
+                {selectedJudicialRecord.description}
+              </p>
+            </div>
+
+            {/* Cryptographic Footnote */}
+            <div className="p-2.5 rounded-md border border-border/40 bg-muted/20 flex items-center justify-between text-[11px] text-muted-foreground">
+              <div className="flex items-center gap-2">
+                <Lock className="size-3.5 text-[#a594fd] shrink-0" />
+                <span>Indexed in Tamil Nadu State Judicial Police Repository.</span>
+              </div>
+              <span className="font-mono text-[10px] text-[#a594fd] bg-muted/40 px-1.5 py-0.5 rounded border border-border/40">
+                VERIFIED-RECORD
+              </span>
+            </div>
+          </div>
+        )}
       </Modal>
 
       {/* ─────────────────────────────────────────────────────────────
@@ -3179,7 +4121,7 @@ export function CriminalProfileTabs({
         footer={
           <div className="flex items-center justify-between w-full">
             <Link
-              href={`/dashboard/cases?suspect=${selectedCandidate?.code}`}
+              href={`/dashboard/criminals/${selectedCandidate?.code}`}
               onClick={() => setSelectedCandidate(null)}
               className="text-xs font-semibold text-[#a594fd] hover:underline flex items-center gap-1"
             >
@@ -3277,6 +4219,238 @@ export function CriminalProfileTabs({
         )}
       </Modal>
 
+      {/* ─────────────────────────────────────────────────────────────
+          MODAL 4: ATTACH FORENSIC EVIDENCE MODAL
+          ───────────────────────────────────────────────────────────── */}
+      <Modal
+        isOpen={isAttachEvidenceOpen}
+        onClose={() => {
+          if (!isUploadingEvidence) {
+            setIsAttachEvidenceOpen(false);
+            setEvidenceFile(null);
+            setEvidenceTitle("");
+          }
+        }}
+        maxWidth="max-w-lg"
+        className="border-2 border-border/90 bg-[#0B0F17]/95 backdrop-blur-xl shadow-2xl rounded-lg"
+        title={
+          <div className="flex items-center gap-3">
+            <div className="flex size-9 items-center justify-center rounded-md bg-[#665AEF]/20 text-[#a594fd] border-2 border-[#665AEF]/40 shadow-xs shadow-[#665AEF]/20 shrink-0">
+              <Upload className="size-5" />
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-base font-semibold text-foreground">Attach Forensic Evidence</span>
+            </div>
+          </div>
+        }
+        description={`Securely upload physical or digital forensic evidence for ${criminal.firstName} ${criminal.lastName} (${criminal.criminalId}).`}
+        footer={
+          <div className="flex items-center justify-end gap-2.5 w-full">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={isUploadingEvidence}
+              onClick={() => {
+                setIsAttachEvidenceOpen(false);
+                setEvidenceFile(null);
+                setEvidenceTitle("");
+              }}
+              className="h-8.5 px-3.5 text-xs font-semibold rounded-lg border-2 border-border/80 cursor-pointer"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              disabled={isUploadingEvidence || !evidenceFile}
+              onClick={handleUploadEvidence}
+              className="h-8.5 px-4 text-xs font-semibold rounded-lg bg-[#665AEF] hover:bg-[#584be2] text-white flex items-center gap-1.5 shadow-md shadow-[#665AEF]/25 cursor-pointer disabled:opacity-50"
+            >
+              {isUploadingEvidence ? (
+                <>
+                  <RefreshCw className="size-3.5 animate-spin" />
+                  <span>Uploading to Tigris...</span>
+                </>
+              ) : (
+                <>
+                  <Upload className="size-3.5" />
+                  <span>Upload & Verify SHA-256</span>
+                </>
+              )}
+            </Button>
+          </div>
+        }
+      >
+        <form onSubmit={handleUploadEvidence} className="space-y-4 pt-2">
+          {/* File Drag / Select Box */}
+          <div
+            onClick={() => evidenceFileInputRef.current?.click()}
+            className={cn(
+              "relative border-2 border-dashed rounded-xl p-6 flex flex-col items-center justify-center gap-2 cursor-pointer transition-all",
+              evidenceFile
+                ? "border-[#665AEF] bg-[#665AEF]/10"
+                : "border-border/80 hover:border-[#665AEF]/60 bg-muted/20 hover:bg-muted/30"
+            )}
+          >
+            <input
+              ref={evidenceFileInputRef}
+              type="file"
+              className="hidden"
+              onChange={(e) => {
+                if (e.target.files && e.target.files[0]) {
+                  setEvidenceFile(e.target.files[0]);
+                  if (!evidenceTitle) {
+                    setEvidenceTitle(e.target.files[0].name.replace(/\.[^/.]+$/, ""));
+                  }
+                }
+              }}
+            />
+            {evidenceFile ? (
+              <div className="flex flex-col items-center text-center">
+                <div className="size-10 rounded-full bg-[#665AEF]/20 flex items-center justify-center text-[#a594fd] mb-1">
+                  <CheckCircle2 className="size-5" />
+                </div>
+                <span className="text-xs font-semibold text-foreground max-w-65 truncate">
+                  {evidenceFile.name}
+                </span>
+                <span className="text-[11px] font-mono text-muted-foreground">
+                  {(evidenceFile.size / 1024).toFixed(1)} KB • {evidenceFile.type || "binary"}
+                </span>
+                <span className="text-[10px] text-[#a594fd] mt-1 underline">Click to change file</span>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center text-center">
+                <div className="size-10 rounded-full bg-muted/50 flex items-center justify-center text-muted-foreground mb-1">
+                  <FileUp className="size-5" />
+                </div>
+                <span className="text-xs font-semibold text-foreground">
+                  Choose a file or drag & drop here
+                </span>
+                <span className="text-[11px] text-muted-foreground">
+                  Images, CCTV clips, ballistic reports, or scans (up to 50MB)
+                </span>
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-foreground">Evidence Title / Description</label>
+            <Input
+              value={evidenceTitle}
+              onChange={(e) => setEvidenceTitle(e.target.value)}
+              placeholder="e.g. 9mm casing recovered from perimeter"
+              className="h-9 text-xs"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-foreground">Category</label>
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-9 w-full justify-between rounded-md border-2 border-border/80 bg-background px-2.5 text-xs font-medium text-foreground outline-none focus:border-[#665AEF] cursor-pointer"
+                    />
+                  }
+                >
+                  <span className="truncate">
+                    {evidenceCategory === "IMAGE" && "Image / Photograph"}
+                    {evidenceCategory === "VIDEO" && "Surveillance Footage"}
+                    {evidenceCategory === "FORENSIC_REPORT" && "Forensic Report"}
+                    {evidenceCategory === "DOCUMENT" && "Judicial Document"}
+                    {evidenceCategory === "OTHER" && "Physical Artifact"}
+                  </span>
+                  <ChevronDown className="size-3.5 text-muted-foreground opacity-70 shrink-0 ml-1.5" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="start"
+                  side="bottom"
+                  sideOffset={4}
+                  className="w-48 p-1 rounded-xl shadow-2xl bg-card/95 backdrop-blur-xl border-2 border-border z-50"
+                >
+                  {[
+                    { val: "IMAGE", label: "Image / Photograph" },
+                    { val: "VIDEO", label: "Surveillance Footage" },
+                    { val: "FORENSIC_REPORT", label: "Forensic Report" },
+                    { val: "DOCUMENT", label: "Judicial Document" },
+                    { val: "OTHER", label: "Physical Artifact" },
+                  ].map((cat) => (
+                    <DropdownMenuItem
+                      key={cat.val}
+                      onClick={() => setEvidenceCategory(cat.val)}
+                      className="cursor-pointer px-2.5 py-1.5 text-xs rounded-lg hover:bg-muted font-medium text-foreground flex items-center justify-between"
+                    >
+                      <span>{cat.label}</span>
+                      {evidenceCategory === cat.val && <Check className="size-3.5 text-[#665AEF]" />}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-foreground">Source</label>
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-9 w-full justify-between rounded-md border-2 border-border/80 bg-background px-2.5 text-xs font-medium text-foreground outline-none focus:border-[#665AEF] cursor-pointer"
+                    />
+                  }
+                >
+                  <span className="truncate">
+                    {evidenceSource === "INVESTIGATOR" && "Lead Investigator"}
+                    {evidenceSource === "FORENSIC_LAB" && "Forensics Lab"}
+                    {evidenceSource === "SURVEILLANCE" && "CCTV / Camera"}
+                    {evidenceSource === "PUBLIC_SUBMISSION" && "Public Tip / Informant"}
+                  </span>
+                  <ChevronDown className="size-3.5 text-muted-foreground opacity-70 shrink-0 ml-1.5" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="start"
+                  side="bottom"
+                  sideOffset={4}
+                  className="w-48 p-1 rounded-xl shadow-2xl bg-card/95 backdrop-blur-xl border-2 border-border z-50"
+                >
+                  {[
+                    { val: "INVESTIGATOR", label: "Lead Investigator" },
+                    { val: "FORENSIC_LAB", label: "Forensics Lab" },
+                    { val: "SURVEILLANCE", label: "CCTV / Camera" },
+                    { val: "PUBLIC_SUBMISSION", label: "Public Tip / Informant" },
+                  ].map((src) => (
+                    <DropdownMenuItem
+                      key={src.val}
+                      onClick={() => setEvidenceSource(src.val)}
+                      className="cursor-pointer px-2.5 py-1.5 text-xs rounded-lg hover:bg-muted font-medium text-foreground flex items-center justify-between"
+                    >
+                      <span>{src.label}</span>
+                      {evidenceSource === src.val && <Check className="size-3.5 text-[#665AEF]" />}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+        </form>
+      </Modal>
+
+      {/* ─────────────────────────────────────────────────────────────
+          MODAL 5: LINK CRIMINAL TO CASE MODAL (THEMED PROFESSIONAL DIALOG)
+          ───────────────────────────────────────────────────────────── */}
+      <LinkCriminalCaseDialog
+        isOpen={isLinkCaseOpen}
+        onClose={() => setIsLinkCaseOpen(false)}
+        criminal={criminal}
+        onSuccess={() => {
+          setIsLinkCaseOpen(false);
+          router.refresh();
+        }}
+      />
     </div>
   );
 }

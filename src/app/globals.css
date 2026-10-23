@@ -330,6 +330,114 @@
     box-shadow: none !important;
     page-break-inside: avoid;
   }
+
+  /* ─────────────────────────────────────────────────────────────
+     Official Criminal Profile Print & A4 PDF Styles
+     Ensures pure white paper, rich dark text, crisp borders,
+     and official judicial letterhead without dark mode bleed.
+     ───────────────────────────────────────────────────────────── */
+  body:has(.criminal-profile-container),
+  .criminal-profile-container,
+  [data-slot="sidebar-inset"] {
+    background-color: #ffffff !important;
+    background: #ffffff !important;
+    color: #111827 !important;
+  }
+
+  /* Force cards and profile tiles to white paper styling with crisp gray borders in print */
+  [data-slot="card"],
+  .rounded-xl.border,
+  .rounded-lg.border {
+    background-color: #ffffff !important;
+    background: #ffffff !important;
+    color: #111827 !important;
+    border: 1px solid #d1d5db !important;
+    box-shadow: none !important;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  /* Card headers and titles in print */
+  [data-slot="card-title"] {
+    color: #0f172a !important;
+    font-weight: 700 !important;
+  }
+
+  [data-slot="card-description"] {
+    color: #4b5563 !important;
+  }
+
+  /* All typography inside printed profile */
+  h1, h2, h3, h4 {
+    color: #0f172a !important;
+    font-weight: 800 !important;
+  }
+
+  p,
+  span:not([class*="badge"]) {
+    color: #1f2937;
+  }
+
+  .text-foreground {
+    color: #111827 !important;
+  }
+
+  .text-muted-foreground {
+    color: #4b5563 !important;
+  }
+
+  /* Inner metric boxes & qualitative callouts in print */
+  .bg-muted,
+  .bg-muted\/20,
+  .bg-muted\/30 {
+    background-color: #f9fafb !important;
+    border-color: #e5e7eb !important;
+  }
+
+  /* Badges in print: clean high-contrast bordered pills */
+  [data-slot="badge"],
+  span[class*="badge"] {
+    background-color: #ffffff !important;
+    color: #111827 !important;
+    border: 1px solid #9ca3af !important;
+    font-weight: 600 !important;
+  }
+
+  /* Tables: Clean professional court reporting format */
+  [data-slot="table-container"],
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    background-color: #ffffff !important;
+  }
+
+  th {
+    background-color: #f3f4f6 !important;
+    color: #111827 !important;
+    border: 1px solid #d1d5db !important;
+    font-weight: 700 !important;
+    font-size: 11px !important;
+    padding: 6px 10px !important;
+  }
+
+  td {
+    background-color: #ffffff !important;
+    color: #1f2937 !important;
+    border: 1px solid #e5e7eb !important;
+    font-size: 11px !important;
+    padding: 6px 10px !important;
+  }
+
+  tr {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  /* Ensure photos and biometric prints remain visible and high quality */
+  img {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
 }
 
 /* Custom scrollbar utilities */

@@ -35,7 +35,26 @@ export async function uploadEvidence(formData: FormData) {
     // Ignore JSON parse errors for optional metadata
   }
 
-  if (!caseId || !file) {
+  let resolvedCaseId = caseId;
+  if (!resolvedCaseId && criminalId) {
+    const suspect = await prisma.caseSuspect.findFirst({
+      where: {
+        OR: [
+          { criminalId },
+          { criminal: { criminalId } },
+        ],
+      },
+      select: { caseId: true },
+    });
+    if (suspect) {
+      resolvedCaseId = suspect.caseId;
+    } else {
+      const firstCase = await prisma.case.findFirst({ select: { id: true } });
+      if (firstCase) resolvedCaseId = firstCase.id;
+    }
+  }
+
+  if (!resolvedCaseId || !file) {
     return { error: "Case ID and File are required" };
   }
 
@@ -57,7 +76,7 @@ export async function uploadEvidence(formData: FormData) {
     // Secure Storage Key in Tigris S3
     const safeFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
     const evidenceId = crypto.randomUUID();
-    const storageKey = `cases/${caseId}/evidence/${evidenceId}/${safeFileName}`;
+    const storageKey = `cases/${resolvedCaseId}/evidence/${evidenceId}/${safeFileName}`;
 
     // Upload binary stream to Tigris Object Storage
     await tigris.send(
@@ -74,7 +93,7 @@ export async function uploadEvidence(formData: FormData) {
     // Create Database Record with complete metadata
     const evidence = await prisma.evidence.create({
       data: {
-        caseId,
+        caseId: resolvedCaseId,
         criminalId: criminalId || undefined,
         title,
         description,
@@ -100,13 +119,16 @@ export async function uploadEvidence(formData: FormData) {
         entityType: "Evidence",
         entityId: evidence.id,
         userId: session.user.id,
-        details: { caseId, fileName: file.name, title, category, sha256Hash },
+        details: { caseId: resolvedCaseId, fileName: file.name, title, category, sha256Hash },
       },
     });
 
     // Revalidate routes
-    revalidatePath(`/dashboard/cases/${caseId}`);
-    revalidatePath(`/case-details/${caseId}`);
+    revalidatePath(`/dashboard/cases/${resolvedCaseId}`);
+    revalidatePath(`/case-details/${resolvedCaseId}`);
+    if (criminalId) {
+      revalidatePath(`/dashboard/criminals/${criminalId}`);
+    }
     return { success: true, data: evidence };
   } catch (error) {
     console.error("Failed to upload evidence:", error);

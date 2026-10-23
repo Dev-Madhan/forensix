@@ -99,10 +99,7 @@ export default async function CriminalsPage() {
               </div>
             </div>
 
-            {/* 4 Criminal Section Cards */}
-            <CriminalSectionCards metrics={metrics} />
-
-            {/* Criminals Table and Criminal Profile Preview */}
+            {/* Criminals Table with Integrated Interactive Section Cards and Slide-out Preview */}
             <Suspense
               fallback={
                 <div className="h-96 w-full rounded-2xl border-2 border-border/60 bg-card/40 animate-pulse flex items-center justify-center">
@@ -110,7 +107,7 @@ export default async function CriminalsPage() {
                 </div>
               }
             >
-              <CriminalsTable initialCriminals={criminals} />
+              <CriminalsTable initialCriminals={criminals} metrics={metrics} />
             </Suspense>
           </div>
         </div>

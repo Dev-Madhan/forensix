@@ -200,7 +200,7 @@ export function SuspectMatchPanel({
                           size="icon"
                           variant="ghost"
                           className="size-8 text-muted-foreground hover:text-foreground cursor-pointer"
-                          title="Open Criminal Dossier in new tab"
+                          title="Open Criminal Profile in new tab"
                         >
                           <ExternalLink className="size-3.5" />
                         </Button>

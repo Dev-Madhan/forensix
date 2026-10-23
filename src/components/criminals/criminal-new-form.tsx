@@ -33,6 +33,8 @@ import {
   Sparkles,
   Image as ImageIcon,
   Zap,
+  FolderPlus,
+  Search,
 } from "lucide-react";
 
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
@@ -48,8 +50,26 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { createCriminal, uploadMugshot, uploadCriminalBiometric } from "@/features/criminals/actions";
-import { CriminalStatus } from "@prisma/client";
+import { createCriminal, uploadMugshot, uploadCriminalBiometric, linkCriminalToCase, searchCasesForLinking } from "@/features/criminals/actions";
+import { getCriminalSlug } from "@/features/criminals/slug";
+import { CriminalStatus, SuspectRole, SuspectCaseStatus } from "@prisma/client";
+
+const ENROLL_ROLE_OPTIONS = [
+  { val: SuspectRole.DIRECT_INVOLVEMENT, label: "Direct Involvement", color: "bg-rose-500", desc: "Primary perpetrator at crime scene" },
+  { val: SuspectRole.POSSIBLE_ASSOCIATE, label: "Possible Associate", color: "bg-amber-500", desc: "Identified syndicate accomplice" },
+  { val: SuspectRole.ACCOMPLICE, label: "Accomplice", color: "bg-orange-500", desc: "Aided in planning or getaway" },
+  { val: SuspectRole.INFORMANT, label: "Informant", color: "bg-emerald-500", desc: "Confidential intelligence asset" },
+  { val: SuspectRole.WITNESS, label: "Witness", color: "bg-blue-500", desc: "Eyewitness giving testimony" },
+  { val: SuspectRole.UNDER_INVESTIGATION, label: "Under Investigation", color: "bg-[#665AEF]", desc: "Preliminary subject of interest" },
+];
+
+const ENROLL_STATUS_OPTIONS = [
+  { val: SuspectCaseStatus.PRIMARY_SUSPECT, label: "Primary Suspect", color: "bg-rose-500" },
+  { val: SuspectCaseStatus.PERSON_OF_INTEREST, label: "Person of Interest", color: "bg-[#665AEF]" },
+  { val: SuspectCaseStatus.ACCOMPLICE, label: "Accomplice", color: "bg-orange-500" },
+  { val: SuspectCaseStatus.CLEARED, label: "Cleared", color: "bg-slate-400" },
+  { val: SuspectCaseStatus.CONVICTED, label: "Convicted", color: "bg-emerald-500" },
+];
 
 // Form Constants
 const CRIME_CATEGORIES = [
@@ -179,6 +199,45 @@ export function CriminalNewForm({
   const [knownAssociates, setKnownAssociates] = React.useState("");
   const [notes, setNotes] = React.useState("");
 
+  // 6. Active FIR Case Docket Association (Optional)
+  const [enrollCaseInput, setEnrollCaseInput] = React.useState("");
+  const [selectedEnrollCase, setSelectedEnrollCase] = React.useState<{
+    id: string;
+    caseNumber: string;
+    title: string;
+    priority?: string;
+  } | null>(null);
+  const [enrollSuspectRole, setEnrollSuspectRole] = React.useState<SuspectRole>(SuspectRole.UNDER_INVESTIGATION);
+  const [enrollSuspectStatus, setEnrollSuspectStatus] = React.useState<SuspectCaseStatus>(SuspectCaseStatus.PERSON_OF_INTEREST);
+  const [enrollCaseNotes, setEnrollCaseNotes] = React.useState("");
+  const [enrollCaseSuggestions, setEnrollCaseSuggestions] = React.useState<any[]>([]);
+  const [isLoadingEnrollCases, setIsLoadingEnrollCases] = React.useState(false);
+  const [showEnrollCaseSuggestions, setShowEnrollCaseSuggestions] = React.useState(false);
+  const enrollCaseWrapperRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    let active = true;
+    if (!showEnrollCaseSuggestions) return;
+    setIsLoadingEnrollCases(true);
+    const timer = setTimeout(async () => {
+      try {
+        const res = await searchCasesForLinking(enrollCaseInput);
+        if (active && Array.isArray(res)) {
+          setEnrollCaseSuggestions(res);
+        }
+      } catch (err) {
+        console.warn("Failed to fetch cases for enrollment:", err);
+      } finally {
+        if (active) setIsLoadingEnrollCases(false);
+      }
+    }, 200);
+
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [enrollCaseInput, showEnrollCaseSuggestions]);
+
   // Sidebar States: Profile Photo
   const [mugshotUrl, setMugshotUrl] = React.useState<string | null>(null);
   const [photoPreview, setPhotoPreview] = React.useState<string | null>(null);
@@ -204,6 +263,12 @@ export function CriminalNewForm({
         !aliasInputWrapperRef.current.contains(event.target as Node)
       ) {
         setShowAliasSuggestions(false);
+      }
+      if (
+        enrollCaseWrapperRef.current &&
+        !enrollCaseWrapperRef.current.contains(event.target as Node)
+      ) {
+        setShowEnrollCaseSuggestions(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -459,9 +524,26 @@ export function CriminalNewForm({
         });
       }
 
+      // 3. Optional: Link to active FIR case
+      const targetCaseQuery = selectedEnrollCase?.id || selectedEnrollCase?.caseNumber || enrollCaseInput.trim();
+      if (targetCaseQuery && result.data.id) {
+        try {
+          await linkCriminalToCase({
+            caseId: targetCaseQuery,
+            criminalId: result.data.id,
+            role: enrollSuspectRole,
+            status: enrollSuspectStatus,
+            notes: enrollCaseNotes.trim() || undefined,
+          });
+          toast.success(`Attached to FIR Case ${selectedEnrollCase?.caseNumber || targetCaseQuery}`);
+        } catch (linkErr) {
+          console.warn("Failed to attach case on registration:", linkErr);
+        }
+      }
+
       toast.success("Criminal record successfully created and indexed!");
-      const targetId = result.data.criminalId || result.data.id;
-      router.push(`/dashboard/criminals/${targetId}`);
+      const canonicalSlug = getCriminalSlug(result.data);
+      router.push(`/dashboard/criminals/${canonicalSlug}`);
       router.refresh();
     } catch (err) {
       console.error("Failed to submit criminal record:", err);
@@ -584,7 +666,7 @@ export function CriminalNewForm({
                         fallbackAxisSide: "none",
                       }}
                       collisionPadding={8}
-                      className="w-[316px] max-w-[calc(100vw-1.5rem)] p-3.5 rounded-2xl shadow-2xl bg-card/95 backdrop-blur-xl border-2 border-border overflow-hidden select-none"
+                      className="w-79 max-w-[calc(100vw-1.5rem)] p-3.5 rounded-2xl shadow-2xl bg-card/95 backdrop-blur-xl border-2 border-border overflow-hidden select-none"
                     >
                       {/* Month & Year Navigation Bar */}
                       <div className="flex items-center justify-between gap-2 pb-3 mb-2 border-b-2 border-border/60">
@@ -621,10 +703,10 @@ export function CriminalNewForm({
                               align="start"
                               side="bottom"
                               sideOffset={4}
-                              className="w-36 min-w-[140px] p-1 rounded-xl shadow-2xl bg-card/95 backdrop-blur-xl border-2 border-border z-[70] scrollbar-width-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none]"
+                              className="w-36 min-w-35 p-1 rounded-xl shadow-2xl bg-card/95 backdrop-blur-xl border-2 border-border z-70 scrollbar-width-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none]"
                               onPointerLeave={() => setHoveredItem(null)}
                             >
-                              <div className="flex flex-col max-h-[220px] overflow-y-auto scrollbar-width-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] p-0.5">
+                              <div className="flex flex-col max-h-55 overflow-y-auto scrollbar-width-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] p-0.5">
                                 {MONTH_NAMES.map((m, idx) => {
                                   const isSelected = calendarMonth.getMonth() === idx;
                                   return (
@@ -637,7 +719,7 @@ export function CriminalNewForm({
                                       }}
                                       onPointerEnter={() => setHoveredItem(`dob-m-${m}`)}
                                       className={cn(
-                                        "relative z-0 cursor-pointer px-2.5 py-1.5 rounded-md text-xs font-medium hover:!bg-transparent focus:!bg-transparent transition-colors flex items-center justify-between",
+                                        "relative z-0 cursor-pointer px-2.5 py-1.5 rounded-md text-xs font-medium hover:bg-transparent! focus:bg-transparent! transition-colors flex items-center justify-between",
                                         isSelected && "text-[#665AEF] font-semibold"
                                       )}
                                     >
@@ -677,10 +759,10 @@ export function CriminalNewForm({
                               align="start"
                               side="bottom"
                               sideOffset={4}
-                              className="w-28 min-w-[110px] p-1 rounded-xl shadow-2xl bg-card/95 backdrop-blur-xl border-2 border-border z-[70] scrollbar-width-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none]"
+                              className="w-28 min-w-27.5 p-1 rounded-xl shadow-2xl bg-card/95 backdrop-blur-xl border-2 border-border z-70 scrollbar-width-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none]"
                               onPointerLeave={() => setHoveredItem(null)}
                             >
-                              <div className="flex flex-col max-h-[220px] overflow-y-auto scrollbar-width-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] p-0.5">
+                              <div className="flex flex-col max-h-55 overflow-y-auto scrollbar-width-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] p-0.5">
                                 {YEAR_OPTIONS.map((y) => {
                                   const isSelected = calendarMonth.getFullYear() === y;
                                   return (
@@ -693,7 +775,7 @@ export function CriminalNewForm({
                                       }}
                                       onPointerEnter={() => setHoveredItem(`dob-y-${y}`)}
                                       className={cn(
-                                        "relative z-0 cursor-pointer px-2.5 py-1.5 rounded-md text-xs font-medium hover:!bg-transparent focus:!bg-transparent transition-colors flex items-center justify-between",
+                                        "relative z-0 cursor-pointer px-2.5 py-1.5 rounded-md text-xs font-medium hover:bg-transparent! focus:bg-transparent! transition-colors flex items-center justify-between",
                                         isSelected && "text-[#665AEF] font-semibold"
                                       )}
                                     >
@@ -795,14 +877,14 @@ export function CriminalNewForm({
                         initial={{ opacity: 0, scale: 0.96, y: 6 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-                        className="flex flex-col max-h-[300px] overflow-y-auto scrollbar-width-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none]"
+                        className="flex flex-col max-h-75 overflow-y-auto scrollbar-width-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none]"
                       >
                         {GENDER_OPTIONS.map((g) => (
                           <DropdownMenuItem
                             key={g}
                             onClick={() => setGender(g)}
                             onPointerEnter={() => setHoveredItem(`gender-${g}`)}
-                            className="relative z-0 cursor-pointer px-2.5 py-1.5 rounded-md text-xs font-medium hover:!bg-transparent focus:!bg-transparent transition-colors"
+                            className="relative z-0 cursor-pointer px-2.5 py-1.5 rounded-md text-xs font-medium hover:bg-transparent! focus:bg-transparent! transition-colors"
                           >
                             {hoveredItem === `gender-${g}` && (
                               <motion.div
@@ -849,14 +931,14 @@ export function CriminalNewForm({
                         initial={{ opacity: 0, scale: 0.96, y: 6 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-                        className="flex flex-col max-h-[300px] overflow-y-auto scrollbar-width-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none]"
+                        className="flex flex-col max-h-75 overflow-y-auto scrollbar-width-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none]"
                       >
                         {NATIONALITY_OPTIONS.map((n) => (
                           <DropdownMenuItem
                             key={n}
                             onClick={() => setNationality(n)}
                             onPointerEnter={() => setHoveredItem(`nationality-${n}`)}
-                            className="relative z-0 cursor-pointer px-2.5 py-1.5 rounded-md text-xs font-medium hover:!bg-transparent focus:!bg-transparent transition-colors"
+                            className="relative z-0 cursor-pointer px-2.5 py-1.5 rounded-md text-xs font-medium hover:bg-transparent! focus:bg-transparent! transition-colors"
                           >
                             {hoveredItem === `nationality-${n}` && (
                               <motion.div
@@ -1045,7 +1127,7 @@ export function CriminalNewForm({
                         initial={{ opacity: 0, scale: 0.96, y: 6 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-                        className="flex flex-col max-h-[300px] overflow-y-auto scrollbar-width-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none]"
+                        className="flex flex-col max-h-75 overflow-y-auto scrollbar-width-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none]"
                       >
                         {CRIME_CATEGORIES.map((cat) => (
                           <DropdownMenuItem
@@ -1055,7 +1137,7 @@ export function CriminalNewForm({
                               if (errors.primaryCategory) setErrors({ ...errors, primaryCategory: "" });
                             }}
                             onPointerEnter={() => setHoveredItem(`p-cat-${cat}`)}
-                            className="relative z-0 cursor-pointer px-2.5 py-1.5 rounded-md text-xs font-medium hover:!bg-transparent focus:!bg-transparent transition-colors"
+                            className="relative z-0 cursor-pointer px-2.5 py-1.5 rounded-md text-xs font-medium hover:bg-transparent! focus:bg-transparent! transition-colors"
                           >
                             {hoveredItem === `p-cat-${cat}` && (
                               <motion.div
@@ -1107,12 +1189,12 @@ export function CriminalNewForm({
                         initial={{ opacity: 0, scale: 0.96, y: 6 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-                        className="flex flex-col max-h-[300px] overflow-y-auto scrollbar-width-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none]"
+                        className="flex flex-col max-h-75 overflow-y-auto scrollbar-width-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none]"
                       >
                         <DropdownMenuItem
                           onClick={() => setSecondaryCategory("")}
                           onPointerEnter={() => setHoveredItem("s-cat-none")}
-                          className="relative z-0 cursor-pointer px-2.5 py-1.5 rounded-md text-xs text-muted-foreground hover:!bg-transparent focus:!bg-transparent transition-colors"
+                          className="relative z-0 cursor-pointer px-2.5 py-1.5 rounded-md text-xs text-muted-foreground hover:bg-transparent! focus:bg-transparent! transition-colors"
                         >
                           {hoveredItem === "s-cat-none" && (
                             <motion.div
@@ -1128,7 +1210,7 @@ export function CriminalNewForm({
                             key={cat}
                             onClick={() => setSecondaryCategory(cat)}
                             onPointerEnter={() => setHoveredItem(`s-cat-${cat}`)}
-                            className="relative z-0 cursor-pointer px-2.5 py-1.5 rounded-md text-xs font-medium hover:!bg-transparent focus:!bg-transparent transition-colors"
+                            className="relative z-0 cursor-pointer px-2.5 py-1.5 rounded-md text-xs font-medium hover:bg-transparent! focus:bg-transparent! transition-colors"
                           >
                             {hoveredItem === `s-cat-${cat}` && (
                               <motion.div
@@ -1175,14 +1257,14 @@ export function CriminalNewForm({
                         initial={{ opacity: 0, scale: 0.96, y: 6 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-                        className="flex flex-col max-h-[300px] overflow-y-auto scrollbar-width-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none]"
+                        className="flex flex-col max-h-75 overflow-y-auto scrollbar-width-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none]"
                       >
                         {RISK_LEVELS.map((level) => (
                           <DropdownMenuItem
                             key={level}
                             onClick={() => setRiskLevel(level)}
                             onPointerEnter={() => setHoveredItem(`risk-${level}`)}
-                            className="relative z-0 cursor-pointer px-2.5 py-1.5 rounded-md text-xs font-medium hover:!bg-transparent focus:!bg-transparent transition-colors"
+                            className="relative z-0 cursor-pointer px-2.5 py-1.5 rounded-md text-xs font-medium hover:bg-transparent! focus:bg-transparent! transition-colors"
                           >
                             {hoveredItem === `risk-${level}` && (
                               <motion.div
@@ -1232,14 +1314,14 @@ export function CriminalNewForm({
                         initial={{ opacity: 0, scale: 0.96, y: 6 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-                        className="flex flex-col max-h-[300px] overflow-y-auto scrollbar-width-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none]"
+                        className="flex flex-col max-h-75 overflow-y-auto scrollbar-width-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none]"
                       >
                         {STATUS_OPTIONS.map((opt) => (
                           <DropdownMenuItem
                             key={opt.label}
                             onClick={() => setStatus(opt.label)}
                             onPointerEnter={() => setHoveredItem(`status-${opt.label}`)}
-                            className="relative z-0 cursor-pointer px-2.5 py-1.5 rounded-md text-xs font-medium hover:!bg-transparent focus:!bg-transparent flex items-center gap-2 transition-colors"
+                            className="relative z-0 cursor-pointer px-2.5 py-1.5 rounded-md text-xs font-medium hover:bg-transparent! focus:bg-transparent! flex items-center gap-2 transition-colors"
                           >
                             {hoveredItem === `status-${opt.label}` && (
                               <motion.div
@@ -1367,12 +1449,12 @@ export function CriminalNewForm({
                         initial={{ opacity: 0, scale: 0.96, y: 6 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-                        className="flex flex-col max-h-[300px] overflow-y-auto scrollbar-width-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none]"
+                        className="flex flex-col max-h-75 overflow-y-auto scrollbar-width-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none]"
                       >
                         <DropdownMenuItem
                           onClick={() => setEyeColor("")}
                           onPointerEnter={() => setHoveredItem("eye-none")}
-                          className="relative z-0 cursor-pointer px-2.5 py-1.5 rounded-md text-xs text-muted-foreground hover:!bg-transparent focus:!bg-transparent transition-colors"
+                          className="relative z-0 cursor-pointer px-2.5 py-1.5 rounded-md text-xs text-muted-foreground hover:bg-transparent! focus:bg-transparent! transition-colors"
                         >
                           {hoveredItem === "eye-none" && (
                             <motion.div
@@ -1388,7 +1470,7 @@ export function CriminalNewForm({
                             key={col}
                             onClick={() => setEyeColor(col)}
                             onPointerEnter={() => setHoveredItem(`eye-${col}`)}
-                            className="relative z-0 cursor-pointer px-2.5 py-1.5 rounded-md text-xs font-medium hover:!bg-transparent focus:!bg-transparent transition-colors"
+                            className="relative z-0 cursor-pointer px-2.5 py-1.5 rounded-md text-xs font-medium hover:bg-transparent! focus:bg-transparent! transition-colors"
                           >
                             {hoveredItem === `eye-${col}` && (
                               <motion.div
@@ -1434,12 +1516,12 @@ export function CriminalNewForm({
                         initial={{ opacity: 0, scale: 0.96, y: 6 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-                        className="flex flex-col max-h-[300px] overflow-y-auto scrollbar-width-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none]"
+                        className="flex flex-col max-h-75 overflow-y-auto scrollbar-width-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none]"
                       >
                         <DropdownMenuItem
                           onClick={() => setHairColor("")}
                           onPointerEnter={() => setHoveredItem("hair-none")}
-                          className="relative z-0 cursor-pointer px-2.5 py-1.5 rounded-md text-xs text-muted-foreground hover:!bg-transparent focus:!bg-transparent transition-colors"
+                          className="relative z-0 cursor-pointer px-2.5 py-1.5 rounded-md text-xs text-muted-foreground hover:bg-transparent! focus:bg-transparent! transition-colors"
                         >
                           {hoveredItem === "hair-none" && (
                             <motion.div
@@ -1455,7 +1537,7 @@ export function CriminalNewForm({
                             key={hc}
                             onClick={() => setHairColor(hc)}
                             onPointerEnter={() => setHoveredItem(`hair-${hc}`)}
-                            className="relative z-0 cursor-pointer px-2.5 py-1.5 rounded-md text-xs font-medium hover:!bg-transparent focus:!bg-transparent transition-colors"
+                            className="relative z-0 cursor-pointer px-2.5 py-1.5 rounded-md text-xs font-medium hover:bg-transparent! focus:bg-transparent! transition-colors"
                           >
                             {hoveredItem === `hair-${hc}` && (
                               <motion.div
@@ -1501,12 +1583,12 @@ export function CriminalNewForm({
                         initial={{ opacity: 0, scale: 0.96, y: 6 }}
                         animate={{ opacity: 1, scale: 1, y: 0 }}
                         transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
-                        className="flex flex-col max-h-[300px] overflow-y-auto scrollbar-width-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none]"
+                        className="flex flex-col max-h-75 overflow-y-auto scrollbar-width-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none]"
                       >
                         <DropdownMenuItem
                           onClick={() => setBuild("")}
                           onPointerEnter={() => setHoveredItem("build-none")}
-                          className="relative z-0 cursor-pointer px-2.5 py-1.5 rounded-md text-xs text-muted-foreground hover:!bg-transparent focus:!bg-transparent transition-colors"
+                          className="relative z-0 cursor-pointer px-2.5 py-1.5 rounded-md text-xs text-muted-foreground hover:bg-transparent! focus:bg-transparent! transition-colors"
                         >
                           {hoveredItem === "build-none" && (
                             <motion.div
@@ -1522,7 +1604,7 @@ export function CriminalNewForm({
                             key={b}
                             onClick={() => setBuild(b)}
                             onPointerEnter={() => setHoveredItem(`build-${b}`)}
-                            className="relative z-0 cursor-pointer px-2.5 py-1.5 rounded-md text-xs font-medium hover:!bg-transparent focus:!bg-transparent transition-colors"
+                            className="relative z-0 cursor-pointer px-2.5 py-1.5 rounded-md text-xs font-medium hover:bg-transparent! focus:bg-transparent! transition-colors"
                           >
                             {hoveredItem === `build-${b}` && (
                               <motion.div
@@ -1615,10 +1697,239 @@ export function CriminalNewForm({
               </div>
             </CardContent>
           </Card>
+
+          {/* Card 6: Active FIR Investigation Docket Association (Optional) */}
+          <Card className="border-2 border-border/80 bg-card/40 backdrop-blur-xs rounded-xl shadow-xs overflow-visible">
+            <CardHeader className="flex flex-row items-center gap-3 p-4 sm:p-5 border-b-2 border-border/60">
+              <FolderPlus className="size-5 text-[#665AEF] shrink-0" />
+              <div>
+                <div className="flex items-center gap-2">
+                  <CardTitle className="text-base font-bold font-heading text-foreground">
+                    Active FIR Docket Association
+                  </CardTitle>
+                  <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-md bg-muted text-muted-foreground border border-border">
+                    OPTIONAL
+                  </span>
+                </div>
+                <CardDescription className="text-xs text-muted-foreground">
+                  Attach this suspect record directly to an ongoing FIR investigation case upon creation.
+                </CardDescription>
+              </div>
+            </CardHeader>
+            <CardContent className="p-4 sm:p-5 space-y-4">
+              <div ref={enrollCaseWrapperRef} className="space-y-1.5 relative">
+                <Label className="text-xs font-semibold text-muted-foreground flex items-center justify-between">
+                  <span>FIR Case Docket / Number</span>
+                  {selectedEnrollCase && (
+                    <span className="text-[11px] font-mono text-emerald-400 font-semibold flex items-center gap-1">
+                      <Check className="size-3" /> Selected
+                    </span>
+                  )}
+                </Label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
+                  <Input
+                    value={enrollCaseInput}
+                    onChange={(e) => {
+                      setEnrollCaseInput(e.target.value);
+                      setSelectedEnrollCase(null);
+                      setShowEnrollCaseSuggestions(true);
+                    }}
+                    onFocus={() => setShowEnrollCaseSuggestions(true)}
+                    placeholder="Search active cases or type FX-2026-###..."
+                    className="h-10 pl-9 pr-9 text-xs sm:text-sm font-mono border-2 border-border/80 bg-background/50 rounded-lg focus-visible:border-[#665AEF] focus-visible:ring-1 focus-visible:ring-[#665AEF]"
+                  />
+                  {enrollCaseInput && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEnrollCaseInput("");
+                        setSelectedEnrollCase(null);
+                      }}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer p-0.5 rounded"
+                    >
+                      <X className="size-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Autocomplete Dropdown */}
+                <AnimatePresence>
+                  {showEnrollCaseSuggestions && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -6, scale: 0.98 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -6, scale: 0.98 }}
+                      transition={{ duration: 0.18, ease: "easeOut" }}
+                      className="absolute left-0 right-0 top-full mt-1.5 z-50 rounded-xl border-2 border-border/90 bg-[#0F1420] shadow-2xl overflow-hidden max-h-56 overflow-y-auto"
+                    >
+                      <div className="p-1.5 space-y-1">
+                        <div className="px-2.5 py-1 text-[10px] font-mono text-muted-foreground uppercase tracking-widest flex items-center justify-between border-b border-border/40 pb-1.5 mb-1">
+                          <span>Active Cases</span>
+                          {isLoadingEnrollCases && <Loader2 className="size-3 animate-spin text-[#a594fd]" />}
+                        </div>
+                        {enrollCaseSuggestions.length > 0 ? (
+                          enrollCaseSuggestions.map((c) => (
+                            <div
+                              key={c.id}
+                              onClick={() => {
+                                setSelectedEnrollCase(c);
+                                setEnrollCaseInput(c.caseNumber);
+                                setShowEnrollCaseSuggestions(false);
+                              }}
+                              className={cn(
+                                "px-2.5 py-2 rounded-lg cursor-pointer transition-colors flex items-center justify-between gap-2 text-xs",
+                                selectedEnrollCase?.id === c.id
+                                  ? "bg-[#665AEF]/25 text-white border border-[#665AEF]/50"
+                                  : "hover:bg-muted/50 text-foreground"
+                              )}
+                            >
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-mono font-bold text-white text-[11px]">{c.caseNumber}</span>
+                                  {c.priority && (
+                                    <span className={cn(
+                                      "text-[9px] font-mono font-bold px-1.5 py-0.2 rounded border uppercase",
+                                      c.priority === "CRITICAL" ? "bg-rose-500/15 text-rose-400 border-rose-500/30" : "bg-neutral-800 text-neutral-300 border-neutral-700"
+                                    )}>
+                                      {c.priority}
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-[11px] text-muted-foreground truncate mt-0.5">{c.title}</p>
+                              </div>
+                              {selectedEnrollCase?.id === c.id && (
+                                <Check className="size-3.5 text-[#a594fd] shrink-0" />
+                              )}
+                            </div>
+                          ))
+                        ) : (
+                          <div className="p-3 text-center text-xs text-muted-foreground">
+                            {enrollCaseInput ? `Custom Case Code "${enrollCaseInput}" will be indexed` : "Type a case title or number to search..."}
+                          </div>
+                        )}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
+              {/* Role and Status Selectors */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-muted-foreground">Suspect Role</Label>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger
+                      render={
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="h-10 w-full justify-between rounded-lg border-2 border-border/80 bg-background/50 px-3 text-xs sm:text-sm font-normal hover:bg-muted/60 hover:text-foreground cursor-pointer flex items-center"
+                        />
+                      }
+                    >
+                      <div className="flex items-center gap-2 truncate">
+                        <span className={`size-2 rounded-full shrink-0 ${ENROLL_ROLE_OPTIONS.find((r) => r.val === enrollSuspectRole)?.color || "bg-[#665AEF]"}`} />
+                        <span className="truncate">{ENROLL_ROLE_OPTIONS.find((r) => r.val === enrollSuspectRole)?.label || "Role"}</span>
+                      </div>
+                      <ChevronDown className="size-3.5 text-muted-foreground opacity-70 shrink-0" />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent
+                      align="start"
+                      side="bottom"
+                      sideOffset={4}
+                      className="w-64 p-1.5 rounded-xl shadow-2xl bg-card/95 backdrop-blur-xl border-2 border-border z-50"
+                    >
+                      {ENROLL_ROLE_OPTIONS.map((r) => {
+                        const isSelected = enrollSuspectRole === r.val;
+                        return (
+                          <DropdownMenuItem
+                            key={r.val}
+                            onClick={() => setEnrollSuspectRole(r.val)}
+                            className={cn(
+                              "cursor-pointer px-2.5 py-2 text-xs rounded-lg font-medium flex items-center justify-between transition-colors",
+                              isSelected ? "bg-primary/15 text-primary font-semibold" : "text-foreground hover:bg-muted"
+                            )}
+                          >
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className={`size-2 rounded-full shrink-0 ${r.color}`} />
+                                <span className="font-semibold">{r.label}</span>
+                              </div>
+                              <p className="text-[10px] text-muted-foreground truncate pl-4 mt-0.5">{r.desc}</p>
+                            </div>
+                            {isSelected && <Check className="size-3.5 text-primary shrink-0 ml-1.5" />}
+                          </DropdownMenuItem>
+                        );
+                      })}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-muted-foreground">Case Status</Label>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger
+                      render={
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="h-10 w-full justify-between rounded-lg border-2 border-border/80 bg-background/50 px-3 text-xs sm:text-sm font-normal hover:bg-muted/60 hover:text-foreground cursor-pointer flex items-center"
+                        />
+                      }
+                    >
+                      <div className="flex items-center gap-2 truncate">
+                        <span className={`size-2 rounded-full shrink-0 ${ENROLL_STATUS_OPTIONS.find((s) => s.val === enrollSuspectStatus)?.color || "bg-[#665AEF]"}`} />
+                        <span className="truncate">{ENROLL_STATUS_OPTIONS.find((s) => s.val === enrollSuspectStatus)?.label || "Status"}</span>
+                      </div>
+                      <ChevronDown className="size-3.5 text-muted-foreground opacity-70 shrink-0" />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent
+                      align="start"
+                      side="bottom"
+                      sideOffset={4}
+                      className="w-52 p-1.5 rounded-xl shadow-2xl bg-card/95 backdrop-blur-xl border-2 border-border z-50"
+                    >
+                      {ENROLL_STATUS_OPTIONS.map((st) => {
+                        const isSelected = enrollSuspectStatus === st.val;
+                        return (
+                          <DropdownMenuItem
+                            key={st.val}
+                            onClick={() => setEnrollSuspectStatus(st.val)}
+                            className={cn(
+                              "cursor-pointer px-2.5 py-2 text-xs rounded-lg font-medium flex items-center justify-between transition-colors",
+                              isSelected ? "bg-primary/15 text-primary font-semibold" : "text-foreground hover:bg-muted"
+                            )}
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className={`size-2 rounded-full shrink-0 ${st.color}`} />
+                              <span>{st.label}</span>
+                            </div>
+                            {isSelected && <Check className="size-3.5 text-primary shrink-0 ml-1.5" />}
+                          </DropdownMenuItem>
+                        );
+                      })}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </div>
+
+              {/* Notes */}
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-muted-foreground">Case Attachment Notes</Label>
+                <Input
+                  value={enrollCaseNotes}
+                  onChange={(e) => setEnrollCaseNotes(e.target.value)}
+                  placeholder="e.g. Sighted near crime scene perimeter; identified via vehicle registration"
+                  className="h-10 text-xs sm:text-sm border-2 border-border/80 bg-background/50 rounded-lg focus-visible:border-[#665AEF] focus-visible:ring-1 focus-visible:ring-[#665AEF]"
+                />
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Right Column: 4 Sidebar Action & Media Cards */}
-        <div className="space-y-6 w-full xl:w-[380px] 2xl:w-[400px] shrink-0 xl:sticky xl:top-6">
+        <div className="space-y-6 w-full xl:w-95 2xl:w-100 shrink-0 xl:sticky xl:top-6">
           {/* Card 1: Profile Photo */}
           <Card className="border-2 border-border/80 bg-card/40 backdrop-blur-xs rounded-xl shadow-xs overflow-hidden">
             <CardHeader className="flex flex-row items-center gap-3 p-4 sm:p-5 border-b-2 border-border/60">
@@ -1643,7 +1954,7 @@ export function CriminalNewForm({
               />
 
               {photoPreview ? (
-                <div className="relative aspect-[3/4] w-full max-w-[200px] mx-auto rounded-lg overflow-hidden border-2 border-border/80 bg-black/60 shadow-inner group">
+                <div className="relative aspect-3/4 w-full max-w-50 mx-auto rounded-lg overflow-hidden border-2 border-border/80 bg-black/60 shadow-inner group">
                   <Image
                     src={photoPreview}
                     alt="Uploaded criminal mugshot"
@@ -1735,7 +2046,7 @@ export function CriminalNewForm({
                           </span>
                           <span className="text-[9px] text-muted-foreground/60">Click to add</span>
                         </div>
-                        <div className="flex flex-col max-h-[180px] overflow-y-auto scrollbar-width-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none]">
+                        <div className="flex flex-col max-h-45 overflow-y-auto scrollbar-width-none [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none]">
                           {matchingSuggestions.map((sug) => (
                             <button
                               key={sug}
@@ -1790,7 +2101,7 @@ export function CriminalNewForm({
                     </button>
                   )}
                 </div>
-                <div className="flex flex-wrap gap-1.5 min-h-[38px] p-2 rounded-lg border-2 border-border/80 bg-background/40 items-center">
+                <div className="flex flex-wrap gap-1.5 min-h-9.5 p-2 rounded-lg border-2 border-border/80 bg-background/40 items-center">
                   <AnimatePresence initial={false}>
                     {aliases.map((alias) => (
                       <motion.span

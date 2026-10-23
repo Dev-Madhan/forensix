@@ -72,6 +72,7 @@ export function SuspectAvatar({
           sizes="(max-width: 768px) 100vw, 300px"
           className="object-cover"
           onError={() => setHasError(true)}
+          unoptimized={safeUrl.startsWith("/api/") || safeUrl.includes("?")}
         />
         {/* Subtle holographic border overlay for high risk */}
         {isCritical && (

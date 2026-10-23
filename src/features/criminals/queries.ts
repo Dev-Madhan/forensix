@@ -157,7 +157,88 @@ export async function getCriminalsForTable(filters?: GetCriminalsFilters): Promi
   }
 }
 
-export async function getCriminalById(id: string) {
+import { extractCriminalIdFromSlug } from "@/features/criminals/slug";
+
+const criminalDeepInclude = {
+  caseLinks: {
+    include: {
+      case: {
+        select: {
+          id: true,
+          caseNumber: true,
+          title: true,
+          status: true,
+          priority: true,
+          createdAt: true,
+          suspects: {
+            select: {
+              id: true,
+              role: true,
+              status: true,
+              criminal: {
+                select: {
+                  id: true,
+                  criminalId: true,
+                  firstName: true,
+                  lastName: true,
+                  alias: true,
+                  mugshotUrl: true,
+                  status: true,
+                  riskLevel: true,
+                },
+              },
+            },
+          },
+        },
+      },
+      assignedOfficer: {
+        select: {
+          id: true,
+          name: true,
+          badgeId: true,
+          role: true,
+        },
+      },
+    },
+    orderBy: { addedAt: "desc" as const },
+  },
+  evidences: {
+    orderBy: { uploadedAt: "desc" as const },
+  },
+  recognitionResults: {
+    include: {
+      sketch: {
+        include: {
+          case: {
+            select: {
+              id: true,
+              caseNumber: true,
+              title: true,
+            },
+          },
+        },
+      },
+    },
+    orderBy: { createdAt: "desc" as const },
+  },
+  records: {
+    orderBy: { incidentDate: "desc" as const },
+    include: {
+      recordedBy: {
+        select: { id: true, name: true, badgeId: true },
+      },
+    },
+  },
+  surveillanceHits: {
+    orderBy: { createdAt: "desc" as const },
+  },
+};
+
+/**
+ * Resolves a criminal by UUID, criminalId, or human-readable slug
+ * e.g., "arun-prakash-CR-2026-101", "CR-2026-101", or UUID
+ */
+export async function resolveCriminalBySlug(slugOrId: string) {
   const session = await auth.api.getSession({
     headers: await headers(),
   });
@@ -166,128 +247,79 @@ export async function getCriminalById(id: string) {
     throw new Error("Unauthorized");
   }
 
-  // 1. Try finding by UUID with complete relational graph
-  let criminalData = await prisma.criminal.findUnique({
-    where: { id },
-    include: {
-      caseLinks: {
-        include: {
-          case: {
-            select: {
-              id: true,
-              caseNumber: true,
-              title: true,
-              status: true,
-              priority: true,
-              createdAt: true,
-            },
-          },
-          assignedOfficer: {
-            select: {
-              id: true,
-              name: true,
-              badgeId: true,
-              role: true,
-            },
-          },
-        },
-        orderBy: { addedAt: "desc" },
-      },
-      evidences: {
-        orderBy: { uploadedAt: "desc" },
-      },
-      recognitionResults: {
-        include: {
-          sketch: {
-            include: {
-              case: {
-                select: {
-                  id: true,
-                  caseNumber: true,
-                  title: true,
-                },
-              },
-            },
-          },
-        },
-        orderBy: { createdAt: "desc" },
-      },
-      records: {
-        orderBy: { incidentDate: "desc" },
-        include: {
-          recordedBy: {
-            select: { id: true, name: true, badgeId: true },
-          },
-        },
-      },
-    },
-  }).catch(() => null);
+  const decoded = decodeURIComponent(slugOrId).trim();
 
-  // 2. Try finding by criminalId (e.g., "CRIM-AP-01" or "cmtopkef10000ju046409dg1s")
+  // 1. Try finding by direct UUID
+  let criminalData = await prisma.criminal
+    .findUnique({
+      where: { id: decoded },
+      include: criminalDeepInclude,
+    })
+    .catch(() => null);
+
+  // 2. Try finding by exact criminalId (case-insensitive)
   if (!criminalData) {
-    criminalData = await prisma.criminal.findFirst({
-      where: { criminalId: id },
-      include: {
-        caseLinks: {
-          include: {
-            case: {
-              select: {
-                id: true,
-                caseNumber: true,
-                title: true,
-                status: true,
-                priority: true,
-                createdAt: true,
-              },
-            },
-            assignedOfficer: {
-              select: {
-                id: true,
-                name: true,
-                badgeId: true,
-                role: true,
-              },
-            },
-          },
-          orderBy: { addedAt: "desc" },
-        },
-        evidences: {
-          orderBy: { uploadedAt: "desc" },
-        },
-        recognitionResults: {
-          include: {
-            sketch: {
-              include: {
-                case: {
-                  select: {
-                    id: true,
-                    caseNumber: true,
-                    title: true,
-                  },
-                },
-              },
-            },
-          },
-          orderBy: { createdAt: "desc" },
-        },
-        records: {
-          orderBy: { incidentDate: "desc" },
-          include: {
-            recordedBy: {
-              select: { id: true, name: true, badgeId: true },
-            },
-          },
-        },
-      },
-    }).catch(() => null);
+    criminalData = await prisma.criminal
+      .findFirst({
+        where: { criminalId: { equals: decoded, mode: "insensitive" } },
+        include: criminalDeepInclude,
+      })
+      .catch(() => null);
   }
 
+  // 3. Extract token from slug (e.g. "arun-prakash-CR-2026-101" -> "CR-2026-101")
+  if (!criminalData) {
+    const extractedToken = extractCriminalIdFromSlug(decoded);
+    if (extractedToken && extractedToken !== decoded) {
+      criminalData = await prisma.criminal
+        .findFirst({
+          where: {
+            OR: [
+              { id: extractedToken },
+              { criminalId: { equals: extractedToken, mode: "insensitive" } },
+            ],
+          },
+          include: criminalDeepInclude,
+        })
+        .catch(() => null);
+    }
+  }
+
+  // 4. Try matching by slugified name
+  if (!criminalData) {
+    const nameOnly = decoded.replace(/-?(CR-\d{4}-\d+|c[a-z0-9]+|[a-f0-9-]{36})$/i, "").trim();
+    const parts = nameOnly.split("-").filter(Boolean);
+    if (parts.length >= 1) {
+      criminalData = await prisma.criminal
+        .findFirst({
+          where: {
+            OR: [
+              {
+                AND: [
+                  { firstName: { contains: parts[0], mode: "insensitive" } },
+                  parts.length > 1
+                    ? { lastName: { contains: parts[parts.length - 1], mode: "insensitive" } }
+                    : {},
+                ],
+              },
+              { alias: { contains: nameOnly.replace(/-/g, " "), mode: "insensitive" } },
+            ],
+          },
+          include: criminalDeepInclude,
+        })
+        .catch(() => null);
+    }
+  }
 
   if (!criminalData) {
     throw new Error("Criminal not found");
   }
 
   return criminalData;
+}
+
+export async function getCriminalById(id: string) {
+  return resolveCriminalBySlug(id);
 }
 
 export async function getCriminalIntelligenceMetrics() {

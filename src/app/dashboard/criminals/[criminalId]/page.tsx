@@ -94,7 +94,7 @@ export default async function CriminalProfilePage({
             <SidebarTrigger className="-ml-1 size-7 text-muted-foreground hover:text-foreground cursor-pointer" />
             <div className="h-4 w-px bg-border/60 mx-1" />
             <Breadcrumb className="overflow-hidden min-w-0">
-              <BreadcrumbList className="flex-nowrap overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden whitespace-nowrap text-xs sm:text-sm">
+              <BreadcrumbList className="flex-nowrap overflow-x-auto scrollbar-none [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden whitespace-nowrap text-xs sm:text-sm">
                 <BreadcrumbItem className="hidden sm:inline-flex">
                   <BreadcrumbLink href="/dashboard">Dashboard</BreadcrumbLink>
                 </BreadcrumbItem>

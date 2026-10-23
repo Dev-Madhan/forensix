@@ -44,6 +44,12 @@ import {
   FileSpreadsheet,
   Layers,
   CheckSquare,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown,
+  Check,
+  FolderPlus,
+  ScanFace,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useSearchParams } from "next/navigation";
@@ -51,12 +57,18 @@ import {
   updateCriminalStatusAndRisk,
   bulkToggleCriminalWatchlist,
   bulkUpdateCriminalStatus,
+  bulkLinkCriminalsToCase,
+  toggleCriminalWatchlist,
 } from "@/features/criminals/actions";
-import { CriminalStatus } from "@prisma/client";
+import { CriminalStatus, SuspectRole, SuspectCaseStatus } from "@prisma/client";
+import { Modal } from "@/components/ui/modal";
+import { CriminalSectionCards, type CriminalMetrics } from "./criminal-section-cards";
+import { OpticalFaceSearchModal } from "./optical-face-search-modal";
 
 import { type CriminalItem } from "@/constants/mock-criminals";
 import { getSafeStorageUrl } from "@/lib/storage-url";
 import { SuspectAvatar } from "./suspect-avatar";
+import { getCriminalSlug } from "@/features/criminals/slug";
 export { type CriminalItem };
 
 /**
@@ -163,12 +175,37 @@ function CriminalRowActions({
   criminal,
   isSelected,
   onToggleSelect,
+  onWatchlistChanged,
 }: {
   criminal: CriminalItem;
   isSelected: boolean;
   onToggleSelect: () => void;
+  onWatchlistChanged?: () => void;
 }) {
   const [hoveredAction, setHoveredAction] = React.useState<string | null>(null);
+  const [isTogglingWatchlist, setIsTogglingWatchlist] = React.useState(false);
+
+  const handleToggleWatchlist = async () => {
+    setIsTogglingWatchlist(true);
+    const nextWatchlist = criminal.status !== "Wanted";
+    try {
+      const res = await toggleCriminalWatchlist(criminal.id, nextWatchlist);
+      if (res.error) {
+        toast.error(res.error);
+      } else {
+        toast.success(
+          nextWatchlist
+            ? `${criminal.firstName} ${criminal.lastName} placed on Priority Watchlist`
+            : `Removed from Priority Watchlist`
+        );
+        onWatchlistChanged?.();
+      }
+    } catch {
+      toast.error("Failed to update watchlist status");
+    } finally {
+      setIsTogglingWatchlist(false);
+    }
+  };
 
   return (
     <DropdownMenu>
@@ -187,7 +224,7 @@ function CriminalRowActions({
         align="end"
         side="bottom"
         sideOffset={6}
-        className="w-36 p-1 rounded-xl shadow-xl bg-card/95 backdrop-blur-xl border-2 border-border overflow-hidden"
+        className="w-44 p-1 rounded-xl shadow-xl bg-card/95 backdrop-blur-xl border-2 border-border overflow-hidden"
         onPointerLeave={() => setHoveredAction(null)}
       >
         <motion.div
@@ -198,40 +235,40 @@ function CriminalRowActions({
           className="space-y-0.5"
         >
           <DropdownMenuItem
-            render={<Link href={`/dashboard/criminals/${criminal.id}`} />}
+            render={<Link href={`/dashboard/criminals/${getCriminalSlug(criminal)}`} />}
             onPointerEnter={() => setHoveredAction("details")}
-            className="relative z-0 group flex items-center justify-between cursor-pointer px-2.5 py-1.5 rounded-md transition-colors focus:text-accent-foreground hover:text-accent-foreground bg-transparent! text-xs font-medium"
+            className="relative z-0 group flex items-center gap-2 cursor-pointer px-2.5 py-1.5 rounded-md transition-colors hover:bg-muted text-xs font-medium text-foreground"
           >
-            {hoveredAction === "details" && (
-              <motion.div
-                layoutId={`criminal-row-action-hover-${criminal.id}`}
-                className="absolute inset-0 z-[-1] rounded-md bg-accent/80"
-                transition={{
-                  type: "spring",
-                  bounce: 0.3,
-                  duration: 0.4,
-                }}
-              />
-            )}
+            <User className="size-3.5 text-muted-foreground" />
             <span>View Profile</span>
           </DropdownMenuItem>
+
+          <DropdownMenuItem
+            render={<Link href={`/dashboard/criminals/${getCriminalSlug(criminal)}/edit`} />}
+            onPointerEnter={() => setHoveredAction("edit")}
+            className="relative z-0 group flex items-center gap-2 cursor-pointer px-2.5 py-1.5 rounded-md transition-colors hover:bg-muted text-xs font-medium text-foreground"
+          >
+            <PenLine className="size-3.5 text-muted-foreground" />
+            <span>Edit Record</span>
+          </DropdownMenuItem>
+
+          <DropdownMenuItem
+            onClick={handleToggleWatchlist}
+            disabled={isTogglingWatchlist}
+            onPointerEnter={() => setHoveredAction("watchlist")}
+            className="relative z-0 group flex items-center gap-2 cursor-pointer px-2.5 py-1.5 rounded-md transition-colors hover:bg-amber-500/10 text-xs font-medium text-amber-300"
+          >
+            <Shield className="size-3.5 text-amber-400" />
+            <span>{criminal.status === "Wanted" ? "Clear Watchlist" : "Add to Watchlist"}</span>
+          </DropdownMenuItem>
+
           <DropdownMenuItem
             onClick={onToggleSelect}
             onPointerEnter={() => setHoveredAction("select")}
-            className="relative z-0 group flex items-center justify-between cursor-pointer px-2.5 py-1.5 rounded-md transition-colors focus:text-accent-foreground hover:text-accent-foreground bg-transparent! text-xs font-medium"
+            className="relative z-0 group flex items-center gap-2 cursor-pointer px-2.5 py-1.5 rounded-md transition-colors hover:bg-muted text-xs font-medium text-muted-foreground hover:text-foreground"
           >
-            {hoveredAction === "select" && (
-              <motion.div
-                layoutId={`criminal-row-action-hover-${criminal.id}`}
-                className="absolute inset-0 z-[-1] rounded-md bg-accent/80"
-                transition={{
-                  type: "spring",
-                  bounce: 0.3,
-                  duration: 0.4,
-                }}
-              />
-            )}
-            <span>{isSelected ? "Deselect" : "Select"}</span>
+            <CheckSquare className="size-3.5" />
+            <span>{isSelected ? "Deselect Row" : "Select Row"}</span>
           </DropdownMenuItem>
         </motion.div>
       </DropdownMenuContent>
@@ -244,9 +281,13 @@ function CriminalRowActions({
    ────────────────────────────────────────────── */
 interface CriminalsTableProps {
   initialCriminals?: CriminalItem[];
+  metrics?: Partial<CriminalMetrics>;
 }
 
-export function CriminalsTable({ initialCriminals = [] }: CriminalsTableProps) {
+export function CriminalsTable({
+  initialCriminals = [],
+  metrics,
+}: CriminalsTableProps) {
   // Set local state strictly from incoming database records
   const [criminalsList, setCriminalsList] = React.useState<CriminalItem[]>(() => {
     return initialCriminals || [];
@@ -260,6 +301,20 @@ export function CriminalsTable({ initialCriminals = [] }: CriminalsTableProps) {
   const allCriminals = criminalsList;
 
   const searchParams = useSearchParams();
+
+  // Metric card active filter
+  const [activeCardFilter, setActiveCardFilter] = React.useState<string | null>(null);
+
+  // Sorting state
+  const [sortKey, setSortKey] = React.useState<"name" | "id" | "dob" | "risk" | "status" | null>(null);
+  const [sortOrder, setSortOrder] = React.useState<"asc" | "desc">("asc");
+
+  // Bulk Link to Case Modal state
+  const [isBulkLinkOpen, setIsBulkLinkOpen] = React.useState(false);
+  const [bulkCaseInput, setBulkCaseInput] = React.useState("");
+  const [bulkRole, setBulkRole] = React.useState<SuspectRole>(SuspectRole.UNDER_INVESTIGATION);
+  const [bulkStatus, setBulkStatus] = React.useState<SuspectCaseStatus>(SuspectCaseStatus.PERSON_OF_INTEREST);
+  const [isBulkLinking, setIsBulkLinking] = React.useState(false);
 
   // Filter states initialized from URL search params
   const [searchTerm, setSearchTerm] = React.useState(
@@ -278,6 +333,49 @@ export function CriminalsTable({ initialCriminals = [] }: CriminalsTableProps) {
   const [hoveredRisk, setHoveredRisk] = React.useState<string | null>(null);
   const [hoveredStatus, setHoveredStatus] = React.useState<string | null>(null);
 
+  const handleSelectMetricCard = (key: string) => {
+    if (activeCardFilter === key || key === "TOTAL") {
+      setActiveCardFilter(null);
+      setStatusFilter(null);
+      setRiskFilter(null);
+      setCategoryFilter(null);
+      setSearchTerm("");
+      setCurrentPage(1);
+      return;
+    }
+
+    setActiveCardFilter(key);
+    setCurrentPage(1);
+
+    if (key === "WATCHLIST") {
+      setStatusFilter("Wanted");
+      setRiskFilter(null);
+      setCategoryFilter(null);
+    } else if (key === "HIGH_RISK") {
+      setRiskFilter("High");
+      setStatusFilter(null);
+      setCategoryFilter(null);
+    } else if (key === "AI") {
+      setRiskFilter(null);
+      setStatusFilter(null);
+      setCategoryFilter(null);
+    }
+  };
+
+  const handleToggleSort = (key: "name" | "id" | "dob" | "risk" | "status") => {
+    if (sortKey === key) {
+      if (sortOrder === "asc") {
+        setSortOrder("desc");
+      } else {
+        setSortKey(null);
+        setSortOrder("asc");
+      }
+    } else {
+      setSortKey(key);
+      setSortOrder("asc");
+    }
+  };
+
 
   // Synchronize filter changes with URL query string
   React.useEffect(() => {
@@ -295,6 +393,7 @@ export function CriminalsTable({ initialCriminals = [] }: CriminalsTableProps) {
   // Selection states (for bulk operations)
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
   const [isBulkUpdating, setIsBulkUpdating] = React.useState(false);
+  const [isOpticalSearchOpen, setIsOpticalSearchOpen] = React.useState(false);
 
   // Active criminal for Profile Preview
   const [activeCriminalId, setActiveCriminalId] = React.useState<string>(
@@ -419,15 +518,43 @@ export function CriminalsTable({ initialCriminals = [] }: CriminalsTableProps) {
         }
       }
 
+      // AI Identified filter
+      if (activeCardFilter === "AI") {
+        if (!item.mugshotUrl || item.mugshotUrl.includes("placeholder")) {
+          return false;
+        }
+      }
+
       return true;
     });
-  }, [allCriminals, searchTerm, categoryFilter, riskFilter, statusFilter]);
+  }, [allCriminals, searchTerm, categoryFilter, riskFilter, statusFilter, activeCardFilter]);
+
+  // Sort logic
+  const sortedCriminals = React.useMemo(() => {
+    if (!sortKey) return filteredCriminals;
+    return [...filteredCriminals].sort((a, b) => {
+      let cmp = 0;
+      if (sortKey === "name") {
+        cmp = `${a.firstName} ${a.lastName}`.localeCompare(`${b.firstName} ${b.lastName}`);
+      } else if (sortKey === "id") {
+        cmp = a.criminalId.localeCompare(b.criminalId);
+      } else if (sortKey === "dob") {
+        cmp = (a.dateOfBirth || "").localeCompare(b.dateOfBirth || "");
+      } else if (sortKey === "risk") {
+        const order: Record<string, number> = { High: 3, Medium: 2, Low: 1 };
+        cmp = (order[a.riskLevel] || 0) - (order[b.riskLevel] || 0);
+      } else if (sortKey === "status") {
+        cmp = a.status.localeCompare(b.status);
+      }
+      return sortOrder === "asc" ? cmp : -cmp;
+    });
+  }, [filteredCriminals, sortKey, sortOrder]);
 
   // Pagination calculations
-  const totalItems = filteredCriminals.length;
+  const totalItems = sortedCriminals.length;
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
   const startIndex = (currentPage - 1) * pageSize;
-  const currentCriminals = filteredCriminals.slice(startIndex, startIndex + pageSize);
+  const currentCriminals = sortedCriminals.slice(startIndex, startIndex + pageSize);
 
   // Selection handlers
   const isAllSelected =
@@ -459,32 +586,32 @@ export function CriminalsTable({ initialCriminals = [] }: CriminalsTableProps) {
     switch (status) {
       case "Active":
         return (
-          <span className="inline-flex items-center rounded-[4px] border-2 border-emerald-500/40 bg-emerald-500/15 px-2 py-0.5 text-[11px] font-medium text-emerald-400 whitespace-nowrap">
+          <span className="inline-flex items-center rounded-lg border-2 border-emerald-500/40 bg-emerald-500/15 px-2 py-0.5 text-[11px] font-medium text-emerald-400 whitespace-nowrap">
             Active
           </span>
         );
       case "Wanted":
         return (
-          <span className="inline-flex items-center rounded-[4px] border-2 border-rose-500/40 bg-rose-500/15 px-2 py-0.5 text-[11px] font-medium text-rose-400 whitespace-nowrap">
+          <span className="inline-flex items-center rounded-lg border-2 border-rose-500/40 bg-rose-500/15 px-2 py-0.5 text-[11px] font-medium text-rose-400 whitespace-nowrap">
             Wanted
           </span>
         );
       case "In Custody":
         return (
-          <span className="inline-flex items-center rounded-[4px] border-2 border-blue-500/40 bg-blue-500/15 px-2 py-0.5 text-[11px] font-medium text-blue-400 whitespace-nowrap">
+          <span className="inline-flex items-center rounded-lg border-2 border-blue-500/40 bg-blue-500/15 px-2 py-0.5 text-[11px] font-medium text-blue-400 whitespace-nowrap">
             In Custody
           </span>
         );
       case "Under Surveillance":
         return (
-          <span className="inline-flex items-center rounded-[4px] border-2 border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-[11px] font-medium text-amber-400 whitespace-nowrap">
+          <span className="inline-flex items-center rounded-lg border-2 border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-[11px] font-medium text-amber-400 whitespace-nowrap">
             Under Surveillance
           </span>
         );
       case "Inactive":
       default:
         return (
-          <span className="inline-flex items-center rounded-[4px] border-2 border-border/80 bg-muted/50 px-2 py-0.5 text-[11px] font-medium text-muted-foreground whitespace-nowrap">
+          <span className="inline-flex items-center rounded-lg border-2 border-border/80 bg-muted/50 px-2 py-0.5 text-[11px] font-medium text-muted-foreground whitespace-nowrap">
             {status}
           </span>
         );
@@ -496,20 +623,20 @@ export function CriminalsTable({ initialCriminals = [] }: CriminalsTableProps) {
     switch (riskLevel) {
       case "High":
         return (
-          <span className="inline-flex items-center rounded-[4px] border-2 border-rose-500/40 bg-rose-500/15 px-2 py-0.5 text-[11px] font-medium text-rose-400 whitespace-nowrap">
+          <span className="inline-flex items-center rounded-lg border-2 border-rose-500/40 bg-rose-500/15 px-2 py-0.5 text-[11px] font-medium text-rose-400 whitespace-nowrap">
             High
           </span>
         );
       case "Medium":
         return (
-          <span className="inline-flex items-center rounded-[4px] border-2 border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-[11px] font-medium text-amber-400 whitespace-nowrap">
+          <span className="inline-flex items-center rounded-lg border-2 border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-[11px] font-medium text-amber-400 whitespace-nowrap">
             Medium
           </span>
         );
       case "Low":
       default:
         return (
-          <span className="inline-flex items-center rounded-[4px] border-2 border-emerald-500/40 bg-emerald-500/15 px-2 py-0.5 text-[11px] font-medium text-emerald-400 whitespace-nowrap">
+          <span className="inline-flex items-center rounded-lg border-2 border-emerald-500/40 bg-emerald-500/15 px-2 py-0.5 text-[11px] font-medium text-emerald-400 whitespace-nowrap">
             Low
           </span>
         );
@@ -533,14 +660,22 @@ export function CriminalsTable({ initialCriminals = [] }: CriminalsTableProps) {
   };
 
   return (
-    <div
-      className={cn(
-        "grid grid-cols-1 gap-6 items-start w-full transition-all duration-300",
-        showPreview
-          ? "xl:grid-cols-[minmax(0,1fr)_380px] 2xl:grid-cols-[minmax(0,1fr)_400px]"
-          : "grid-cols-1"
+    <div className="flex flex-col gap-6 w-full">
+      {metrics && (
+        <CriminalSectionCards
+          metrics={metrics}
+          activeFilterKey={activeCardFilter}
+          onSelectFilter={handleSelectMetricCard}
+        />
       )}
-    >
+      <div
+        className={cn(
+          "grid grid-cols-1 gap-6 items-start w-full transition-all duration-300",
+          showPreview
+            ? "xl:grid-cols-[minmax(0,1fr)_380px] 2xl:grid-cols-[minmax(0,1fr)_400px]"
+            : "grid-cols-1"
+        )}
+      >
       {/* Left Column: Criminals Table (expands to 100% when preview is closed) */}
       <div className="space-y-4 min-w-0 w-full">
         {/* 1. Filter & Command Bar: 2-tier responsive layout preventing search input collapse */}
@@ -572,6 +707,18 @@ export function CriminalsTable({ initialCriminals = [] }: CriminalsTableProps) {
                 </button>
               )}
             </div>
+
+            {/* Optical Biometric Face Probe Button */}
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsOpticalSearchOpen(true)}
+              className="h-10 px-3.5 rounded-lg border-2 border-[#665AEF]/40 bg-[#665AEF]/10 text-xs font-semibold text-[#a594fd] hover:bg-[#665AEF]/20 hover:text-white cursor-pointer gap-2 transition-colors shrink-0 shadow-xs"
+              title="Reverse Face Search across all enrolled criminals"
+            >
+              <ScanFace className="size-4 text-[#665AEF]" />
+              <span>Scan Face</span>
+            </Button>
 
             {/* Toggle button to reopen preview when closed */}
             {!showPreview && (
@@ -849,22 +996,66 @@ export function CriminalsTable({ initialCriminals = [] }: CriminalsTableProps) {
                   Photo
                 </TableHead>
                 <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase px-2.5 py-3 whitespace-nowrap">
-                  Name
+                  <button
+                    type="button"
+                    onClick={() => handleToggleSort("name")}
+                    className="flex items-center gap-1.5 hover:text-foreground transition-colors cursor-pointer group"
+                  >
+                    <span>Name</span>
+                    {sortKey === "name" ? (
+                      sortOrder === "asc" ? <ArrowUp className="size-3 text-[#665AEF]" /> : <ArrowDown className="size-3 text-[#665AEF]" />
+                    ) : (
+                      <ArrowUpDown className="size-3 opacity-40 group-hover:opacity-100 transition-opacity" />
+                    )}
+                  </button>
                 </TableHead>
                 <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase px-2.5 py-3 whitespace-nowrap">
                   Aliases
                 </TableHead>
                 <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase px-2.5 py-3 whitespace-nowrap">
-                  Date of Birth
+                  <button
+                    type="button"
+                    onClick={() => handleToggleSort("dob")}
+                    className="flex items-center gap-1.5 hover:text-foreground transition-colors cursor-pointer group"
+                  >
+                    <span>Date of Birth</span>
+                    {sortKey === "dob" ? (
+                      sortOrder === "asc" ? <ArrowUp className="size-3 text-[#665AEF]" /> : <ArrowDown className="size-3 text-[#665AEF]" />
+                    ) : (
+                      <ArrowUpDown className="size-3 opacity-40 group-hover:opacity-100 transition-opacity" />
+                    )}
+                  </button>
                 </TableHead>
                 <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase px-2.5 py-3 whitespace-nowrap">
                   Crime Categories
                 </TableHead>
                 <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase px-2.5 py-3 whitespace-nowrap">
-                  Risk Level
+                  <button
+                    type="button"
+                    onClick={() => handleToggleSort("risk")}
+                    className="flex items-center gap-1.5 hover:text-foreground transition-colors cursor-pointer group"
+                  >
+                    <span>Risk Level</span>
+                    {sortKey === "risk" ? (
+                      sortOrder === "asc" ? <ArrowUp className="size-3 text-[#665AEF]" /> : <ArrowDown className="size-3 text-[#665AEF]" />
+                    ) : (
+                      <ArrowUpDown className="size-3 opacity-40 group-hover:opacity-100 transition-opacity" />
+                    )}
+                  </button>
                 </TableHead>
                 <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase px-2.5 py-3 whitespace-nowrap">
-                  Status
+                  <button
+                    type="button"
+                    onClick={() => handleToggleSort("status")}
+                    className="flex items-center gap-1.5 hover:text-foreground transition-colors cursor-pointer group"
+                  >
+                    <span>Status</span>
+                    {sortKey === "status" ? (
+                      sortOrder === "asc" ? <ArrowUp className="size-3 text-[#665AEF]" /> : <ArrowDown className="size-3 text-[#665AEF]" />
+                    ) : (
+                      <ArrowUpDown className="size-3 opacity-40 group-hover:opacity-100 transition-opacity" />
+                    )}
+                  </button>
                 </TableHead>
                 <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase text-right pr-3 py-3 whitespace-nowrap w-12">
                   Actions
@@ -938,7 +1129,7 @@ export function CriminalsTable({ initialCriminals = [] }: CriminalsTableProps) {
                       <TableCell className="px-2.5 py-3 whitespace-nowrap">
                         <div className="flex flex-col gap-0.5">
                           <Link
-                            href={`/dashboard/criminals/${c.id}`}
+                            href={`/dashboard/criminals/${getCriminalSlug(c)}`}
                             className="font-medium text-sm text-foreground hover:text-[#a594fd] transition-colors"
                             onClick={(e) => e.stopPropagation()}
                           >
@@ -1080,7 +1271,7 @@ export function CriminalsTable({ initialCriminals = [] }: CriminalsTableProps) {
       {showPreview && activeCriminal && (
         <div
           ref={previewContainerRef}
-          className="w-full xl:w-[380px] 2xl:w-[400px] xl:sticky xl:top-6 min-w-0 will-change-[transform,opacity]"
+          className="w-full xl:w-95 2xl:w-100 xl:sticky xl:top-6 min-w-0 will-change-[transform,opacity]"
         >
           <CriminalProfilePreview
             criminal={activeCriminal}
@@ -1220,6 +1411,19 @@ export function CriminalsTable({ initialCriminals = [] }: CriminalsTableProps) {
                 </DropdownMenuContent>
               </DropdownMenu>
 
+              {/* Link to Case Modal Trigger */}
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={isBulkUpdating}
+                onClick={() => setIsBulkLinkOpen(true)}
+                className="h-8 px-2.5 sm:px-3 rounded-lg border-2 border-border bg-card/80 hover:bg-muted/60 text-xs font-medium cursor-pointer gap-1.5"
+              >
+                <FolderPlus className="size-3.5 text-[#665AEF]" />
+                <span className="hidden sm:inline">Link to Case</span>
+                <span className="sm:hidden">Link</span>
+              </Button>
+
               {/* Clear Selection */}
               <Button
                 size="icon-xs"
@@ -1235,6 +1439,172 @@ export function CriminalsTable({ initialCriminals = [] }: CriminalsTableProps) {
         )}
       </AnimatePresence>
 
+      </div>
+
+      {/* Bulk Link to Case Modal */}
+      <Modal
+        isOpen={isBulkLinkOpen}
+        onClose={() => setIsBulkLinkOpen(false)}
+        title="Link Suspects to Active Case"
+        description={`Attach ${selectedIds.size} selected suspects to an ongoing investigation record.`}
+      >
+        <div className="space-y-4 pt-2">
+          <div className="space-y-1.5">
+            <label className="text-xs font-medium text-foreground">Case Number or Case ID</label>
+            <Input
+              placeholder="e.g. CAS-2026-001 or case UUID"
+              value={bulkCaseInput}
+              onChange={(e) => setBulkCaseInput(e.target.value)}
+              className="h-9 text-xs"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-foreground">Suspect Role</label>
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full h-9 justify-between rounded-lg border-2 border-border/80 bg-background/60 px-2.5 text-xs text-foreground cursor-pointer"
+                    />
+                  }
+                >
+                  <span className="truncate">
+                    {bulkRole === SuspectRole.DIRECT_INVOLVEMENT && "Direct Involvement"}
+                    {bulkRole === SuspectRole.POSSIBLE_ASSOCIATE && "Possible Associate"}
+                    {bulkRole === SuspectRole.ACCOMPLICE && "Accomplice"}
+                    {bulkRole === SuspectRole.INFORMANT && "Informant"}
+                    {bulkRole === SuspectRole.WITNESS && "Witness"}
+                    {bulkRole === SuspectRole.UNDER_INVESTIGATION && "Under Investigation"}
+                  </span>
+                  <ChevronDown className="size-3.5 text-muted-foreground opacity-70 shrink-0 ml-1.5" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="start"
+                  side="bottom"
+                  sideOffset={4}
+                  className="w-48 p-1 rounded-xl shadow-2xl bg-card/95 backdrop-blur-xl border-2 border-border z-50"
+                >
+                  {[
+                    { val: SuspectRole.DIRECT_INVOLVEMENT, label: "Direct Involvement" },
+                    { val: SuspectRole.POSSIBLE_ASSOCIATE, label: "Possible Associate" },
+                    { val: SuspectRole.ACCOMPLICE, label: "Accomplice" },
+                    { val: SuspectRole.INFORMANT, label: "Informant" },
+                    { val: SuspectRole.WITNESS, label: "Witness" },
+                    { val: SuspectRole.UNDER_INVESTIGATION, label: "Under Investigation" },
+                  ].map((r) => (
+                    <DropdownMenuItem
+                      key={r.val}
+                      onClick={() => setBulkRole(r.val)}
+                      className="cursor-pointer px-2.5 py-1.5 text-xs rounded-lg hover:bg-muted font-medium text-foreground flex items-center justify-between"
+                    >
+                      <span>{r.label}</span>
+                      {bulkRole === r.val && <Check className="size-3.5 text-[#665AEF]" />}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-foreground">Case Status</label>
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full h-9 justify-between rounded-lg border-2 border-border/80 bg-background/60 px-2.5 text-xs text-foreground cursor-pointer"
+                    />
+                  }
+                >
+                  <span className="truncate">
+                    {bulkStatus === SuspectCaseStatus.PRIMARY_SUSPECT && "Primary Suspect"}
+                    {bulkStatus === SuspectCaseStatus.PERSON_OF_INTEREST && "Person of Interest"}
+                    {bulkStatus === SuspectCaseStatus.ACCOMPLICE && "Accomplice"}
+                    {bulkStatus === SuspectCaseStatus.CLEARED && "Cleared"}
+                    {bulkStatus === SuspectCaseStatus.CONVICTED && "Convicted"}
+                  </span>
+                  <ChevronDown className="size-3.5 text-muted-foreground opacity-70 shrink-0 ml-1.5" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="start"
+                  side="bottom"
+                  sideOffset={4}
+                  className="w-48 p-1 rounded-xl shadow-2xl bg-card/95 backdrop-blur-xl border-2 border-border z-50"
+                >
+                  {[
+                    { val: SuspectCaseStatus.PRIMARY_SUSPECT, label: "Primary Suspect" },
+                    { val: SuspectCaseStatus.PERSON_OF_INTEREST, label: "Person of Interest" },
+                    { val: SuspectCaseStatus.ACCOMPLICE, label: "Accomplice" },
+                    { val: SuspectCaseStatus.CLEARED, label: "Cleared" },
+                    { val: SuspectCaseStatus.CONVICTED, label: "Convicted" },
+                  ].map((st) => (
+                    <DropdownMenuItem
+                      key={st.val}
+                      onClick={() => setBulkStatus(st.val)}
+                      className="cursor-pointer px-2.5 py-1.5 text-xs rounded-lg hover:bg-muted font-medium text-foreground flex items-center justify-between"
+                    >
+                      <span>{st.label}</span>
+                      {bulkStatus === st.val && <Check className="size-3.5 text-[#665AEF]" />}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsBulkLinkOpen(false)}
+              className="h-9 px-3 text-xs"
+            >
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              disabled={!bulkCaseInput.trim() || isBulkLinking}
+              onClick={async () => {
+                setIsBulkLinking(true);
+                const ids = Array.from(selectedIds);
+                try {
+                  const res = await bulkLinkCriminalsToCase(
+                    bulkCaseInput.trim(),
+                    ids,
+                    bulkRole,
+                    bulkStatus
+                  );
+                  if (res.error) {
+                    toast.error(res.error);
+                  } else {
+                    toast.success(
+                      `Linked ${res.count} suspects to Case ${res.caseNumber || bulkCaseInput}`
+                    );
+                    setIsBulkLinkOpen(false);
+                    setBulkCaseInput("");
+                    setSelectedIds(new Set());
+                  }
+                } catch (err: any) {
+                  toast.error(err?.message || "Failed to link suspects to case");
+                } finally {
+                  setIsBulkLinking(false);
+                }
+              }}
+              className="h-9 px-4 text-xs bg-[#665AEF] hover:bg-[#5749DF] text-white"
+            >
+              {isBulkLinking ? "Linking..." : `Link ${selectedIds.size} Suspects`}
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Optical Biometric Face Search Modal */}
+      <OpticalFaceSearchModal
+        isOpen={isOpticalSearchOpen}
+        onClose={() => setIsOpticalSearchOpen(false)}
+      />
     </div>
   );
 }
@@ -1332,7 +1702,7 @@ function CriminalProfilePreview({
   };
 
   return (
-    <div className="rounded-xl border-2 border-border bg-card/40 p-4 sm:p-5 shadow-xs overflow-hidden w-full max-w-[400px] 2xl:max-w-[420px] mx-auto xl:max-w-none">
+    <div className="rounded-xl border-2 border-border bg-card/40 p-4 sm:p-5 shadow-xs overflow-hidden w-full max-w-100 2xl:max-w-105 mx-auto xl:max-w-none">
       <div
         ref={cardContentRef}
         className="w-full flex flex-col gap-4 will-change-[transform,opacity]"
@@ -1363,7 +1733,7 @@ function CriminalProfilePreview({
             {/* Mugshot + Key Info */}
             <div className="flex gap-4">
               {/* Mugshot (Portrait aspect ~3:4.2 matching key info height) */}
-              <div className="relative w-[130px] sm:w-[138px] h-[190px] rounded-lg overflow-hidden border-2 border-border/80 bg-black/40 shrink-0 shadow-inner">
+              <div className="relative w-32.5 sm:w-34.5 h-47.5 rounded-lg overflow-hidden border-2 border-border/80 bg-black/40 shrink-0 shadow-inner">
                 {(() => {
                   const previewSrc = getSafeStorageUrl(criminal.mugshotUrl);
                   return previewSrc ? (
@@ -1533,7 +1903,7 @@ function CriminalProfilePreview({
             <div className="flex flex-col gap-2 pt-1 mt-auto">
               <Button
                 className="w-full h-10 rounded-lg bg-[#665AEF] hover:bg-[#5749DF] text-white text-sm font-medium shadow-sm shadow-[#665AEF]/25 flex items-center justify-center gap-2 cursor-pointer transition-all"
-                render={<Link href={`/dashboard/criminals/${criminal.id}`} />}
+                render={<Link href={`/dashboard/criminals/${getCriminalSlug(criminal)}`} />}
                 nativeButton={false}
               >
                 <span>View Full Profile</span>

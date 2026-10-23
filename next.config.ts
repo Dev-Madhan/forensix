@@ -4,6 +4,22 @@ const nextConfig: NextConfig = {
   allowedDevOrigins: ["192.168.29.12"],
   reactCompiler: true,
   images: {
+    localPatterns: [
+      {
+        pathname: "/api/**",
+        search: "?**",
+      },
+      {
+        pathname: "/api/**",
+      },
+      {
+        pathname: "/**",
+        search: "?**",
+      },
+      {
+        pathname: "/**",
+      },
+    ],
     remotePatterns: [
       {
         protocol: "https",

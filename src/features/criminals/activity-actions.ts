@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import crypto from "crypto";
+import { SurveillanceHitStatus } from "@prisma/client";
 
 export type CriminalActivityCategory =
   | "SURVEILLANCE"
@@ -36,6 +37,8 @@ export interface CriminalActivityItem {
     sensorId?: string;
     caseNumber?: string;
     evidenceHash?: string;
+    hitId?: string;
+    hitStatus?: string;
     blockHash: string;
     previousBlockHash: string;
   };
@@ -219,59 +222,70 @@ function formatActionTitle(rawAction: string): string {
  */
 export async function fetchCriminalActivityLogs(criminalId: string): Promise<CriminalActivityItem[]> {
   try {
-    // 1. Fetch real AuditLog records matching criminal id or criminalId field
-    const dbLogs = await prisma.auditLog.findMany({
-      where: {
-        OR: [
-          { entityId: criminalId },
-          {
-            details: {
-              path: ["criminalId"],
-              equals: criminalId,
+    // 1. Fetch real AuditLog records, RecognitionResults, and SurveillanceHits in parallel
+    const [dbLogs, recognitionResults, surveillanceHits] = await Promise.all([
+      prisma.auditLog.findMany({
+        where: {
+          OR: [
+            { entityId: criminalId },
+            {
+              details: {
+                path: ["criminalId"],
+                equals: criminalId,
+              },
+            },
+          ],
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              badgeId: true,
+              role: true,
+              image: true,
             },
           },
-        ],
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-            badgeId: true,
-            role: true,
-            image: true,
-          },
         },
-      },
-      orderBy: { createdAt: "desc" },
-      take: 50,
-    }).catch(() => []);
+        orderBy: { createdAt: "desc" },
+        take: 50,
+      }).catch(() => []),
 
-    // 2. Fetch real RecognitionResults linked to this criminal
-    const recognitionResults = await prisma.recognitionResult.findMany({
-      where: { criminalId },
-      include: {
-        sketch: {
-          select: {
-            id: true,
-            caseId: true,
-            case: {
-              select: {
-                caseNumber: true,
-                title: true,
+      prisma.recognitionResult.findMany({
+        where: {
+          OR: [{ criminalId }, { criminal: { criminalId } }],
+        },
+        include: {
+          sketch: {
+            select: {
+              id: true,
+              caseId: true,
+              case: {
+                select: {
+                  caseNumber: true,
+                  title: true,
+                },
               },
             },
           },
         },
-      },
-      orderBy: { createdAt: "desc" },
-      take: 20,
-    }).catch(() => []);
+        orderBy: { createdAt: "desc" },
+        take: 20,
+      }).catch(() => []),
+
+      prisma.surveillanceHit.findMany({
+        where: {
+          OR: [{ criminalId }, { criminal: { criminalId } }],
+        },
+        orderBy: { createdAt: "desc" },
+        take: 30,
+      }).catch(() => []),
+    ]);
 
     // 3. If no logs exist yet in the database, query the criminal's real row in PostgreSQL
     // and record the genuine profile enrollment event into AuditLog so it's permanently stored.
-    if (dbLogs.length === 0 && recognitionResults.length === 0) {
+    if (dbLogs.length === 0 && recognitionResults.length === 0 && surveillanceHits.length === 0) {
       const criminal = await prisma.criminal.findUnique({
         where: { id: criminalId },
         select: {
@@ -372,6 +386,8 @@ export async function fetchCriminalActivityLogs(criminalId: string): Promise<Cri
       caseNumber?: string;
       evidenceHash?: string;
       confidenceScore?: number;
+      hitId?: string;
+      hitStatus?: string;
     }> = [];
 
     for (const log of dbLogs) {
@@ -441,6 +457,31 @@ export async function fetchCriminalActivityLogs(criminalId: string): Promise<Cri
       });
     }
 
+    // 6. Map real surveillance hits
+    for (const hit of surveillanceHits) {
+      rawEvents.push({
+        id: `surv-${hit.id}`,
+        action: `Camera Telemetry Sighting [${hit.sensorId}]`,
+        category: "SURVEILLANCE",
+        severity: hit.confidenceScore >= 0.85 ? "critical" : "warning",
+        date: hit.createdAt,
+        officer: {
+          name: hit.sensorName || hit.sensorId,
+          badgeId: hit.sensorId,
+          role: "Automated ANPR/CCTV Sensor",
+          isAutomatedSensor: true,
+        },
+        details:
+          hit.details ||
+          `Subject detected at ${hit.location} with ${(hit.confidenceScore * 100).toFixed(1)}% facial correlation. Status: ${hit.status}.`,
+        location: hit.location,
+        sensorId: hit.sensorId,
+        confidenceScore: hit.confidenceScore,
+        hitId: hit.id,
+        hitStatus: hit.status,
+      });
+    }
+
     // Sort chronologically ascending to compute sequential block hashes
     rawEvents.sort((a, b) => a.date.getTime() - b.date.getTime());
 
@@ -479,6 +520,8 @@ export async function fetchCriminalActivityLogs(criminalId: string): Promise<Cri
           sensorId: item.sensorId,
           caseNumber: item.caseNumber,
           evidenceHash: item.evidenceHash,
+          hitId: (item as any).hitId,
+          hitStatus: (item as any).hitStatus,
           blockHash,
           previousBlockHash: prevHash,
         },
@@ -785,3 +828,54 @@ export async function verifyCriminalLedgerIntegrity(
     verifiedAt: new Date().toISOString(),
   };
 }
+
+/**
+ * Records a real-time ANPR / sensor surveillance hit in the database,
+ * linking it to the criminal's surveillance history and cryptographically audited ledger.
+ */
+export async function recordSurveillanceHitAction(params: {
+  criminalId: string;
+  sensorId: string;
+  sensorName?: string;
+  location: string;
+  latitude: number;
+  longitude: number;
+  confidenceScore: number;
+  details?: string;
+  status?: SurveillanceHitStatus;
+}): Promise<{ success: boolean; hit?: any; error?: string }> {
+  try {
+    const hit = await prisma.surveillanceHit.create({
+      data: {
+        criminalId: params.criminalId,
+        sensorId: params.sensorId,
+        sensorName: params.sensorName || params.sensorId,
+        location: params.location,
+        latitude: params.latitude,
+        longitude: params.longitude,
+        confidenceScore: params.confidenceScore,
+        details: params.details || `Automated optical sensor detection at ${params.location}`,
+        status: params.status || SurveillanceHitStatus.UNACKNOWLEDGED,
+      },
+    });
+
+    // Also record cryptographic SHA-256 activity event into the immutable ledger
+    await recordCriminalActivityEvent({
+      criminalId: params.criminalId,
+      action: "SURVEILLANCE_DETECTION",
+      category: "SURVEILLANCE",
+      severity: params.confidenceScore >= 0.9 ? "critical" : "warning",
+      details: `Sensor detection logged: ${params.sensorName || params.sensorId} at ${params.location} with ${(params.confidenceScore * 100).toFixed(1)}% match confidence`,
+      location: params.location,
+      sensorId: params.sensorId,
+      coordinates: [params.latitude, params.longitude],
+      confidenceScore: params.confidenceScore,
+    });
+
+    return { success: true, hit };
+  } catch (error: any) {
+    console.error("Error creating surveillance hit:", error);
+    return { success: false, error: error?.message || "Failed to log surveillance detection" };
+  }
+}
+
