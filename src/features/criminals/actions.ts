@@ -7,15 +7,15 @@ import {
   CreateCriminalSchema,
   UpdateCriminalSchema,
   LinkCriminalToCaseSchema,
-  RecordSurveillanceHitSchema,
   CreateCriminalRecordSchema,
 } from "@/schemas/criminal.schema";
 import { revalidatePath } from "next/cache";
 import { tigris, TIGRIS_BUCKET } from "@/lib/tigris";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
 import crypto from "crypto";
-import { criminalEventBus } from "@/lib/sse-bus";
-import { CriminalRiskLevel, CriminalStatus, SurveillanceHitStatus } from "@prisma/client";
+import { CriminalRiskLevel, CriminalStatus } from "@prisma/client";
+import { getEvidenceSignedUrl } from "@/features/evidence/queries";
+import { getSafeStorageUrl } from "@/lib/storage-url";
 
 export async function createCriminal(data: unknown) {
   const session = await auth.api.getSession({
@@ -57,19 +57,6 @@ export async function createCriminal(data: unknown) {
       },
     });
 
-    // Broadcast real-time event to connected investigators
-    criminalEventBus.broadcast({
-      type: "CRIMINAL_CREATED",
-      criminalId: criminal.id,
-      data: {
-        criminalId: criminal.criminalId,
-        firstName: criminal.firstName,
-        lastName: criminal.lastName,
-        alias: criminal.alias,
-        status: criminal.status,
-        riskLevel: criminal.riskLevel,
-      },
-    });
 
     revalidatePath("/dashboard/criminals");
     return { success: true, data: criminal };
@@ -115,17 +102,6 @@ export async function updateCriminal(data: unknown) {
       },
     });
 
-    // Broadcast real-time event
-    criminalEventBus.broadcast({
-      type: "CRIMINAL_UPDATED",
-      criminalId: criminal.id,
-      data: {
-        criminalId: criminal.criminalId,
-        status: criminal.status,
-        riskLevel: criminal.riskLevel,
-        updatedFields: Object.keys(updateData),
-      },
-    });
 
     revalidatePath("/dashboard/criminals");
     revalidatePath(`/dashboard/criminals/${criminal.id}`);
@@ -203,11 +179,6 @@ export async function archiveCriminal(criminalId: string) {
       },
     });
 
-    criminalEventBus.broadcast({
-      type: "STATUS_CHANGED",
-      criminalId: criminal.id,
-      data: { status: "ARCHIVED" },
-    });
 
     revalidatePath("/dashboard/criminals");
     revalidatePath(`/dashboard/criminals/${criminal.id}`);
@@ -366,19 +337,6 @@ export async function linkCriminalToCase(data: unknown) {
       },
     });
 
-    // Realtime Broadcast
-    criminalEventBus.broadcast({
-      type: "CASE_LINKED",
-      criminalId: actualCriminalId,
-      data: {
-        caseId: actualCaseId,
-        caseNumber: caseSuspect.case.caseNumber,
-        caseTitle: caseSuspect.case.title,
-        status,
-        role,
-        matchConfidence,
-      },
-    });
 
     revalidatePath("/dashboard/criminals");
     revalidatePath(`/dashboard/criminals/${actualCriminalId}`);
@@ -447,11 +405,6 @@ export async function unlinkCriminalFromCase(caseId: string, criminalId: string)
       },
     });
 
-    criminalEventBus.broadcast({
-      type: "CASE_UNLINKED",
-      criminalId: actualCriminalId,
-      data: { caseId: actualCaseId, criminalId: actualCriminalId },
-    });
 
     revalidatePath("/dashboard/criminals");
     revalidatePath(`/dashboard/criminals/${actualCriminalId}`);
@@ -504,137 +457,35 @@ export async function getAvailableCriminalsForCase(searchTerm?: string) {
       },
     });
 
-    return { success: true, data: criminals };
+    const resolved = await Promise.all(
+      criminals.map(async (c) => {
+        let mugshot = c.mugshotUrl;
+        if (
+          mugshot &&
+          !mugshot.startsWith("http://") &&
+          !mugshot.startsWith("https://") &&
+          !mugshot.startsWith("/")
+        ) {
+          try {
+            mugshot = await getEvidenceSignedUrl(mugshot);
+          } catch {
+            mugshot = `/api/storage?key=${encodeURIComponent(c.mugshotUrl!)}`;
+          }
+        }
+        return {
+          ...c,
+          mugshotUrl: mugshot || "/images/suspects/arun-prakash.jpg",
+        };
+      })
+    );
+
+    return { success: true, data: resolved };
   } catch (error) {
     console.error("Failed to fetch available criminals:", error);
     return { error: "Failed to fetch criminals", data: [] };
   }
 }
 
-/**
- * Record a Live Surveillance / ANPR sensor hit into the central database
- */
-export async function recordSurveillanceHit(data: unknown) {
-  const result = RecordSurveillanceHitSchema.safeParse(data);
-  if (!result.success) {
-    return { error: "Invalid sensor hit data", details: result.error.flatten() };
-  }
-
-  const {
-    criminalId,
-    sensorId,
-    sensorName,
-    location,
-    latitude,
-    longitude,
-    confidenceScore,
-    capturedMediaUrl,
-    details,
-  } = result.data;
-
-  try {
-    const hit = await prisma.surveillanceHit.create({
-      data: {
-        criminalId,
-        sensorId,
-        sensorName,
-        location,
-        latitude,
-        longitude,
-        confidenceScore,
-        capturedMediaUrl,
-        details,
-        status: "UNACKNOWLEDGED",
-      },
-      include: {
-        criminal: {
-          select: {
-            id: true,
-            criminalId: true,
-            firstName: true,
-            lastName: true,
-            alias: true,
-            status: true,
-            riskLevel: true,
-          },
-        },
-      },
-    });
-
-    // Also record into immutable AuditLog
-    await prisma.auditLog.create({
-      data: {
-        action: "SURVEILLANCE_HIT_RECORDED",
-        entityType: "SurveillanceHit",
-        entityId: hit.id,
-        details: {
-          criminalId,
-          sensorId,
-          location,
-          confidenceScore,
-          isHighRisk: hit.criminal.status === "WANTED" || hit.criminal.riskLevel === "CRITICAL",
-        },
-      },
-    });
-
-    // Broadcast live event across all active screens
-    criminalEventBus.broadcast({
-      type: "SURVEILLANCE_HIT",
-      criminalId,
-      data: {
-        hitId: hit.id,
-        sensorId: hit.sensorId,
-        sensorName: hit.sensorName || hit.sensorId,
-        location: hit.location,
-        coordinates: [hit.latitude, hit.longitude],
-        confidenceScore: hit.confidenceScore,
-        subjectName: `${hit.criminal.firstName} ${hit.criminal.lastName}`,
-        subjectAlias: hit.criminal.alias,
-        status: hit.criminal.status,
-        riskLevel: hit.criminal.riskLevel,
-        capturedMediaUrl: hit.capturedMediaUrl,
-        timestamp: hit.createdAt.toISOString(),
-      },
-    });
-
-    revalidatePath("/dashboard/criminals");
-    revalidatePath(`/dashboard/criminals/${criminalId}`);
-
-    return { success: true, data: hit };
-  } catch (error) {
-    console.error("Failed to record surveillance hit:", error);
-    return { error: "Failed to record surveillance hit" };
-  }
-}
-
-/**
- * Acknowledge an active surveillance detection
- */
-export async function acknowledgeSurveillanceHit(hitId: string, status: SurveillanceHitStatus = "INVESTIGATING") {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
-
-  if (!session || !session.user) {
-    return { error: "Unauthorized" };
-  }
-
-  try {
-    const updated = await prisma.surveillanceHit.update({
-      where: { id: hitId },
-      data: {
-        status,
-        acknowledgedBy: session.user.id,
-        acknowledgedAt: new Date(),
-      },
-    });
-
-    return { success: true, data: updated };
-  } catch (error) {
-    console.error("Failed to acknowledge hit:", error);
-    return { error: "Failed to acknowledge hit" };
-  }
-}
 
 /**
  * Quick status & risk level updater with real-time broadcast
@@ -674,14 +525,6 @@ export async function updateCriminalStatusAndRisk(params: {
       },
     });
 
-    criminalEventBus.broadcast({
-      type: "STATUS_CHANGED",
-      criminalId: criminal.id,
-      data: {
-        status: criminal.status,
-        riskLevel: criminal.riskLevel,
-      },
-    });
 
     revalidatePath("/dashboard/criminals");
     revalidatePath(`/dashboard/criminals/${criminal.id}`);
@@ -692,52 +535,6 @@ export async function updateCriminalStatusAndRisk(params: {
   }
 }
 
-/**
- * Simulates a realistic live sensor ping on demand (e.g. from the Live Radar UI button)
- */
-export async function triggerLiveRadarSimulatedDetection(criminalId: string) {
-  const sensors = [
-    {
-      sensorId: "ANPR-CAM-11-ANNA-SALAI",
-      sensorName: "Anna Salai High-Speed ANPR Camera #11",
-      location: "Anna Salai - Mount Road Junction, Chennai",
-      latitude: 13.0604,
-      longitude: 80.2496,
-      score: 0.965,
-      detail: "Automated license recognition detected vehicle matching registered associate vehicle.",
-    },
-    {
-      sensorId: "CCTV-AI-03-CENTRAL-STATION",
-      sensorName: "Central Railway Station CCTV Terminal #03",
-      location: "Chennai Central Railway Station - Gate 4",
-      latitude: 13.0827,
-      longitude: 80.2707,
-      score: 0.938,
-      detail: "Biometric face tracker matched subject face embedding with 93.8% confidence.",
-    },
-    {
-      sensorId: "METRO-RADAR-GATE-02",
-      sensorName: "Airport Metro Station Concourse Sensor",
-      location: "Chennai Airport Metro Concourse",
-      latitude: 12.9818,
-      longitude: 80.1637,
-      score: 0.912,
-      detail: "Perimeter checkpoint camera triggered facial similarity match.",
-    },
-  ];
-
-  const pick = sensors[Math.floor(Math.random() * sensors.length)];
-  return await recordSurveillanceHit({
-    criminalId,
-    sensorId: pick.sensorId,
-    sensorName: pick.sensorName,
-    location: pick.location,
-    latitude: pick.latitude,
-    longitude: pick.longitude,
-    confidenceScore: pick.score,
-    details: pick.detail,
-  });
-}
 
 /**
  * Create an official Judicial / Criminal Record (Priors, Convictions, Cases)
@@ -790,16 +587,6 @@ export async function createCriminalRecord(data: unknown) {
       },
     });
 
-    criminalEventBus.broadcast({
-      type: "RECORD_CREATED",
-      criminalId: record.criminalId,
-      data: {
-        recordId: record.id,
-        courtCaseNumber: record.courtCaseNumber,
-        offenceType: record.offenceType,
-        status: record.status,
-      },
-    });
 
     revalidatePath("/dashboard/criminals");
     revalidatePath(`/dashboard/criminals/${record.criminalId}`);
@@ -841,11 +628,6 @@ export async function deleteCriminalRecord(recordId: string, criminalId: string)
       },
     });
 
-    criminalEventBus.broadcast({
-      type: "RECORD_DELETED",
-      criminalId,
-      data: { recordId, criminalId },
-    });
 
     revalidatePath("/dashboard/criminals");
     revalidatePath(`/dashboard/criminals/${criminalId}`);
@@ -903,11 +685,6 @@ export async function toggleCriminalWatchlist(criminalId: string, onWatchlist: b
       },
     });
 
-    criminalEventBus.broadcast({
-      type: "WATCHLIST_TOGGLED",
-      criminalId,
-      data: { onWatchlist },
-    });
 
     revalidatePath("/dashboard/criminals");
     revalidatePath(`/dashboard/criminals/${criminalId}`);
@@ -972,13 +749,6 @@ export async function bulkToggleCriminalWatchlist(criminalIds: string[], onWatch
       },
     });
 
-    for (const c of existing) {
-      criminalEventBus.broadcast({
-        type: "WATCHLIST_TOGGLED",
-        criminalId: c.id,
-        data: { onWatchlist },
-      });
-    }
 
     revalidatePath("/dashboard/criminals");
     return { success: true, count: targetIds.length, onWatchlist };
@@ -1027,13 +797,6 @@ export async function bulkUpdateCriminalStatus(criminalIds: string[], status: Cr
       },
     });
 
-    for (const c of existing) {
-      criminalEventBus.broadcast({
-        type: "STATUS_CHANGED",
-        criminalId: c.id,
-        data: { status },
-      });
-    }
 
     revalidatePath("/dashboard/criminals");
     return { success: true, count: targetIds.length, status };
@@ -1098,11 +861,6 @@ export async function updateCriminalPhoto(criminalId: string, formData: FormData
       },
     });
 
-    criminalEventBus.broadcast({
-      type: "PHOTO_UPDATED",
-      criminalId,
-      data: { storageKey },
-    });
 
     revalidatePath("/dashboard/criminals");
     revalidatePath(`/dashboard/criminals/${criminalId}`);
@@ -1179,11 +937,6 @@ export async function uploadCriminalBiometric(formData: FormData) {
       },
     });
 
-    criminalEventBus.broadcast({
-      type: "BIOMETRIC_ENROLLED",
-      criminalId,
-      data: { biometricType, storageKey },
-    });
 
     revalidatePath("/dashboard/criminals");
     revalidatePath(`/dashboard/criminals/${criminalId}`);
@@ -1208,7 +961,7 @@ export async function runCriminalFacialBiometricSearch(criminalId: string) {
   }
 
   try {
-    // 1. Fetch current subject
+    // 1. Fetch current subject and check if embedding is enrolled
     const subject = await prisma.criminal.findUnique({
       where: { id: criminalId },
       include: {
@@ -1229,38 +982,89 @@ export async function runCriminalFacialBiometricSearch(criminalId: string) {
       return { error: "Subject not found" };
     }
 
-    // 2. Fetch other suspects in catalog for comparison candidates
-    const otherCriminals = await prisma.criminal.findMany({
-      where: { id: { not: criminalId } },
-      take: 6,
-      select: {
-        id: true,
-        criminalId: true,
-        firstName: true,
-        lastName: true,
-        status: true,
-        mugshotUrl: true,
-      },
-    });
+    // Check if subject has an enrolled pgvector embedding
+    const subjectEmbCheck: any = await prisma.$queryRawUnsafe(
+      `SELECT (embedding IS NOT NULL) as has_embedding FROM "Criminal" WHERE id = '${criminalId}'`
+    );
+    const hasEmbedding = Boolean(subjectEmbCheck?.[0]?.has_embedding);
 
-    const candidates = otherCriminals.map((c, i) => {
-      // Deterministic, realistic high confidence scores for biometric ranking
-      const scores = [92.4, 88.7, 76.2, 69.5, 64.1, 58.3];
-      return {
+    let candidates: Array<{
+      id: string;
+      name: string;
+      code: string;
+      confidence: number;
+      imageSrc: string | null;
+      status: string;
+    }> = [];
+
+    if (hasEmbedding) {
+      // 2a. Execute real pgvector cosine similarity query
+      const rows: any = await prisma.$queryRawUnsafe(`
+        SELECT 
+          id, 
+          "criminalId", 
+          "firstName", 
+          "lastName", 
+          "alias", 
+          "status", 
+          "mugshotUrl",
+          1 - ("embedding" <=> (SELECT "embedding" FROM "Criminal" WHERE id = '${criminalId}')) AS similarity
+        FROM "Criminal"
+        WHERE id != '${criminalId}' AND "embedding" IS NOT NULL
+        ORDER BY "embedding" <=> (SELECT "embedding" FROM "Criminal" WHERE id = '${criminalId}') ASC
+        LIMIT 6;
+      `);
+
+      candidates = rows.map((c: any) => {
+        const sim = Number(c.similarity) || 0;
+        const confidence = Math.round(Math.max(0.1, Math.min(1, sim)) * 100);
+        return {
+          id: c.id,
+          name: `${c.firstName} ${c.lastName}`.trim(),
+          code: c.criminalId,
+          confidence,
+          imageSrc: c.mugshotUrl ? getSafeStorageUrl(c.mugshotUrl) : null,
+          status: c.status,
+        };
+      });
+    } else {
+      // 2b. Subject does not have an embedding enrolled yet
+      const otherCriminals = await prisma.criminal.findMany({
+        where: { id: { not: criminalId } },
+        take: 6,
+        select: {
+          id: true,
+          criminalId: true,
+          firstName: true,
+          lastName: true,
+          status: true,
+          mugshotUrl: true,
+        },
+      });
+
+      candidates = otherCriminals.map((c) => ({
         id: c.id,
-        name: `${c.firstName} ${c.lastName}`,
+        name: `${c.firstName} ${c.lastName}`.trim(),
         code: c.criminalId,
-        confidence: scores[i] || Math.round(55 + Math.random() * 40),
-        imageSrc: c.mugshotUrl || "/images/suspects/arjun-karthik.jpg",
+        confidence: 0,
+        imageSrc: c.mugshotUrl ? getSafeStorageUrl(c.mugshotUrl) : null,
         status: c.status,
-      };
-    });
+      }));
+    }
+
+    const safeSubjectImg = subject.mugshotUrl
+      ? getSafeStorageUrl(subject.mugshotUrl)
+      : null;
 
     return {
       success: true,
+      hasEmbedding,
       candidates,
       scannedAt: new Date().toISOString(),
-      subjectMugshot: subject.mugshotUrl,
+      subjectMugshot: safeSubjectImg,
+      message: hasEmbedding
+        ? `Evaluated ${candidates.length} candidate comparisons via Neon pgvector cosine similarity.`
+        : "Subject does not have a 512D facial embedding enrolled yet. Catalog candidates displayed for manual comparison.",
     };
   } catch (error) {
     console.error("Failed to run facial biometric search:", error);

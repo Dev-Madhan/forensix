@@ -15,6 +15,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Table,
   TableHeader,
   TableBody,
@@ -62,6 +68,9 @@ import {
   Copy,
   ExternalLink,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Search,
   Trash2,
   Hash,
   RefreshCw,
@@ -69,6 +78,7 @@ import {
 } from "lucide-react";
 import type { Criminal } from "@prisma/client";
 import { toast } from "sonner";
+import { SuspectAvatar } from "@/components/criminals/suspect-avatar";
 import { CriminalActivityTab } from "./activity/criminal-activity-tab";
 import {
   linkCriminalToCase,
@@ -76,7 +86,6 @@ import {
   deleteCriminalRecord,
   runCriminalFacialBiometricSearch,
 } from "@/features/criminals/actions";
-import { useCriminalRealtime } from "@/hooks/use-criminal-realtime";
 
 const DEFAULT_SUGGESTED_ALIASES = [
   "Shadow",
@@ -88,6 +97,56 @@ const DEFAULT_SUGGESTED_ALIASES = [
   "Cobra",
   "The Fox",
 ];
+
+// Biometrics Tab Types
+export interface FaceMatchCandidate {
+  id: string;
+  name: string;
+  code: string;
+  confidence: number;
+  imageSrc: string | null;
+  status?: string;
+}
+
+interface BiometricMatchHistoryItem {
+  id: string;
+  rowNumber: string;
+  dateTime: string;
+  queriedImageSrc: string;
+  matchName: string;
+  matchCode: string;
+  confidence: number;
+  initiatedBy: string;
+  status: "Match Found" | "Reviewed" | "Inconclusive";
+  caseId?: string;
+}
+
+function renderBiometricStatusBadge(status: BiometricMatchHistoryItem["status"]) {
+  switch (status) {
+    case "Match Found":
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-semibold border-2 border-emerald-500/40 bg-emerald-500/10 text-emerald-400">
+          <CheckCircle2 className="size-3" />
+          <span>Match Found</span>
+        </span>
+      );
+    case "Reviewed":
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-semibold border-2 border-blue-500/40 bg-blue-500/10 text-blue-400">
+          <Eye className="size-3" />
+          <span>Reviewed</span>
+        </span>
+      );
+    case "Inconclusive":
+    default:
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-semibold border-2 border-amber-500/40 bg-amber-500/10 text-amber-400">
+          <AlertTriangle className="size-3" />
+          <span>Inconclusive</span>
+        </span>
+      );
+  }
+}
 
 interface CriminalProfileTabsProps {
   criminal: Criminal;
@@ -120,132 +179,12 @@ interface EvidenceItem {
   officer: string;
 }
 
-const RECENT_EVIDENCE: EvidenceItem[] = [
-  {
-    id: "ev-1",
-    name: "Knife_Evidence_01.jpg",
-    type: "image",
-    date: "Oct 4, 2026",
-    imageSrc: "/images/evidence/knife_evidence_01.jpg",
-    size: "701 KB",
-    sha256: "9f8a32b1e4c7d0...3b",
-    officer: "Insp. Ramanathan S.",
-  },
-  {
-    id: "ev-2",
-    name: "CCTV_Footage_01.mp4",
-    type: "video",
-    date: "Oct 4, 2026",
-    imageSrc: "/images/evidence/cctv_footage_01.jpg",
-    duration: "00:32",
-    size: "14.2 MB",
-    sha256: "4a71bc90f23e...88",
-    officer: "Sub-Insp. Priya K.",
-  },
-  {
-    id: "ev-3",
-    name: "Bike_Registration.jpg",
-    type: "image",
-    date: "Oct 3, 2026",
-    imageSrc: "/images/evidence/bike_registration.jpg",
-    size: "989 KB",
-    sha256: "8e0192df44a...12",
-    officer: "Insp. Ramanathan S.",
-  },
-  {
-    id: "ev-4",
-    name: "Mask_Evidence.jpg",
-    type: "image",
-    date: "Oct 2, 2026",
-    imageSrc: "/images/evidence/mask_evidence.jpg",
-    size: "710 KB",
-    sha256: "cc3910ab38...fa",
-    officer: "Forensic Tech Anand",
-  },
-  // Extra 4 items for full "Evidence (8)" tab
-  {
-    id: "ev-5",
-    name: "Ballistics_Report_9mm.pdf",
-    type: "document",
-    date: "Sep 28, 2026",
-    imageSrc: "/images/evidence/cctv_footage_01.jpg",
-    size: "1.8 MB",
-    sha256: "2d9910fe71...bc",
-    officer: "Chief Ballistics Officer",
-  },
-  {
-    id: "ev-6",
-    name: "Latent_Fingerprint_Card.scan",
-    type: "scan",
-    date: "Sep 25, 2026",
-    imageSrc: "/images/evidence/knife_evidence_01.jpg",
-    size: "4.2 MB",
-    sha256: "ea8290bc33...67",
-    officer: "Forensic Lab Chennai",
-  },
-  {
-    id: "ev-7",
-    name: "CCTV_Storefront_AngleB.mp4",
-    type: "video",
-    date: "Sep 22, 2026",
-    imageSrc: "/images/evidence/mask_evidence.jpg",
-    duration: "01:15",
-    size: "28.4 MB",
-    sha256: "71cd90fa54...44",
-    officer: "Sub-Insp. Priya K.",
-  },
-  {
-    id: "ev-8",
-    name: "Witness_Deposition_Audio.wav",
-    type: "document",
-    date: "Sep 18, 2026",
-    imageSrc: "/images/evidence/bike_registration.jpg",
-    size: "8.6 MB",
-    sha256: "33eb71af29...51",
-    officer: "Insp. Ramanathan S.",
-  },
-];
-
-// Related Cases matching the reference image exactly
 interface RelatedCase {
   caseNumber: string;
   title: string;
   status: "Under Investigation" | "Solved" | "In Court" | "Closed";
   statusColor: string;
 }
-
-const RELATED_CASES: RelatedCase[] = [
-  {
-    caseNumber: "FX-2026-184",
-    title: "Downtown Robbery",
-    status: "Under Investigation",
-    statusColor: "border-[#7E22CE]/40 bg-[#2D1B4E]/80 text-[#C084FC]",
-  },
-  {
-    caseNumber: "FX-2026-172",
-    title: "Jewelry Store Theft",
-    status: "Solved",
-    statusColor: "border-emerald-500/40 bg-emerald-500/15 text-emerald-400",
-  },
-  {
-    caseNumber: "FX-2025-098",
-    title: "Assault Case",
-    status: "In Court",
-    statusColor: "border-blue-500/40 bg-blue-500/15 text-blue-400",
-  },
-  {
-    caseNumber: "FX-2024-067",
-    title: "Vehicle Theft",
-    status: "Closed",
-    statusColor: "border-border/80 bg-muted/60 text-muted-foreground",
-  },
-  {
-    caseNumber: "FX-2023-021",
-    title: "Cyber Fraud",
-    status: "Solved",
-    statusColor: "border-emerald-500/40 bg-emerald-500/15 text-emerald-400",
-  },
-];
 
 // Criminal History Record Interface matching the reference layout
 export interface CriminalHistoryItem {
@@ -260,185 +199,7 @@ export interface CriminalHistoryItem {
   outcome: "Convicted" | "Trial Ongoing" | "Acquitted" | null;
 }
 
-const DEFAULT_CRIMINAL_HISTORY: CriminalHistoryItem[] = [
-  {
-    id: "rec-1",
-    rowNumber: "01",
-    caseId: "FX-2026-184",
-    offenceType: "Robbery",
-    description: "Armed robbery at commercial store.",
-    date: "Oct 4, 2026",
-    location: "Chennai, TN",
-    status: "Under Investigation",
-    outcome: null,
-  },
-  {
-    id: "rec-2",
-    rowNumber: "02",
-    caseId: "FX-2026-172",
-    offenceType: "Theft",
-    description: "Jewelry store theft with group.",
-    date: "Aug 12, 2025",
-    location: "T. Nagar, Chennai",
-    status: "Solved",
-    outcome: "Convicted",
-  },
-  {
-    id: "rec-3",
-    rowNumber: "03",
-    caseId: "FX-2025-098",
-    offenceType: "Assault",
-    description: "Assault on security personnel.",
-    date: "Mar 18, 2025",
-    location: "Anna Nagar, Chennai",
-    status: "In Court",
-    outcome: "Trial Ongoing",
-  },
-  {
-    id: "rec-4",
-    rowNumber: "04",
-    caseId: "FX-2024-067",
-    offenceType: "Vehicle Theft",
-    description: "Stolen two-wheeler and modified.",
-    date: "Nov 6, 2024",
-    location: "Chennai, TN",
-    status: "Closed",
-    outcome: "Convicted",
-  },
-  {
-    id: "rec-5",
-    rowNumber: "05",
-    caseId: "FX-2023-021",
-    offenceType: "Cyber Fraud",
-    description: "Online financial fraud case.",
-    date: "Jan 20, 2023",
-    location: "Chennai, TN",
-    status: "Solved",
-    outcome: "Convicted",
-  },
-];
 
-// Biometrics Interfaces & Data
-export interface FaceMatchCandidate {
-  id: string;
-  name: string;
-  code: string;
-  confidence: number;
-  imageSrc: string;
-  status?: string;
-}
-
-export interface BiometricMatchHistoryItem {
-  id: string;
-  rowNumber: string;
-  dateTime: string;
-  queriedImageSrc: string;
-  matchName: string;
-  matchCode: string;
-  confidence: number;
-  initiatedBy: string;
-  status: "Match Found" | "Reviewed" | "Inconclusive";
-  caseId?: string;
-}
-
-const DEFAULT_FACE_MATCH_RESULTS: FaceMatchCandidate[] = [
-  {
-    id: "cand-1",
-    name: "Arjun Karthik",
-    code: "CR-2023-001",
-    confidence: 92,
-    imageSrc: "/images/suspects/arjun-karthik.jpg",
-    status: "WANTED",
-  },
-  {
-    id: "cand-2",
-    name: "Rohit Sharma",
-    code: "CR-2021-067",
-    confidence: 76,
-    imageSrc: "/images/suspects/arun-prakash.jpg",
-    status: "ACTIVE",
-  },
-  {
-    id: "cand-3",
-    name: "Vikram Das",
-    code: "CR-2022-114",
-    confidence: 68,
-    imageSrc: "/images/suspects/karthik-selvan.jpg",
-    status: "ACTIVE",
-  },
-  {
-    id: "cand-4",
-    name: "Sathish Kumar",
-    code: "CR-2020-089",
-    confidence: 62,
-    imageSrc: "/images/cctv-suspect.jpg",
-    status: "ACTIVE",
-  },
-];
-
-const DEFAULT_BIOMETRIC_MATCH_HISTORY: BiometricMatchHistoryItem[] = [
-  {
-    id: "bmh-1",
-    rowNumber: "01",
-    dateTime: "Oct 4, 2026, 09:14 PM",
-    queriedImageSrc: "/images/suspects/arjun-karthik.jpg",
-    matchName: "Arjun Karthik",
-    matchCode: "CR-2023-001",
-    confidence: 92,
-    initiatedBy: "Investigator",
-    status: "Match Found",
-    caseId: "FX-2026-184",
-  },
-  {
-    id: "bmh-2",
-    rowNumber: "02",
-    dateTime: "Sep 28, 2026, 03:42 PM",
-    queriedImageSrc: "/images/suspects/arun-prakash.jpg",
-    matchName: "Rohit Sharma",
-    matchCode: "CR-2021-067",
-    confidence: 76,
-    initiatedBy: "Senior Analyst",
-    status: "Reviewed",
-    caseId: "FX-2026-172",
-  },
-  {
-    id: "bmh-3",
-    rowNumber: "03",
-    dateTime: "Sep 15, 2026, 11:20 AM",
-    queriedImageSrc: "/images/suspects/karthik-selvan.jpg",
-    matchName: "Vikram Das",
-    matchCode: "CR-2022-114",
-    confidence: 68,
-    initiatedBy: "Field Agent #402",
-    status: "Reviewed",
-    caseId: "FX-2025-098",
-  },
-];
-
-function renderBiometricStatusBadge(status: BiometricMatchHistoryItem["status"]) {
-  switch (status) {
-    case "Match Found":
-      return (
-        <span className="text-xs font-semibold text-emerald-400 whitespace-nowrap">
-          Match Found
-        </span>
-      );
-    case "Reviewed":
-      return (
-        <span className="text-xs font-semibold text-blue-400 whitespace-nowrap">
-          Reviewed
-        </span>
-      );
-    case "Inconclusive":
-      return (
-        <span className="text-xs font-semibold text-amber-400 whitespace-nowrap">
-          Inconclusive
-        </span>
-      );
-    default:
-      return null;
-  }
-}
 
 function renderOffenceBadge(type: CriminalHistoryItem["offenceType"]) {
   switch (type) {
@@ -556,9 +317,10 @@ export function CriminalProfileTabs({
   // Aliases state
   const [aliases, setAliases] = useState<string[]>(() => {
     const a = demographics.aliases;
-    return Array.isArray(a)
-      ? (a as string[])
-      : ["Karthik A.", "Black Karthik", "AK", "Karthik"];
+    if (Array.isArray(a) && a.length > 0) {
+      return a as string[];
+    }
+    return criminal.alias ? [criminal.alias] : [];
   });
   const [isAddingAlias, setIsAddingAlias] = useState(false);
   const [newAlias, setNewAlias] = useState("");
@@ -599,11 +361,12 @@ export function CriminalProfileTabs({
         outcome: cl.status === "CONVICTED" ? "Convicted" : "Trial Ongoing",
       }));
     }
-    return DEFAULT_CRIMINAL_HISTORY;
+    return [];
   });
   const [historyStatusFilter, setHistoryStatusFilter] = useState<string>("All Records");
-  const [isFilterDropdownOpen, setIsFilterDropdownOpen] = useState(false);
-  const [openActionRowId, setOpenActionRowId] = useState<string | null>(null);
+  const [historySearchTerm, setHistorySearchTerm] = useState("");
+  const [historyCurrentPage, setHistoryCurrentPage] = useState(1);
+  const historyPageSize = 5;
 
   // Dynamic Related Cases for Overview tab
   const computedRelatedCases = useMemo<RelatedCase[]>(() => {
@@ -626,7 +389,7 @@ export function CriminalProfileTabs({
             : "border-emerald-500/40 bg-emerald-500/15 text-emerald-400",
       }));
     }
-    return RELATED_CASES;
+    return [];
   }, [criminal]);
 
   // Dynamic Evidence for Overview and Evidence tabs
@@ -646,15 +409,15 @@ export function CriminalProfileTabs({
           day: "numeric",
           year: "numeric",
         }),
-        imageSrc: ev.mimeType?.startsWith("image")
-          ? `/images/evidence/knife_evidence_01.jpg`
-          : `/images/evidence/cctv_footage_01.jpg`,
+        imageSrc: ev.storageKey
+          ? `/api/storage?key=${encodeURIComponent(ev.storageKey)}`
+          : ev.fileUrl || `/images/evidence/knife_evidence_01.jpg`,
         size: `${Math.round(ev.fileSize / 1024)} KB`,
         sha256: ev.sha256Hash ? `${ev.sha256Hash.substring(0, 14)}...` : "SHA256-VERIFIED",
         officer: ev.uploadedBy || "Central Forensics Unit",
       }));
     }
-    return RECENT_EVIDENCE;
+    return [];
   }, [criminal]);
 
   // Add Record Modal state
@@ -698,6 +461,7 @@ export function CriminalProfileTabs({
     };
 
     setHistoryRecords([newEntry, ...historyRecords]);
+    setHistoryCurrentPage(1);
     setIsAddRecordOpen(false);
     setNewRecordForm({
       caseId: "",
@@ -742,9 +506,30 @@ export function CriminalProfileTabs({
   };
 
   const filteredHistoryRecords = useMemo(() => {
-    if (historyStatusFilter === "All Records") return historyRecords;
-    return historyRecords.filter((r) => r.status === historyStatusFilter);
-  }, [historyRecords, historyStatusFilter]);
+    return historyRecords.filter((r) => {
+      if (historyStatusFilter !== "All Records" && r.status !== historyStatusFilter) {
+        return false;
+      }
+      if (historySearchTerm.trim()) {
+        const q = historySearchTerm.toLowerCase();
+        const matchCase = r.caseId.toLowerCase().includes(q);
+        const matchOffence = r.offenceType.toLowerCase().includes(q);
+        const matchDesc = r.description.toLowerCase().includes(q);
+        const matchLoc = r.location.toLowerCase().includes(q);
+        if (!matchCase && !matchOffence && !matchDesc && !matchLoc) return false;
+      }
+      return true;
+    });
+  }, [historyRecords, historyStatusFilter, historySearchTerm]);
+
+  // Derived pagination for criminal history table
+  const totalHistoryItems = filteredHistoryRecords.length;
+  const totalHistoryPages = Math.max(1, Math.ceil(totalHistoryItems / historyPageSize));
+  const historyStartIndex = (historyCurrentPage - 1) * historyPageSize;
+  const currentHistoryRecords = filteredHistoryRecords.slice(
+    historyStartIndex,
+    historyStartIndex + historyPageSize
+  );
 
   // Derived metrics from records
   const totalHistoryCases = historyRecords.length;
@@ -752,28 +537,14 @@ export function CriminalProfileTabs({
   const totalOngoing = historyRecords.filter(
     (r) => r.status === "Under Investigation" || r.status === "In Court" || r.outcome === "Trial Ongoing"
   ).length;
-  const totalAcquitted = historyRecords.filter((r) => r.outcome === "Acquitted").length || 1;
-  const mostRecentRecord = historyRecords[0] || DEFAULT_CRIMINAL_HISTORY[0];
+  const totalAcquitted = historyRecords.filter((r) => r.outcome === "Acquitted").length;
+  const mostRecentRecord = historyRecords[0] || null;
 
 
 
   // Biometrics tab state
-  const [matchCandidates, setMatchCandidates] = useState<FaceMatchCandidate[]>(DEFAULT_FACE_MATCH_RESULTS);
+  const [matchCandidates, setMatchCandidates] = useState<FaceMatchCandidate[]>([]);
 
-  // Hook up real-time SSE sensor radar stream
-  useCriminalRealtime({
-    criminalId: criminal.id,
-    onSurveillanceHit: (event) => {
-      const data = event.data || {};
-      toast.error(`LIVE RADAR HIT: ${criminal.firstName} ${criminal.lastName} detected!`, {
-        description: `${data.location || "Perimeter"} via ${data.sensorId || "Camera Sensor"} (${Math.round((data.confidenceScore || 0.94) * 100)}% match)`,
-      });
-    },
-    onStatusChanged: (event) => {
-      const data = event.data || {};
-      toast.info(`Registry Status Updated: ${data.status || "Updated"} // Risk: ${data.riskLevel || "Standard"}`);
-    },
-  });
 
   const [matchHistory, setMatchHistory] = useState<BiometricMatchHistoryItem[]>(() => {
     const rawMatches = (criminal as any).recognitionResults || [];
@@ -786,9 +557,9 @@ export function CriminalProfileTabs({
           day: "numeric",
           year: "numeric",
         }),
-        queriedImage: rr.sketch?.imageUrl || "/images/evidence/mask_evidence.jpg",
-        matchResult: `${criminal.firstName} ${criminal.lastName}`,
-        matchSubtext: rr.sketch?.case?.caseNumber
+        queriedImageSrc: rr.sketch?.imageUrl || "/images/evidence/mask_evidence.jpg",
+        matchName: `${criminal.firstName} ${criminal.lastName}`,
+        matchCode: rr.sketch?.case?.caseNumber
           ? `Linked Case: ${rr.sketch.case.caseNumber}`
           : "Facial Embedding Match",
         caseId: rr.sketch?.case?.caseNumber || "FX-CENTRAL",
@@ -796,13 +567,13 @@ export function CriminalProfileTabs({
         initiatedBy: "InsightFace Engine",
         status:
           rr.status === "CONFIRMED"
-            ? "Confirmed"
+            ? "Match Found"
             : rr.status === "REJECTED"
-            ? "Rejected"
-            : "Pending Review",
+            ? "Inconclusive"
+            : "Reviewed",
       }));
     }
-    return DEFAULT_BIOMETRIC_MATCH_HISTORY;
+    return [];
   });
   const [isScanningBiometrics, setIsScanningBiometrics] = useState(false);
   const [selectedCandidate, setSelectedCandidate] = useState<FaceMatchCandidate | null>(null);
@@ -811,14 +582,18 @@ export function CriminalProfileTabs({
 
   const handleScanBiometrics = async () => {
     setIsScanningBiometrics(true);
-    toast.info("Querying AI Recognition Service (FastAPI / 512D Embeddings)...");
+    toast.info("Querying AI Biometric Engine (Neon pgvector / 512D Embeddings)...");
     try {
       const res = await runCriminalFacialBiometricSearch(criminal.id);
-      if (res.success && res.candidates && res.candidates.length > 0) {
+      if (res.success && res.candidates) {
         setMatchCandidates(res.candidates as FaceMatchCandidate[]);
-        toast.success(`Biometric search completed. ${res.candidates.length} candidates verified!`);
+        if (res.hasEmbedding) {
+          toast.success(res.message || `Biometric search completed: ${res.candidates.length} candidates evaluated.`);
+        } else {
+          toast.info(res.message || "Biometric scan completed: No enrolled 512D vector for this subject.");
+        }
       } else {
-        toast.info("Biometric scan completed: No additional suspects exceed similarity threshold.");
+        toast.info("Biometric scan completed: No matching candidates found.");
       }
     } catch {
       toast.error("Biometric scan service unreachable.");
@@ -833,33 +608,33 @@ export function CriminalProfileTabs({
   // Evidence filter state in the Evidence tab
   const [evidenceFilter, setEvidenceFilter] = useState<string>("all");
 
-  // Derived Demographics
-  const height = (demographics.height as string) || "5'10\" (178 cm)";
-  const weight = (demographics.weight as string) || "70 kg";
-  const build = (demographics.build as string) || "Athletic";
-  const eyeColor = (demographics.eyeColor as string) || "Brown";
-  const hairColor = (demographics.hairColor as string) || "Black";
-  const complexion = (demographics.complexion as string) || "Wheatish";
+  // Derived Demographics (Real subject values, never fabricated)
+  const height = (demographics.height as string) || "Not Documented";
+  const weight = (demographics.weight as string) || "Not Documented";
+  const build = (demographics.build as string) || "Not Documented";
+  const eyeColor = (demographics.eyeColor as string) || "Not Documented";
+  const hairColor = (demographics.hairColor as string) || "Not Documented";
+  const complexion = (demographics.complexion as string) || "Not Documented";
   const distinctiveMarks =
-    (demographics.distinctiveMarks as string) || "Scar on left eyebrow";
-  const tattoos = (demographics.tattoos as string) || "Dragon (right arm)";
+    (demographics.distinctiveMarks as string) || "None documented";
+  const tattoos = (demographics.tattoos as string) || "None documented";
 
-  const primaryCategory = (demographics.primaryCategory as string) || "Theft";
+  const primaryCategory = (demographics.primaryCategory as string) || "General Offence";
   const secondaryCategories =
-    (demographics.secondaryCategories as string) || "Robbery, Assault";
+    (demographics.secondaryCategories as string) || "—";
   const modusOperandi =
-    (demographics.modusOperandi as string) || "Armed robbery, group involvement";
+    (demographics.modusOperandi as string) || "Modus operandi under active investigation.";
   const knownAreas =
-    (demographics.knownAreas as string) || "Chennai, T. Nagar, Anna Nagar";
+    (demographics.knownAreas as string) || (criminal.lastKnownLocation || "Location Not Disclosed");
   const crimeSummary =
     criminal.description ||
-    "Armed robbery at commercial establishments. Often operates during late hours. Known to use a knife/weapon and flee via two-wheeler.";
+    "No specific criminal summary or modus operandi documented for this subject in the central registry.";
 
   const tabs = [
     { id: "overview", label: "Overview" },
-    { id: "criminal-history", label: "Criminal History" },
+    { id: "criminal-history", label: `Criminal History (${historyRecords.length})` },
     { id: "biometrics", label: "Biometrics" },
-    { id: "evidence", label: "Evidence (8)" },
+    { id: "evidence", label: `Evidence (${computedEvidence.length})` },
     { id: "activity", label: "Activity Log" },
   ];
 
@@ -1328,10 +1103,30 @@ export function CriminalProfileTabs({
                     {/* Operational Intel Footer */}
                     <div className="mt-auto pt-3 border-t border-border/40 flex items-center justify-between text-[11px] text-muted-foreground">
                       <span className="text-[10px] text-muted-foreground/80">
-                        Classification: Armed Felon
+                        Classification:{" "}
+                        <span className="text-foreground/90 font-medium">
+                          {(demographics.classification as string) ||
+                            (criminal.riskLevel === "CRITICAL" || criminal.riskLevel === "HIGH"
+                              ? "High-Risk Subject"
+                              : "Standard Subject")}
+                        </span>
                       </span>
-                      <span className="text-[10px] font-semibold text-rose-500">
-                        Violent Category II
+                      <span
+                        className={cn(
+                          "text-[10px] font-semibold",
+                          criminal.riskLevel === "CRITICAL" || criminal.riskLevel === "HIGH"
+                            ? "text-rose-500"
+                            : criminal.riskLevel === "MEDIUM"
+                            ? "text-amber-500"
+                            : "text-emerald-500"
+                        )}
+                      >
+                        {(demographics.categoryLevel as string) ||
+                          (criminal.riskLevel === "CRITICAL"
+                            ? "Priority Category I"
+                            : criminal.riskLevel === "HIGH"
+                            ? "Violent Category II"
+                            : "Category III")}
                       </span>
                     </div>
                   </div>
@@ -1355,7 +1150,7 @@ export function CriminalProfileTabs({
                               Recent Evidence
                             </h3>
                             <span className="text-[11px] font-semibold text-muted-foreground bg-muted/50 px-2 py-0.5 rounded-md border-2 border-border/50">
-                              8 Total
+                              {computedEvidence.length} Total
                             </span>
                           </div>
                         </div>
@@ -1371,69 +1166,79 @@ export function CriminalProfileTabs({
                         </Button>
                       </div>
 
-                      {/* 4 Cards Grid - spacious and crisp */}
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 pt-3">
-                        {computedEvidence.slice(0, 4).map((item) => (
-                          <div
-                            key={item.id}
-                            onClick={() => setSelectedEvidence(item)}
-                            className="group relative flex flex-col rounded-md overflow-hidden border-2 border-border/70 bg-[#0F172A]/80 hover:border-[#665AEF]/70 transition-all cursor-pointer shadow-xs hover:shadow-md hover:shadow-[#665AEF]/10"
-                          >
-                            {/* Image Box */}
-                            <div className="relative aspect-square w-full overflow-hidden bg-black/50">
-                              <Image
-                                src={item.imageSrc}
-                                alt={item.name}
-                                fill
-                                className="object-cover transition-transform duration-300 group-hover:scale-105"
-                                sizes="(max-width: 768px) 50vw, 180px"
-                              />
-                              {/* Overlay Badge */}
-                              <div className="absolute top-1.5 left-1.5 flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-black/80 backdrop-blur-xs text-[10px] font-medium text-white/90 border-2 border-white/20">
-                                {item.type === "video" ? (
-                                  <>
-                                    <Play className="size-2.5 fill-current text-[#a594fd]" />
-                                    <span>Video</span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <Camera className="size-2.5 text-[#a594fd]" />
-                                    <span>Image</span>
-                                  </>
+                      {/* 4 Cards Grid or Empty State */}
+                      {computedEvidence.length > 0 ? (
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 pt-3">
+                          {computedEvidence.slice(0, 4).map((item) => (
+                            <div
+                              key={item.id}
+                              onClick={() => setSelectedEvidence(item)}
+                              className="group relative flex flex-col rounded-md overflow-hidden border-2 border-border/70 bg-[#0F172A]/80 hover:border-[#665AEF]/70 transition-all cursor-pointer shadow-xs hover:shadow-md hover:shadow-[#665AEF]/10"
+                            >
+                              {/* Image Box */}
+                              <div className="relative aspect-square w-full overflow-hidden bg-black/50">
+                                <Image
+                                  src={item.imageSrc}
+                                  alt={item.name}
+                                  fill
+                                  className="object-cover transition-transform duration-300 group-hover:scale-105"
+                                  sizes="(max-width: 768px) 50vw, 180px"
+                                />
+                                {/* Overlay Badge */}
+                                <div className="absolute top-1.5 left-1.5 flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-black/80 backdrop-blur-xs text-[10px] font-medium text-white/90 border-2 border-white/20">
+                                  {item.type === "video" ? (
+                                    <>
+                                      <Play className="size-2.5 fill-current text-[#a594fd]" />
+                                      <span>Video</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Camera className="size-2.5 text-[#a594fd]" />
+                                      <span>Image</span>
+                                    </>
+                                  )}
+                                </div>
+
+                                {/* Video Duration */}
+                                {item.duration && (
+                                  <div className="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 rounded-md bg-black/85 backdrop-blur-xs text-[10px] font-mono text-white/90 border-2 border-white/20">
+                                    {item.duration}
+                                  </div>
                                 )}
                               </div>
 
-                              {/* Video Duration */}
-                              {item.duration && (
-                                <div className="absolute bottom-1.5 right-1.5 px-1.5 py-0.5 rounded-md bg-black/85 backdrop-blur-xs text-[10px] font-mono text-white/90 border-2 border-white/20">
-                                  {item.duration}
+                              {/* Details below image */}
+                              <div className="p-2 flex flex-col gap-0.5 bg-card/90 border-t border-border/40">
+                                <span
+                                  className="text-[11px] font-semibold text-foreground truncate group-hover:text-[#a594fd] transition-colors"
+                                  title={item.name}
+                                >
+                                  {item.name}
+                                </span>
+                                <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                                  <span>{item.date}</span>
+                                  <span className="font-mono text-muted-foreground/70">{item.size}</span>
                                 </div>
-                              )}
-                            </div>
-
-                            {/* Details below image */}
-                            <div className="p-2 flex flex-col gap-0.5 bg-card/90 border-t border-border/40">
-                              <span
-                                className="text-[11px] font-semibold text-foreground truncate group-hover:text-[#a594fd] transition-colors"
-                                title={item.name}
-                              >
-                                {item.name}
-                              </span>
-                              <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-                                <span>{item.date}</span>
-                                <span className="font-mono text-muted-foreground/70">{item.size}</span>
                               </div>
                             </div>
-                          </div>
-                        ))}
-                      </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center p-6 text-center border-2 border-dashed border-border/60 rounded-xl my-3 bg-muted/10">
+                          <Camera className="size-7 text-muted-foreground/40 mb-2" />
+                          <p className="text-xs font-semibold text-foreground">No Evidence Logged</p>
+                          <p className="text-[11px] text-muted-foreground mt-0.5 max-w-xs">
+                            No physical or digital forensic evidence has been linked to this record.
+                          </p>
+                        </div>
+                      )}
                     </div>
 
                     {/* Chain of Custody Footer */}
                     <div className="mt-auto pt-3 border-t border-border/40 flex items-center justify-between text-[11px] text-muted-foreground">
                       <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground/80">
                         <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                        <span className="truncate">Chain of Custody Active • 8 Items</span>
+                        <span className="truncate">Chain of Custody Active • {computedEvidence.length} Item{computedEvidence.length === 1 ? "" : "s"}</span>
                       </div>
                       <span className="text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 border-2 border-emerald-500/30 px-2 py-0.5 rounded-md shrink-0 ml-1">
                         Verified
@@ -1457,14 +1262,14 @@ export function CriminalProfileTabs({
                               Related Cases
                             </h3>
                             <span className="text-[11px] font-semibold text-muted-foreground bg-muted/50 px-2 py-0.5 rounded-md border-2 border-border/50">
-                              5 Total
+                              {computedRelatedCases.length} Total
                             </span>
                           </div>
                         </div>
                         <Button
                           variant="ghost"
                           size="xs"
-                          render={<Link href="/dashboard/cases" />}
+                          render={<Link href={`/dashboard/cases?suspect=${criminal.criminalId}`} />}
                           className="h-7 px-2.5 gap-1.5 text-xs font-semibold text-[#a594fd] hover:text-foreground hover:bg-[#665AEF]/10 cursor-pointer rounded-md transition-colors"
                           nativeButton={false}
                         >
@@ -1473,42 +1278,52 @@ export function CriminalProfileTabs({
                         </Button>
                       </div>
 
-                      {/* 5 Rows List with Perfect Columnar Alignment */}
-                      <div className="space-y-1.5 pt-3">
-                        {computedRelatedCases.map((c) => (
-                          <Link
-                            key={c.caseNumber}
-                            href={`/case-details/${c.caseNumber}`}
-                            className="flex items-center justify-between py-2 px-2.5 rounded-md border-2 border-border/40 bg-background/30 hover:bg-muted/50 hover:border-[#665AEF]/40 transition-all text-xs group"
-                          >
-                            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                              <span className="font-mono text-[10px] sm:text-[11px] font-semibold text-[#a594fd] group-hover:underline shrink-0 w-20 sm:w-24">
-                                {c.caseNumber}
-                              </span>
-                              <span className="text-foreground font-medium truncate group-hover:text-foreground transition-colors text-xs">
-                                {c.title}
-                              </span>
-                            </div>
-                            <span
-                              className={cn(
-                                "inline-flex items-center justify-center rounded-md border-2 px-1.5 sm:px-2 py-0.5 text-[9px] sm:text-[10px] font-semibold shrink-0 ml-1.5 sm:ml-2 min-w-[62px] sm:min-w-[70px] text-center",
-                                c.statusColor
-                              )}
+                      {/* Rows List or Empty State */}
+                      {computedRelatedCases.length > 0 ? (
+                        <div className="space-y-1.5 pt-3">
+                          {computedRelatedCases.map((c) => (
+                            <Link
+                              key={c.caseNumber}
+                              href={`/case-details/${c.caseNumber}`}
+                              className="flex items-center justify-between py-2 px-2.5 rounded-md border-2 border-border/40 bg-background/30 hover:bg-muted/50 hover:border-[#665AEF]/40 transition-all text-xs group"
                             >
-                              {c.status}
-                            </span>
-                          </Link>
-                        ))}
-                      </div>
+                              <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                                <span className="font-mono text-[10px] sm:text-[11px] font-semibold text-[#a594fd] group-hover:underline shrink-0 w-20 sm:w-24">
+                                  {c.caseNumber}
+                                </span>
+                                <span className="text-foreground font-medium truncate group-hover:text-foreground transition-colors text-xs">
+                                  {c.title}
+                                </span>
+                              </div>
+                              <span
+                                className={cn(
+                                  "inline-flex items-center justify-center rounded-md border-2 px-1.5 sm:px-2 py-0.5 text-[9px] sm:text-[10px] font-semibold shrink-0 ml-1.5 sm:ml-2 min-w-[62px] sm:min-w-[70px] text-center",
+                                  c.statusColor
+                                )}
+                              >
+                                {c.status}
+                              </span>
+                            </Link>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center justify-center p-6 text-center border-2 border-dashed border-border/60 rounded-xl my-3 bg-muted/10">
+                          <FolderKanban className="size-7 text-muted-foreground/40 mb-2" />
+                          <p className="text-xs font-semibold text-foreground">No Linked Cases</p>
+                          <p className="text-[11px] text-muted-foreground mt-0.5 max-w-xs">
+                            This subject is not currently associated with any open or closed FIRs.
+                          </p>
+                        </div>
+                      )}
                     </div>
 
                     {/* Case Status Summary Footer */}
                     <div className="mt-auto pt-3 border-t border-border/40 flex items-center justify-between text-[11px] text-muted-foreground">
                       <span className="text-[10px] text-muted-foreground/80">
-                        3 Convicted • 2 Pending Trial
+                        {computedRelatedCases.length} Associated Case{computedRelatedCases.length === 1 ? "" : "s"}
                       </span>
                       <span className="text-[10px] font-mono font-medium text-muted-foreground/80 bg-muted/40 px-1.5 py-0.5 rounded-md border-2 border-border/40">
-                        TN-DOCKET
+                        CCTNS-LINK
                       </span>
                     </div>
                   </div>
@@ -1522,25 +1337,12 @@ export function CriminalProfileTabs({
               ═══════════════════════════════════════════════════════════ */}
           {activeTab === "criminal-history" && (
             <div className="space-y-6 w-full">
-              {/* Backdrop for dropdowns (closes popovers on outside click) */}
-              {(isFilterDropdownOpen || openActionRowId !== null) && (
-                <div
-                  className="fixed inset-0 z-20 bg-transparent"
-                  onClick={() => {
-                    setIsFilterDropdownOpen(false);
-                    setOpenActionRowId(null);
-                  }}
-                />
-              )}
-
               {/* TOP CARD: CRIMINAL HISTORY TABLE */}
-              <Card className="rounded-lg border-2 border-border/80 bg-card/60 p-3.5 sm:p-5 shadow-xs space-y-3.5 sm:space-y-4">
+              <Card className="rounded-xl border-2 border-border/80 bg-card/60 p-3.5 sm:p-5 shadow-xs space-y-4">
                 {/* Header with Title and Actions */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 pb-3 sm:pb-4 border-b border-border/50">
                   <div className="flex items-center gap-2.5 sm:gap-3">
-                    <div className="flex size-8 sm:size-9 items-center justify-center rounded-md bg-[#665AEF]/20 text-[#a594fd] shrink-0 border-2 border-[#665AEF]/40">
-                      <FolderClock className="size-4 sm:size-5" />
-                    </div>
+                    <FolderClock className="size-5 text-[#a594fd] shrink-0" />
                     <div>
                       <h3 className="text-sm sm:text-base font-semibold text-foreground tracking-tight">
                         Criminal History
@@ -1551,315 +1353,413 @@ export function CriminalProfileTabs({
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 self-start sm:self-auto w-full sm:w-auto justify-between sm:justify-end">
+                  <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto w-full sm:w-auto justify-between sm:justify-end">
+                    {/* Search Input */}
+                    <div className="relative w-full sm:w-48 lg:w-56">
+                      <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+                      <Input
+                        value={historySearchTerm}
+                        onChange={(e) => {
+                          setHistorySearchTerm(e.target.value);
+                          setHistoryCurrentPage(1);
+                        }}
+                        placeholder="Search records..."
+                        className="h-9 pl-8 pr-3 text-xs bg-muted/40 border-2 border-border/70 rounded-lg placeholder:text-muted-foreground/60 focus-visible:ring-1 focus-visible:ring-[#665AEF]"
+                      />
+                    </div>
+
+                    {/* Filter Dropdown */}
+                    <DropdownMenu>
+                      <DropdownMenuTrigger
+                        render={
+                          <Button
+                            variant="outline"
+                            className="h-9 min-w-32 justify-between rounded-lg border-2 border-border bg-card/60 px-3 text-xs font-normal hover:bg-muted/60 hover:text-foreground cursor-pointer"
+                          />
+                        }
+                      >
+                        <span className="truncate max-w-[120px]">{historyStatusFilter}</span>
+                        <ChevronDown className="size-3.5 text-muted-foreground opacity-70 shrink-0" />
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent
+                        align="end"
+                        side="bottom"
+                        sideOffset={6}
+                        className="w-44 p-1 rounded-xl shadow-xl bg-card/95 backdrop-blur-xl border-2 border-border overflow-hidden"
+                      >
+                        {["All Records", "Under Investigation", "Solved", "In Court", "Closed"].map((option) => (
+                          <DropdownMenuItem
+                            key={option}
+                            onClick={() => {
+                              setHistoryStatusFilter(option);
+                              setHistoryCurrentPage(1);
+                            }}
+                            className={cn(
+                              "relative z-0 group flex items-center justify-between cursor-pointer px-2.5 py-1.5 rounded-md transition-colors text-xs font-medium",
+                              historyStatusFilter === option
+                                ? "bg-[#665AEF]/20 text-[#a594fd] font-semibold"
+                                : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                            )}
+                          >
+                            <span>{option}</span>
+                            {historyStatusFilter === option && <Check className="size-3.5 text-[#a594fd]" />}
+                          </DropdownMenuItem>
+                        ))}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+
                     {/* Add Record Button */}
-                    <button
+                    <Button
                       type="button"
                       onClick={() => setIsAddRecordOpen(true)}
-                      className="bg-[#665AEF] hover:bg-[#584bd4] text-white font-medium text-xs px-3 sm:px-3.5 py-1.5 sm:py-2 h-8 sm:h-9 rounded-md flex items-center gap-1.5 shadow-sm transition-colors cursor-pointer"
+                      className="bg-[#665AEF] hover:bg-[#584bd4] text-white font-medium text-xs px-3.5 h-9 rounded-lg flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer shrink-0"
                     >
                       <Plus className="size-3.5" />
                       <span>Add Record</span>
-                    </button>
-
-                    {/* Filter Dropdown */}
-                    <div className="relative">
-                      <button
-                        type="button"
-                        onClick={() => setIsFilterDropdownOpen((prev) => !prev)}
-                        className="h-8 sm:h-9 px-3 sm:px-3.5 rounded-md border-2 border-border/80 bg-muted/40 hover:bg-muted/60 text-xs font-medium text-foreground inline-flex items-center gap-2 transition-colors cursor-pointer"
-                      >
-                        <span className="truncate max-w-[110px] sm:max-w-none">{historyStatusFilter}</span>
-                        <ChevronDown className="size-3 text-muted-foreground shrink-0" />
-                      </button>
-
-                      {isFilterDropdownOpen && (
-                        <div className="absolute right-0 mt-1 w-44 rounded-md border-2 border-border bg-card/95 backdrop-blur-md shadow-xl p-1 z-30 space-y-0.5">
-                          {["All Records", "Under Investigation", "Solved", "In Court", "Closed"].map((option) => (
-                            <button
-                              key={option}
-                              type="button"
-                              onClick={() => {
-                                setHistoryStatusFilter(option);
-                                setIsFilterDropdownOpen(false);
-                              }}
-                              className={cn(
-                                "w-full text-left text-xs px-2.5 py-1.5 rounded-md transition-colors flex items-center justify-between cursor-pointer",
-                                historyStatusFilter === option
-                                  ? "bg-[#665AEF]/20 text-[#a594fd] font-medium"
-                                  : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                              )}
-                            >
-                              <span>{option}</span>
-                              {historyStatusFilter === option && <Check className="size-3" />}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                    </Button>
                   </div>
                 </div>
 
                 {/* Desktop 9-Column Table Container (hidden on mobile, shown on md+) */}
-                <div className="hidden md:block rounded-md border-2 border-border/70 overflow-hidden bg-card/40">
-                  <div className="overflow-x-auto min-h-[300px] [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-                    <Table className="[scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-                      <TableHeader className="bg-muted/30">
-                        <TableRow className="border-b border-border/60 hover:bg-transparent">
-                          <TableHead className="w-12 text-center text-[11px] font-semibold text-muted-foreground">#</TableHead>
-                          <TableHead className="text-[11px] font-semibold text-muted-foreground">Case ID</TableHead>
-                          <TableHead className="text-[11px] font-semibold text-muted-foreground">Offence Type</TableHead>
-                          <TableHead className="text-[11px] font-semibold text-muted-foreground min-w-[200px]">Description</TableHead>
-                          <TableHead className="text-[11px] font-semibold text-muted-foreground">Date</TableHead>
-                          <TableHead className="text-[11px] font-semibold text-muted-foreground">Location</TableHead>
-                          <TableHead className="text-[11px] font-semibold text-muted-foreground">Status</TableHead>
-                          <TableHead className="text-[11px] font-semibold text-muted-foreground">Outcome</TableHead>
-                          <TableHead className="w-12 text-center text-[11px] font-semibold text-muted-foreground">Actions</TableHead>
+                <div className="hidden md:block rounded-xl border-2 border-border bg-card/40 overflow-hidden shadow-xs [&>div]:overflow-x-auto [&>div]:scrollbar-none [&>div::-webkit-scrollbar]:hidden">
+                  <Table>
+                    <TableHeader className="bg-card/70 border-b-2 border-border/60">
+                      <TableRow className="hover:bg-transparent">
+                        <TableHead className="w-12 text-center text-[11px] font-semibold tracking-wider text-muted-foreground uppercase px-3 py-3 whitespace-nowrap">
+                          #
+                        </TableHead>
+                        <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase px-3 py-3 whitespace-nowrap">
+                          Case ID
+                        </TableHead>
+                        <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase px-3 py-3 whitespace-nowrap">
+                          Offence Type
+                        </TableHead>
+                        <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase px-3 py-3 min-w-[220px]">
+                          Description
+                        </TableHead>
+                        <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase px-3 py-3 whitespace-nowrap">
+                          Date
+                        </TableHead>
+                        <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase px-3 py-3 whitespace-nowrap">
+                          Location
+                        </TableHead>
+                        <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase px-3 py-3 whitespace-nowrap">
+                          Status
+                        </TableHead>
+                        <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase px-3 py-3 whitespace-nowrap">
+                          Outcome
+                        </TableHead>
+                        <TableHead className="w-12 text-center text-[11px] font-semibold tracking-wider text-muted-foreground uppercase px-3 py-3 whitespace-nowrap">
+                          Actions
+                        </TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody className="divide-y divide-border/40">
+                      {currentHistoryRecords.length === 0 ? (
+                        <TableRow>
+                          <TableCell
+                            colSpan={9}
+                            className="py-12 text-center text-sm text-muted-foreground"
+                          >
+                            No criminal records found
+                            {historySearchTerm ? ` matching "${historySearchTerm}"` : ""}
+                            {historyStatusFilter !== "All Records" ? ` in "${historyStatusFilter}"` : ""}.
+                          </TableCell>
                         </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {filteredHistoryRecords.length === 0 ? (
-                          <TableRow>
-                            <TableCell colSpan={9} className="h-28 text-center text-xs text-muted-foreground">
-                              No criminal records found for &quot;{historyStatusFilter}&quot;.
+                      ) : (
+                        currentHistoryRecords.map((item, idx) => (
+                          <TableRow
+                            key={item.id}
+                            className="transition-colors hover:bg-muted/30 border-b border-border/40 last:border-0"
+                          >
+                            {/* # */}
+                            <TableCell className="text-center font-mono text-xs text-muted-foreground/80 px-3 py-3.5 whitespace-nowrap">
+                              {item.rowNumber || String(historyStartIndex + idx + 1).padStart(2, "0")}
                             </TableCell>
-                          </TableRow>
-                        ) : (
-                          filteredHistoryRecords.map((item, idx) => {
-                            const isBottomRows = idx >= 2;
-                            return (
-                              <TableRow
-                                key={item.id}
-                                className="border-b border-border/40 hover:bg-muted/20 transition-colors"
-                              >
-                                {/* # */}
-                                <TableCell className="text-center font-mono text-xs text-muted-foreground/80 py-3.5">
-                                  {item.rowNumber || String(idx + 1).padStart(2, "0")}
-                                </TableCell>
 
-                                {/* Case ID */}
-                                <TableCell className="py-3.5">
-                                  <span
+                            {/* Case ID */}
+                            <TableCell className="px-3 py-3.5 whitespace-nowrap">
+                              <span
+                                onClick={() => {
+                                  navigator.clipboard.writeText(item.caseId);
+                                  toast.success(`Copied ${item.caseId} to clipboard`);
+                                }}
+                                title="Click to copy Case ID"
+                                className="font-mono text-xs font-semibold text-[#a594fd] hover:text-[#c0b3ff] hover:underline cursor-pointer inline-flex items-center gap-1"
+                              >
+                                {item.caseId}
+                              </span>
+                            </TableCell>
+
+                            {/* Offence Type */}
+                            <TableCell className="px-3 py-3.5 whitespace-nowrap">
+                              {renderOffenceBadge(item.offenceType)}
+                            </TableCell>
+
+                            {/* Description */}
+                            <TableCell className="px-3 py-3.5 max-w-[280px]">
+                              <p className="text-xs text-foreground/90 truncate" title={item.description}>
+                                {item.description}
+                              </p>
+                            </TableCell>
+
+                            {/* Date */}
+                            <TableCell className="px-3 py-3.5 text-xs text-muted-foreground whitespace-nowrap">
+                              {item.date}
+                            </TableCell>
+
+                            {/* Location */}
+                            <TableCell className="px-3 py-3.5 text-xs text-muted-foreground whitespace-nowrap">
+                              {item.location}
+                            </TableCell>
+
+                            {/* Status */}
+                            <TableCell className="px-3 py-3.5 whitespace-nowrap">
+                              {renderHistoryStatusBadge(item.status)}
+                            </TableCell>
+
+                            {/* Outcome */}
+                            <TableCell className="px-3 py-3.5 whitespace-nowrap">
+                              {renderOutcomeBadge(item.outcome)}
+                            </TableCell>
+
+                            {/* Actions */}
+                            <TableCell className="px-3 py-3.5 text-center whitespace-nowrap">
+                              <DropdownMenu>
+                                <DropdownMenuTrigger
+                                  render={
+                                    <Button
+                                      variant="ghost"
+                                      size="icon-xs"
+                                      className="size-7 rounded-md text-muted-foreground hover:text-foreground cursor-pointer"
+                                    />
+                                  }
+                                >
+                                  <MoreHorizontal className="size-4" />
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent
+                                  align="end"
+                                  side="bottom"
+                                  sideOffset={6}
+                                  className="w-40 p-1 rounded-xl shadow-xl bg-card/95 backdrop-blur-xl border-2 border-border overflow-hidden"
+                                >
+                                  <DropdownMenuItem
                                     onClick={() => {
                                       navigator.clipboard.writeText(item.caseId);
-                                      toast.success(`Copied ${item.caseId} to clipboard`);
+                                      toast.success(`Copied ${item.caseId}`);
                                     }}
-                                    title="Click to copy Case ID"
-                                    className="font-mono text-xs font-semibold text-[#a594fd] hover:text-[#c0b3ff] hover:underline cursor-pointer inline-flex items-center gap-1"
+                                    className="relative z-0 group flex items-center gap-2 cursor-pointer px-2.5 py-1.5 rounded-md transition-colors hover:bg-muted/60 text-xs font-medium text-foreground/80 hover:text-foreground"
                                   >
-                                    {item.caseId}
-                                  </span>
-                                </TableCell>
+                                    <Copy className="size-3.5 text-muted-foreground" />
+                                    <span>Copy Case ID</span>
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    render={<Link href={`/dashboard/cases?caseId=${item.caseId}`} />}
+                                    className="relative z-0 group flex items-center gap-2 cursor-pointer px-2.5 py-1.5 rounded-md transition-colors hover:bg-muted/60 text-xs font-medium text-foreground/80 hover:text-foreground"
+                                  >
+                                    <ExternalLink className="size-3.5 text-muted-foreground" />
+                                    <span>View Case Dossier</span>
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    onClick={() => handleDeleteCriminalRecord(item.id)}
+                                    className="relative z-0 group flex items-center gap-2 cursor-pointer px-2.5 py-1.5 rounded-md transition-colors hover:bg-rose-500/10 text-xs font-medium text-rose-400 hover:text-rose-300"
+                                  >
+                                    <Trash2 className="size-3.5 text-rose-400" />
+                                    <span>Delete Record</span>
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      )}
+                    </TableBody>
+                  </Table>
 
-                                {/* Offence Type */}
-                                <TableCell className="py-3.5">
-                                  {renderOffenceBadge(item.offenceType)}
-                                </TableCell>
+                  {/* Table Pagination Footer with border-t-2 */}
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3.5 sm:p-4 border-t-2 border-border/40 text-xs text-muted-foreground bg-card/20">
+                    <div>
+                      Showing {totalHistoryItems === 0 ? 0 : historyStartIndex + 1} to{" "}
+                      {Math.min(historyStartIndex + historyPageSize, totalHistoryItems)} of {totalHistoryItems}{" "}
+                      {totalHistoryItems === 1 ? "record" : "records"}
+                    </div>
 
-                                {/* Description */}
-                                <TableCell className="py-3.5">
-                                  <p className="text-xs text-foreground/90 max-w-[260px] truncate" title={item.description}>
-                                    {item.description}
-                                  </p>
-                                </TableCell>
+                    {totalHistoryPages > 1 && (
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          disabled={historyCurrentPage === 1}
+                          onClick={() => setHistoryCurrentPage((p) => Math.max(1, p - 1))}
+                          className="size-8 rounded-md text-muted-foreground hover:text-foreground disabled:opacity-30 cursor-pointer"
+                        >
+                          <ChevronLeft className="size-4" />
+                        </Button>
 
-                                {/* Date */}
-                                <TableCell className="py-3.5 text-xs text-muted-foreground whitespace-nowrap">
-                                  {item.date}
-                                </TableCell>
+                        {Array.from({ length: totalHistoryPages }, (_, i) => i + 1).map((pageNum) => (
+                          <Button
+                            key={pageNum}
+                            variant={historyCurrentPage === pageNum ? "default" : "ghost"}
+                            size="xs"
+                            onClick={() => setHistoryCurrentPage(pageNum)}
+                            className={cn(
+                              "size-8 rounded-md text-xs font-medium tabular-nums transition-colors cursor-pointer",
+                              historyCurrentPage === pageNum
+                                ? "bg-[#665AEF] hover:bg-[#5749DF] text-white shadow-xs shadow-[#665AEF]/25"
+                                : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                            )}
+                          >
+                            {pageNum}
+                          </Button>
+                        ))}
 
-                                {/* Location */}
-                                <TableCell className="py-3.5 text-xs text-muted-foreground whitespace-nowrap">
-                                  {item.location}
-                                </TableCell>
-
-                                {/* Status */}
-                                <TableCell className="py-3.5">
-                                  {renderHistoryStatusBadge(item.status)}
-                                </TableCell>
-
-                                {/* Outcome */}
-                                <TableCell className="py-3.5">
-                                  {renderOutcomeBadge(item.outcome)}
-                                </TableCell>
-
-                                {/* Actions */}
-                                <TableCell className="py-3.5 text-center">
-                                  <div className="relative inline-block text-left">
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setOpenActionRowId(openActionRowId === item.id ? null : item.id);
-                                      }}
-                                      className="size-7 rounded-md hover:bg-muted/60 text-muted-foreground hover:text-foreground flex items-center justify-center transition-colors cursor-pointer"
-                                    >
-                                      <MoreHorizontal className="size-4" />
-                                    </button>
-
-                                    {openActionRowId === item.id && (
-                                      <div
-                                        className={cn(
-                                          "absolute right-0 w-40 rounded-md border-2 border-border bg-card/95 backdrop-blur-md shadow-2xl p-1 z-30 space-y-0.5 animate-in fade-in zoom-in-95 duration-150",
-                                          isBottomRows ? "bottom-full mb-1" : "top-full mt-1"
-                                        )}
-                                      >
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            navigator.clipboard.writeText(item.caseId);
-                                            toast.success(`Copied ${item.caseId}`);
-                                            setOpenActionRowId(null);
-                                          }}
-                                          className="w-full text-left text-xs px-2.5 py-1.5 rounded-md text-foreground/80 hover:text-foreground hover:bg-muted/60 transition-colors flex items-center gap-2 cursor-pointer"
-                                        >
-                                          <Copy className="size-3 text-muted-foreground" />
-                                          <span>Copy Case ID</span>
-                                        </button>
-
-                                        <Link
-                                          href={`/dashboard/cases?caseId=${item.caseId}`}
-                                          onClick={() => setOpenActionRowId(null)}
-                                          className="w-full text-left text-xs px-2.5 py-1.5 rounded-md text-foreground/80 hover:text-foreground hover:bg-muted/60 transition-colors flex items-center gap-2 cursor-pointer"
-                                        >
-                                          <ExternalLink className="size-3 text-muted-foreground" />
-                                          <span>View Case Dossier</span>
-                                        </Link>
-
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            handleDeleteCriminalRecord(item.id);
-                                            setOpenActionRowId(null);
-                                          }}
-                                          className="w-full text-left text-xs px-2.5 py-1.5 rounded-md text-rose-400 hover:bg-rose-500/10 transition-colors flex items-center gap-2 cursor-pointer"
-                                        >
-                                          <Trash2 className="size-3 text-rose-400" />
-                                          <span>Delete Record</span>
-                                        </button>
-                                      </div>
-                                    )}
-                                  </div>
-                                </TableCell>
-                              </TableRow>
-                            );
-                          })
-                        )}
-                      </TableBody>
-                    </Table>
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          disabled={historyCurrentPage === totalHistoryPages}
+                          onClick={() => setHistoryCurrentPage((p) => Math.min(totalHistoryPages, p + 1))}
+                          className="size-8 rounded-md text-muted-foreground hover:text-foreground disabled:opacity-30 cursor-pointer"
+                        >
+                          <ChevronRight className="size-4" />
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </div>
 
                 {/* Mobile Responsive High-Signal Cards (shown on mobile, hidden on md+) */}
                 <div className="block md:hidden space-y-2.5">
-                  {filteredHistoryRecords.length === 0 ? (
+                  {currentHistoryRecords.length === 0 ? (
                     <div className="p-8 text-center text-xs text-muted-foreground rounded-lg border-2 border-border/70 bg-card/30">
-                      No criminal records found for &quot;{historyStatusFilter}&quot;.
+                      No criminal records found
+                      {historySearchTerm ? ` matching "${historySearchTerm}"` : ""}
+                      {historyStatusFilter !== "All Records" ? ` in "${historyStatusFilter}"` : ""}.
                     </div>
                   ) : (
-                    filteredHistoryRecords.map((item, idx) => {
-                      const isBottomRows = idx >= filteredHistoryRecords.length - 2;
-                      return (
-                        <div
-                          key={item.id}
-                          className="rounded-lg border-2 border-border/70 bg-card/60 p-3 space-y-2 transition-colors hover:border-[#665AEF]/40"
-                        >
-                          {/* Top: Case ID, Offence badge, Status, Actions */}
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="flex items-center gap-1.5 flex-wrap min-w-0">
-                              <span
-                                onClick={() => {
-                                  navigator.clipboard.writeText(item.caseId);
-                                  toast.success(`Copied ${item.caseId}`);
-                                }}
-                                className="font-mono text-xs font-bold text-[#a594fd] hover:underline cursor-pointer"
-                              >
-                                {item.caseId}
-                              </span>
-                              {renderOffenceBadge(item.offenceType)}
-                            </div>
-                            <div className="flex items-center gap-1.5 shrink-0">
-                              {renderHistoryStatusBadge(item.status)}
-                              <div className="relative inline-block text-left">
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setOpenActionRowId(openActionRowId === item.id ? null : item.id);
-                                  }}
-                                  className="size-7 rounded-md hover:bg-muted/60 text-muted-foreground hover:text-foreground flex items-center justify-center transition-colors cursor-pointer"
-                                >
-                                  <MoreHorizontal className="size-4" />
-                                </button>
-                                {openActionRowId === item.id && (
-                                  <div
-                                    className={cn(
-                                      "absolute right-0 w-40 rounded-md border-2 border-border bg-card/95 backdrop-blur-md shadow-2xl p-1 z-30 space-y-0.5 animate-in fade-in zoom-in-95 duration-150",
-                                      isBottomRows ? "bottom-full mb-1" : "top-full mt-1"
-                                    )}
-                                  >
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        navigator.clipboard.writeText(item.caseId);
-                                        toast.success(`Copied ${item.caseId}`);
-                                        setOpenActionRowId(null);
-                                      }}
-                                      className="w-full text-left text-xs px-2.5 py-1.5 rounded-md text-foreground/80 hover:text-foreground hover:bg-muted/60 transition-colors flex items-center gap-2 cursor-pointer"
-                                    >
-                                      <Copy className="size-3 text-muted-foreground" />
-                                      <span>Copy Case ID</span>
-                                    </button>
-                                    <Link
-                                      href={`/dashboard/cases?caseId=${item.caseId}`}
-                                      onClick={() => setOpenActionRowId(null)}
-                                      className="w-full text-left text-xs px-2.5 py-1.5 rounded-md text-foreground/80 hover:text-foreground hover:bg-muted/60 transition-colors flex items-center gap-2 cursor-pointer"
-                                    >
-                                      <ExternalLink className="size-3 text-muted-foreground" />
-                                      <span>View Case Dossier</span>
-                                    </Link>
-                                    <button
-                                      type="button"
-                                      onClick={() => {
-                                        handleDeleteCriminalRecord(item.id);
-                                        setOpenActionRowId(null);
-                                      }}
-                                      className="w-full text-left text-xs px-2.5 py-1.5 rounded-md text-rose-400 hover:bg-rose-500/10 transition-colors flex items-center gap-2 cursor-pointer"
-                                    >
-                                      <Trash2 className="size-3 text-rose-400" />
-                                      <span>Delete Record</span>
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
+                    currentHistoryRecords.map((item) => (
+                      <div
+                        key={item.id}
+                        className="rounded-lg border-2 border-border/70 bg-card/60 p-3 space-y-2 transition-colors hover:border-[#665AEF]/40"
+                      >
+                        {/* Top: Case ID, Offence badge, Status, Actions */}
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                            <span
+                              onClick={() => {
+                                navigator.clipboard.writeText(item.caseId);
+                                toast.success(`Copied ${item.caseId}`);
+                              }}
+                              className="font-mono text-xs font-bold text-[#a594fd] hover:underline cursor-pointer"
+                            >
+                              {item.caseId}
+                            </span>
+                            {renderOffenceBadge(item.offenceType)}
                           </div>
-
-                          {/* Description narrative */}
-                          <p className="text-xs text-foreground/90 leading-relaxed line-clamp-2">
-                            {item.description}
-                          </p>
-
-                          {/* Bottom meta row: Date, Location, Outcome */}
-                          <div className="flex items-center justify-between pt-2 border-t border-border/40 text-[10px] sm:text-[11px] text-muted-foreground">
-                            <div className="flex items-center gap-2">
-                              <span className="flex items-center gap-1">
-                                <Calendar className="size-2.5 text-muted-foreground/80" />
-                                {item.date}
-                              </span>
-                              <span>•</span>
-                              <span className="flex items-center gap-1 truncate max-w-[120px]">
-                                <MapPin className="size-2.5 text-muted-foreground/80" />
-                                {item.location}
-                              </span>
-                            </div>
-                            <div>
-                              {renderOutcomeBadge(item.outcome)}
-                            </div>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {renderHistoryStatusBadge(item.status)}
+                            <DropdownMenu>
+                              <DropdownMenuTrigger
+                                render={
+                                  <Button
+                                    variant="ghost"
+                                    size="icon-xs"
+                                    className="size-7 rounded-md text-muted-foreground hover:text-foreground cursor-pointer"
+                                  />
+                                }
+                              >
+                                <MoreHorizontal className="size-4" />
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent
+                                align="end"
+                                side="bottom"
+                                sideOffset={6}
+                                className="w-40 p-1 rounded-xl shadow-xl bg-card/95 backdrop-blur-xl border-2 border-border overflow-hidden"
+                              >
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(item.caseId);
+                                    toast.success(`Copied ${item.caseId}`);
+                                  }}
+                                  className="relative z-0 group flex items-center gap-2 cursor-pointer px-2.5 py-1.5 rounded-md transition-colors hover:bg-muted/60 text-xs font-medium text-foreground/80 hover:text-foreground"
+                                >
+                                  <Copy className="size-3.5 text-muted-foreground" />
+                                  <span>Copy Case ID</span>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  render={<Link href={`/dashboard/cases?caseId=${item.caseId}`} />}
+                                  className="relative z-0 group flex items-center gap-2 cursor-pointer px-2.5 py-1.5 rounded-md transition-colors hover:bg-muted/60 text-xs font-medium text-foreground/80 hover:text-foreground"
+                                >
+                                  <ExternalLink className="size-3.5 text-muted-foreground" />
+                                  <span>View Case Dossier</span>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => handleDeleteCriminalRecord(item.id)}
+                                  className="relative z-0 group flex items-center gap-2 cursor-pointer px-2.5 py-1.5 rounded-md transition-colors hover:bg-rose-500/10 text-xs font-medium text-rose-400 hover:text-rose-300"
+                                >
+                                  <Trash2 className="size-3.5 text-rose-400" />
+                                  <span>Delete Record</span>
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </div>
                         </div>
-                      );
-                    })
+
+                        {/* Description narrative */}
+                        <p className="text-xs text-foreground/90 leading-relaxed line-clamp-2">
+                          {item.description}
+                        </p>
+
+                        {/* Bottom meta row: Date, Location, Outcome */}
+                        <div className="flex items-center justify-between pt-2 border-t border-border/40 text-[10px] sm:text-[11px] text-muted-foreground">
+                          <div className="flex items-center gap-2">
+                            <span className="flex items-center gap-1">
+                              <Calendar className="size-2.5 text-muted-foreground/80" />
+                              {item.date}
+                            </span>
+                            <span>•</span>
+                            <span className="flex items-center gap-1 truncate max-w-[120px]">
+                              <MapPin className="size-2.5 text-muted-foreground/80" />
+                              {item.location}
+                            </span>
+                          </div>
+                          <div>
+                            {renderOutcomeBadge(item.outcome)}
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
+
+                  {/* Mobile Pagination Footer */}
+                  {totalHistoryPages > 1 && (
+                    <div className="flex items-center justify-between p-3 rounded-lg border-2 border-border/70 bg-card/40 text-xs text-muted-foreground">
+                      <div>
+                        {historyStartIndex + 1} - {Math.min(historyStartIndex + historyPageSize, totalHistoryItems)} of {totalHistoryItems}
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          disabled={historyCurrentPage === 1}
+                          onClick={() => setHistoryCurrentPage((p) => Math.max(1, p - 1))}
+                          className="size-7 rounded-md text-muted-foreground hover:text-foreground disabled:opacity-30 cursor-pointer"
+                        >
+                          <ChevronLeft className="size-3.5" />
+                        </Button>
+                        <span className="text-xs font-mono px-2">
+                          {historyCurrentPage} / {totalHistoryPages}
+                        </span>
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          disabled={historyCurrentPage === totalHistoryPages}
+                          onClick={() => setHistoryCurrentPage((p) => Math.min(totalHistoryPages, p + 1))}
+                          className="size-7 rounded-md text-muted-foreground hover:text-foreground disabled:opacity-30 cursor-pointer"
+                        >
+                          <ChevronRight className="size-3.5" />
+                        </Button>
+                      </div>
+                    </div>
                   )}
                 </div>
               </Card>
@@ -1868,14 +1768,12 @@ export function CriminalProfileTabs({
               <div className="grid grid-cols-1 xl:grid-cols-12 gap-3.5 sm:gap-5 w-full">
                 {/* CARD 1: SUMMARY (6 COLS) */}
                 <div className="xl:col-span-6 flex">
-                  <Card className="rounded-lg border-2 border-border/80 bg-card/60 p-3.5 sm:p-5 shadow-xs w-full flex flex-col justify-between">
+                  <Card className="rounded-xl border-2 border-border/80 bg-card/60 p-3.5 sm:p-5 shadow-xs w-full flex flex-col justify-between">
                     <div>
                       {/* Header */}
                       <CardHeader className="p-0 pb-3 sm:pb-4 border-b border-border/50">
                         <CardTitle className="flex items-center gap-2.5 text-sm font-semibold text-foreground">
-                          <div className="flex size-7.5 sm:size-8 items-center justify-center rounded-md bg-[#665AEF]/20 text-[#a594fd] border-2 border-[#665AEF]/40 shrink-0">
-                            <Scale className="size-4" />
-                          </div>
+                          <Scale className="size-5 text-[#a594fd] shrink-0" />
                           <div>
                             <div className="text-sm font-semibold text-foreground">Summary</div>
                             <div className="text-[10px] sm:text-[11px] font-normal text-muted-foreground">
@@ -1949,14 +1847,12 @@ export function CriminalProfileTabs({
 
                 {/* CARD 2: MOST RECENT CASE (6 COLS) */}
                 <div className="xl:col-span-6 flex">
-                  <Card className="rounded-lg border-2 border-border/80 bg-card/60 p-3.5 sm:p-5 shadow-xs w-full flex flex-col justify-between">
+                  <Card className="rounded-xl border-2 border-border/80 bg-card/60 p-3.5 sm:p-5 shadow-xs w-full flex flex-col justify-between">
                     <div>
                       {/* Header */}
                       <div className="flex items-center justify-between pb-3 sm:pb-4 border-b border-border/50">
                         <div className="flex items-center gap-2.5">
-                          <div className="flex size-7.5 sm:size-8 items-center justify-center rounded-md bg-[#665AEF]/20 text-[#a594fd] border-2 border-[#665AEF]/40 shrink-0">
-                            <FolderClock className="size-4" />
-                          </div>
+                          <FolderClock className="size-5 text-[#a594fd] shrink-0" />
                           <div>
                             <div className="text-sm font-semibold text-foreground">Most Recent Case</div>
                             <div className="text-[10px] sm:text-[11px] font-normal text-muted-foreground">
@@ -1966,7 +1862,7 @@ export function CriminalProfileTabs({
                         </div>
 
                         <Link
-                          href="/dashboard/cases"
+                          href={`/dashboard/cases?suspect=${criminal.criminalId}`}
                           className="text-xs font-semibold text-[#a594fd] hover:text-[#c0b3ff] flex items-center gap-1 transition-colors"
                         >
                           <span>View All</span>
@@ -1974,56 +1870,62 @@ export function CriminalProfileTabs({
                         </Link>
                       </div>
 
-                      {/* Content: Image Preview + Case Details */}
+                      {/* Content: Image Preview + Case Details or Empty State */}
                       <CardContent className="p-0 pt-3.5 sm:pt-5">
-                        <div className="flex flex-col sm:flex-row gap-3.5 sm:gap-4 items-start">
-                          {/* Incident Thumbnail */}
-                          <div className="relative w-full h-36 sm:h-28 sm:w-28 sm:size-28 rounded-md overflow-hidden border-2 border-border/80 bg-black/60 shrink-0">
-                            <Image
-                              src="/images/cctv-suspect.jpg"
-                              alt="Recent incident preview"
-                              fill
-                              className="object-cover"
-                              sizes="(max-width: 640px) 100vw, 112px"
-                            />
-                            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
-                            <span className="absolute bottom-1.5 left-1.5 text-[9px] font-mono font-semibold px-1.5 py-0.5 rounded-md bg-black/85 text-[#a594fd] border-2 border-[#665AEF]/50">
-                              CCTV-01
-                            </span>
-                          </div>
+                        {mostRecentRecord ? (
+                          <div className="flex flex-col sm:flex-row gap-3.5 sm:gap-4 items-start">
+                            {/* Incident Record Badge */}
+                            <div className="relative w-full h-28 sm:size-28 rounded-md overflow-hidden border-2 border-[#665AEF]/30 bg-[#665AEF]/10 flex flex-col items-center justify-center p-2 text-center shrink-0">
+                              <ShieldAlert className="size-6 text-[#a594fd] mb-1" />
+                              <span className="text-[10px] font-semibold text-[#a594fd] line-clamp-1">
+                                {mostRecentRecord.offenceType}
+                              </span>
+                              <span className="text-[9px] font-mono text-muted-foreground mt-0.5">
+                                {mostRecentRecord.rowNumber ? `REC-${mostRecentRecord.rowNumber}` : "LATEST"}
+                              </span>
+                            </div>
 
-                          {/* Details */}
-                          <div className="flex-1 min-w-0 space-y-2 w-full">
-                            <div className="flex items-start justify-between gap-2">
-                              <div>
-                                <span className="font-mono text-xs font-semibold text-[#a594fd]">
-                                  {mostRecentRecord?.caseId || "FX-2026-184"}
+                            {/* Details */}
+                            <div className="flex-1 min-w-0 space-y-2 w-full">
+                              <div className="flex items-start justify-between gap-2">
+                                <div>
+                                  <span className="font-mono text-xs font-semibold text-[#a594fd]">
+                                    {mostRecentRecord.caseId}
+                                  </span>
+                                  <h4 className="text-sm font-semibold text-foreground leading-snug">
+                                    {mostRecentRecord.description}
+                                  </h4>
+                                </div>
+                                <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-md text-[10px] font-semibold border-2 border-[#7E22CE]/60 bg-[#2D1B4E]/90 text-[#C084FC] whitespace-nowrap shrink-0">
+                                  {mostRecentRecord.status}
                                 </span>
-                                <h4 className="text-sm font-semibold text-foreground leading-snug">
-                                  {mostRecentRecord?.description || "Armed robbery at commercial store."}
-                                </h4>
                               </div>
-                              <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-md text-[10px] font-semibold border-2 border-[#7E22CE]/60 bg-[#2D1B4E]/90 text-[#C084FC] whitespace-nowrap shrink-0">
-                                {mostRecentRecord?.status || "Under Investigation"}
-                              </span>
-                            </div>
 
-                            <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-                              <span className="flex items-center gap-1">
-                                <Calendar className="size-3 text-muted-foreground/80" />
-                                <span>{mostRecentRecord?.date || "Oct 4, 2026"}</span>
-                              </span>
-                              <span className="flex items-center gap-1">
-                                <MapPin className="size-3 text-muted-foreground/80" />
-                                <span>{mostRecentRecord?.location || "Chennai, TN"}</span>
-                              </span>
-                            </div>
+                              <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                                <span className="flex items-center gap-1">
+                                  <Calendar className="size-3 text-muted-foreground/80" />
+                                  <span>{mostRecentRecord.date}</span>
+                                </span>
+                                <span className="flex items-center gap-1">
+                                  <MapPin className="size-3 text-muted-foreground/80" />
+                                  <span>{mostRecentRecord.location}</span>
+                                </span>
+                              </div>
 
-                            <p className="text-xs text-foreground/80 leading-relaxed line-clamp-2">
-                              Suspect entered commercial electronics showroom with weapon, coerced cash handover and fled on dark blue motorcycle. Latent forensic prints retrieved from counter.
+                              <p className="text-xs text-foreground/80 leading-relaxed line-clamp-2">
+                                Offence: {mostRecentRecord.offenceType} • Outcome: {mostRecentRecord.outcome || "Pending Court Trial"}
+                              </p>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center justify-center p-6 text-center border-2 border-dashed border-border/60 rounded-xl my-2 bg-muted/10">
+                            <FolderClock className="size-7 text-muted-foreground/40 mb-2" />
+                            <p className="text-xs font-semibold text-foreground">No Incident On Record</p>
+                            <p className="text-[11px] text-muted-foreground mt-0.5 max-w-xs">
+                              No prior arrests, convictions, or penal incidents registered on docket for this subject.
                             </p>
                           </div>
-                        </div>
+                        )}
                       </CardContent>
                     </div>
 
@@ -2091,17 +1993,23 @@ export function CriminalProfileTabs({
                       <div className="pt-3.5 sm:pt-5 flex flex-col sm:flex-row gap-3.5 sm:gap-5 items-start">
                         {/* Reference Face Image with AI HUD corner brackets */}
                         <div className="relative w-full sm:w-44 h-48 sm:h-44 rounded-md overflow-hidden border-2 border-border/80 bg-black/80 shrink-0 group">
-                          <Image
-                            src={
-                              mugshotDisplayUrl && !mugshotDisplayUrl.includes("fly.storage.tigris.dev//")
-                                ? mugshotDisplayUrl
-                                : "/images/suspects/arjun-karthik.jpg"
-                            }
-                            alt={criminal.firstName}
-                            fill
-                            className="object-cover"
-                            sizes="200px"
-                          />
+                          {mugshotDisplayUrl && !mugshotDisplayUrl.includes("fly.storage.tigris.dev//") ? (
+                            <Image
+                              src={mugshotDisplayUrl}
+                              alt={criminal.firstName}
+                              fill
+                              className="object-cover"
+                              sizes="200px"
+                            />
+                          ) : (
+                            <SuspectAvatar
+                              firstName={criminal.firstName}
+                              lastName={criminal.lastName}
+                              status={criminal.status}
+                              riskLevel={criminal.riskLevel}
+                              className="size-full rounded-none"
+                            />
+                          )}
 
                           {/* Cybernetic Face Detection HUD corner brackets */}
                           <div className="absolute inset-2.5 pointer-events-none">
@@ -2122,20 +2030,37 @@ export function CriminalProfileTabs({
                         <div className="flex-1 w-full space-y-2 text-xs">
                           <div className="flex items-center justify-between py-1 border-b border-border/40">
                             <span className="text-muted-foreground text-[11px] sm:text-xs">Face ID</span>
-                            <span className="font-mono font-semibold text-foreground text-[11px] sm:text-xs">FACE-001</span>
+                            <span className="font-mono font-semibold text-foreground text-[11px] sm:text-xs">{criminal.criminalId}</span>
                           </div>
                           <div className="flex items-center justify-between py-1 border-b border-border/40">
                             <span className="text-muted-foreground text-[11px] sm:text-xs">Image Source</span>
-                            <span className="font-medium text-foreground text-[11px] sm:text-xs">Mugshot</span>
+                            <span className="font-medium text-foreground text-[11px] sm:text-xs">
+                              {mugshotDisplayUrl ? "Tigris Enrolled Mugshot" : "Pending Mugshot"}
+                            </span>
                           </div>
                           <div className="flex items-center justify-between py-1 border-b border-border/40">
-                            <span className="text-muted-foreground text-[11px] sm:text-xs">Captured On</span>
-                            <span className="font-mono text-muted-foreground text-[11px] sm:text-xs">Jan 12, 2023</span>
+                            <span className="text-muted-foreground text-[11px] sm:text-xs">Enrolled Date</span>
+                            <span className="font-mono text-muted-foreground text-[11px] sm:text-xs">
+                              {criminal.biometricEnrolledAt
+                                ? new Date(criminal.biometricEnrolledAt).toLocaleDateString("en-US", {
+                                    month: "short",
+                                    day: "numeric",
+                                    year: "numeric",
+                                  })
+                                : "Not Enrolled"}
+                            </span>
                           </div>
                           <div className="flex items-center justify-between py-1">
-                            <span className="text-muted-foreground text-[11px] sm:text-xs">Image Quality</span>
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] sm:text-[11px] font-semibold border-2 border-emerald-500/50 bg-emerald-500/15 text-emerald-400">
-                              Good
+                            <span className="text-muted-foreground text-[11px] sm:text-xs">Embedding Status</span>
+                            <span
+                              className={cn(
+                                "inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] sm:text-[11px] font-semibold border-2",
+                                criminal.biometricEnrolledAt || mugshotDisplayUrl
+                                  ? "border-emerald-500/50 bg-emerald-500/15 text-emerald-400"
+                                  : "border-amber-500/50 bg-amber-500/15 text-amber-400"
+                              )}
+                            >
+                              {criminal.biometricEnrolledAt || mugshotDisplayUrl ? "Enrolled" : "Pending"}
                             </span>
                           </div>
                         </div>
@@ -2145,10 +2070,10 @@ export function CriminalProfileTabs({
                     {/* Operational Intel Footer */}
                     <div className="mt-4 sm:mt-5 pt-3 border-t border-border/40 flex items-center justify-between text-[11px] text-muted-foreground">
                       <span className="text-[10px] text-muted-foreground/80 truncate">
-                        Feature Space: MobileNetV3 512D
+                        Feature Space: MobileNetV3 / InsightFace 512D
                       </span>
                       <span className="text-[10px] font-mono text-[#a594fd] bg-[#665AEF]/10 px-1.5 py-0.5 rounded-md border-2 border-[#665AEF]/30 shrink-0 ml-1">
-                        HASH#E4F9-B2
+                        VECTOR#512D
                       </span>
                     </div>
                   </Card>
@@ -2167,7 +2092,7 @@ export function CriminalProfileTabs({
                           <div className="min-w-0">
                             <div className="text-xs sm:text-sm font-semibold text-foreground truncate">Face Match Results</div>
                             <div className="text-[10px] sm:text-[11px] font-normal text-muted-foreground truncate">
-                              Top matches from criminal database.
+                              pgvector cosine distance comparison across central database.
                             </div>
                           </div>
                         </div>
@@ -2181,7 +2106,7 @@ export function CriminalProfileTabs({
                             className="h-7 px-2 sm:px-2.5 rounded-md border-2 border-border/80 bg-muted/30 hover:bg-muted/60 text-xs font-semibold text-muted-foreground hover:text-foreground flex items-center gap-1.5 cursor-pointer transition-colors disabled:opacity-50"
                           >
                             <RefreshCw className={cn("size-3 text-[#a594fd]", isScanningBiometrics && "animate-spin")} />
-                            <span>Re-scan</span>
+                            <span>{isScanningBiometrics ? "Scanning..." : "Re-scan"}</span>
                           </button>
 
                           <Link
@@ -2194,61 +2119,95 @@ export function CriminalProfileTabs({
                         </div>
                       </div>
 
-                      {/* 4-Candidate Grid */}
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 pt-3.5 sm:pt-5">
-                        {matchCandidates.map((cand) => (
-                          <div
-                            key={cand.id}
-                            onClick={() => setSelectedCandidate(cand)}
-                            className="group flex flex-col rounded-md overflow-hidden border-2 border-border/70 bg-[#0F172A]/80 hover:border-[#665AEF]/70 transition-all cursor-pointer shadow-xs hover:shadow-md hover:shadow-[#665AEF]/15"
+                      {/* Candidate Comparison View */}
+                      {matchCandidates.length === 0 ? (
+                        <div className="pt-3.5 sm:pt-5 flex flex-col items-center justify-center p-6 rounded-md border-2 border-dashed border-border/70 bg-card/40 text-center">
+                          <div className="flex size-10 items-center justify-center rounded-full bg-[#665AEF]/10 border border-[#665AEF]/30 text-[#a594fd] mb-3">
+                            <Scan className="size-5" />
+                          </div>
+                          <div className="text-xs font-semibold text-foreground">
+                            No Biometric Comparisons Evaluated
+                          </div>
+                          <div className="text-[11px] text-muted-foreground max-w-sm mt-1">
+                            Run a pgvector 512D cosine distance search to compare this subject against all database suspects.
+                          </div>
+                          <Button
+                            type="button"
+                            size="xs"
+                            onClick={handleScanBiometrics}
+                            disabled={isScanningBiometrics}
+                            className="mt-3.5 h-8 px-3 rounded-lg bg-[#665AEF] hover:bg-[#5749DF] text-white text-xs font-semibold gap-1.5 shadow-sm shadow-[#665AEF]/20 cursor-pointer"
                           >
-                            {/* Candidate Image with Confidence Pill */}
-                            <div className="relative aspect-square w-full overflow-hidden bg-black/60">
-                              <Image
-                                src={cand.imageSrc}
-                                alt={cand.name}
-                                fill
-                                className="object-cover transition-transform duration-300 group-hover:scale-105"
-                                sizes="160px"
-                              />
-
-                              {/* Confidence score pill badge in bottom right */}
-                              <div
-                                className={cn(
-                                  "absolute bottom-1.5 right-1.5 px-1.5 py-0.5 rounded-md text-[10px] font-mono font-bold border-2 shadow-xs",
-                                  cand.confidence >= 90
-                                    ? "bg-cyan-950/90 border-cyan-400 text-cyan-300"
-                                    : "bg-blue-950/90 border-blue-500 text-blue-300"
+                            <RefreshCw className={cn("size-3.5", isScanningBiometrics && "animate-spin")} />
+                            <span>{isScanningBiometrics ? "Searching pgvector..." : "Run Vector Biometric Scan"}</span>
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 pt-3.5 sm:pt-5">
+                          {matchCandidates.map((cand) => (
+                            <div
+                              key={cand.id}
+                              onClick={() => setSelectedCandidate(cand)}
+                              className="group flex flex-col rounded-md overflow-hidden border-2 border-border/70 bg-[#0F172A]/80 hover:border-[#665AEF]/70 transition-all cursor-pointer shadow-xs hover:shadow-md hover:shadow-[#665AEF]/15"
+                            >
+                              {/* Candidate Image with Confidence Pill */}
+                              <div className="relative aspect-square w-full overflow-hidden bg-black/60">
+                                {cand.imageSrc ? (
+                                  <Image
+                                    src={cand.imageSrc}
+                                    alt={cand.name}
+                                    fill
+                                    className="object-cover transition-transform duration-300 group-hover:scale-105"
+                                    sizes="160px"
+                                  />
+                                ) : (
+                                  <SuspectAvatar
+                                    firstName={cand.name}
+                                    status={cand.status as any}
+                                    className="size-full rounded-none"
+                                  />
                                 )}
-                              >
-                                {cand.confidence}%
+
+                                {/* Confidence score pill badge in bottom right */}
+                                <div
+                                  className={cn(
+                                    "absolute bottom-1.5 right-1.5 px-1.5 py-0.5 rounded-md text-[10px] font-mono font-bold border-2 shadow-xs",
+                                    cand.confidence >= 90
+                                      ? "bg-cyan-950/90 border-cyan-400 text-cyan-300"
+                                      : cand.confidence > 0
+                                      ? "bg-blue-950/90 border-blue-500 text-blue-300"
+                                      : "bg-slate-900/90 border-border text-muted-foreground"
+                                  )}
+                                >
+                                  {cand.confidence > 0 ? `${cand.confidence}%` : "Catalog"}
+                                </div>
+                              </div>
+
+                              {/* Candidate Name & Code */}
+                              <div className="p-2 sm:p-2.5 flex flex-col gap-0.5 bg-card/90 border-t border-border/40">
+                                <span
+                                  className="text-xs font-semibold text-foreground truncate group-hover:text-[#a594fd] transition-colors"
+                                  title={cand.name}
+                                >
+                                  {cand.name}
+                                </span>
+                                <span className="font-mono text-[10px] text-muted-foreground truncate">
+                                  {cand.code}
+                                </span>
                               </div>
                             </div>
-
-                            {/* Candidate Name & Code */}
-                            <div className="p-2 sm:p-2.5 flex flex-col gap-0.5 bg-card/90 border-t border-border/40">
-                              <span
-                                className="text-xs font-semibold text-foreground truncate group-hover:text-[#a594fd] transition-colors"
-                                title={cand.name}
-                              >
-                                {cand.name}
-                              </span>
-                              <span className="font-mono text-[10px] text-muted-foreground truncate">
-                                {cand.code}
-                              </span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
 
                     {/* Operational Intel Footer */}
                     <div className="mt-4 sm:mt-5 pt-3 border-t border-border/40 flex items-center justify-between text-[11px] text-muted-foreground">
                       <span className="text-[10px] text-muted-foreground/80 truncate">
-                        Real-time Cosine Similarity • Threshold ≥ 60%
+                        Real-time Cosine Similarity • pgvector HNSW
                       </span>
                       <span className="text-[10px] font-semibold text-emerald-400 bg-emerald-500/10 border-2 border-emerald-500/30 px-2 py-0.5 rounded-md shrink-0 ml-1">
-                        4 Matches
+                        {matchCandidates.length} Matches
                       </span>
                     </div>
                   </Card>
@@ -2305,9 +2264,24 @@ export function CriminalProfileTabs({
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {matchHistory.map((item, idx) => {
-                          const isBottomRows = idx >= 1;
-                          return (
+                        {matchHistory.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={8} className="py-10 text-center">
+                              <div className="flex flex-col items-center justify-center text-center">
+                                <Clock className="size-6 text-muted-foreground/40 mb-2" />
+                                <div className="text-xs font-semibold text-foreground">
+                                  No Biometric Match History
+                                </div>
+                                <div className="text-[11px] text-muted-foreground max-w-sm mt-0.5">
+                                  No surveillance hits, sketch correlations, or automated facial recognition audits have been recorded for this subject.
+                                </div>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          matchHistory.map((item, idx) => {
+                            const isBottomRows = idx >= 1;
+                            return (
                             <TableRow
                               key={item.id}
                               className="border-b border-border/40 hover:bg-muted/20 transition-colors"
@@ -2441,7 +2415,8 @@ export function CriminalProfileTabs({
                               </TableCell>
                             </TableRow>
                           );
-                        })}
+                        })
+                      )}
                       </TableBody>
                     </Table>
                   </div>
@@ -2449,7 +2424,16 @@ export function CriminalProfileTabs({
 
                 {/* MOBILE CARD VIEW: Dedicated high-signal layout (< md screens) */}
                 <div className="block md:hidden space-y-3">
-                  {matchHistory.map((item) => (
+                  {matchHistory.length === 0 ? (
+                    <div className="p-6 rounded-xl border-2 border-dashed border-border/80 bg-card/50 text-center flex flex-col items-center">
+                      <Clock className="size-6 text-muted-foreground/40 mb-2" />
+                      <div className="text-xs font-semibold text-foreground">No Match History</div>
+                      <div className="text-[11px] text-muted-foreground mt-0.5">
+                        No face matching analysis on record for this individual.
+                      </div>
+                    </div>
+                  ) : (
+                    matchHistory.map((item) => (
                     <div
                       key={item.id}
                       className="p-3.5 sm:p-4 rounded-xl border-2 border-border/80 bg-card/70 hover:bg-card/90 transition-all space-y-3 shadow-xs"
@@ -2561,7 +2545,8 @@ export function CriminalProfileTabs({
                         </button>
                       </div>
                     </div>
-                  ))}
+                  ))
+                )}
                 </div>
               </Card>
             </div>
@@ -2576,11 +2561,11 @@ export function CriminalProfileTabs({
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar scroll-smooth flex-nowrap sm:flex-wrap py-1 -mx-1 px-1 w-full sm:w-auto touch-pan-x">
                   {[
-                    { id: "all", label: "All Evidence (8)" },
-                    { id: "image", label: "Images (4)" },
-                    { id: "video", label: "Videos (2)" },
-                    { id: "scan", label: "Scans (1)" },
-                    { id: "document", label: "Documents (1)" },
+                    { id: "all", label: `All Evidence (${computedEvidence.length})` },
+                    { id: "image", label: `Images (${computedEvidence.filter((e) => e.type === "image").length})` },
+                    { id: "video", label: `Videos (${computedEvidence.filter((e) => e.type === "video").length})` },
+                    { id: "scan", label: `Scans (${computedEvidence.filter((e) => e.type === "scan").length})` },
+                    { id: "document", label: `Documents (${computedEvidence.filter((e) => e.type === "document").length})` },
                   ].map((f) => {
                     const isSelected = evidenceFilter === f.id;
                     return (
@@ -2633,7 +2618,18 @@ export function CriminalProfileTabs({
                 <AnimatePresence mode="popLayout">
                   {computedEvidence.filter(
                     (e) => evidenceFilter === "all" || e.type === evidenceFilter
-                  ).map((ev) => (
+                  ).length === 0 ? (
+                    <div className="col-span-full flex flex-col items-center justify-center p-12 text-center border-2 border-dashed border-border/60 rounded-xl bg-card/40 my-4">
+                      <Camera className="size-10 text-muted-foreground/40 mb-3" />
+                      <h4 className="text-sm font-semibold text-foreground">No Evidence Logged</h4>
+                      <p className="text-xs text-muted-foreground mt-1 max-w-sm">
+                        No physical or digital forensic evidence has been associated with this criminal profile.
+                      </p>
+                    </div>
+                  ) : (
+                    computedEvidence.filter(
+                      (e) => evidenceFilter === "all" || e.type === evidenceFilter
+                    ).map((ev) => (
                     <motion.div
                       layout
                       key={ev.id}
@@ -2708,7 +2704,8 @@ export function CriminalProfileTabs({
                         </div>
                       </div>
                     </motion.div>
-                  ))}
+                  ))
+                )}
                 </AnimatePresence>
               </motion.div>
             </div>
@@ -3074,7 +3071,7 @@ export function CriminalProfileTabs({
             <div className="flex items-center gap-2">
               <span className="text-base font-semibold text-foreground">Biometric Reference Crop</span>
               <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-md bg-[#665AEF]/15 text-[#a594fd] border-2 border-[#665AEF]/30 uppercase tracking-wider">
-                FACE-001
+                FACE-{(criminal.criminalId || criminal.id).slice(-4).toUpperCase()}
               </span>
             </div>
           </div>
@@ -3099,17 +3096,24 @@ export function CriminalProfileTabs({
       >
         <div className="space-y-4 pt-1">
           <div className="relative aspect-square w-full rounded-md overflow-hidden border-2 border-border/80 bg-black">
-            <Image
-              src={
-                mugshotDisplayUrl && !mugshotDisplayUrl.includes("fly.storage.tigris.dev//")
-                  ? mugshotDisplayUrl
-                  : "/images/suspects/arjun-karthik.jpg"
-              }
-              alt="High-resolution reference face"
-              fill
-              className="object-cover"
-              sizes="500px"
-            />
+            {mugshotDisplayUrl && !mugshotDisplayUrl.includes("fly.storage.tigris.dev//") ? (
+              <Image
+                src={mugshotDisplayUrl}
+                alt="High-resolution reference face"
+                fill
+                className="object-cover"
+                sizes="500px"
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center bg-black/40">
+                <SuspectAvatar
+                  name={`${criminal.firstName} ${criminal.lastName}`}
+                  status={criminal.status}
+                  riskLevel={criminal.riskLevel}
+                  size="fill"
+                />
+              </div>
+            )}
             {/* Cyber HUD targeting reticle */}
             <div className="absolute inset-4 pointer-events-none">
               <div className="absolute top-0 left-0 w-6 h-6 border-t-2 border-l-2 border-cyan-400" />
@@ -3124,11 +3128,27 @@ export function CriminalProfileTabs({
           <div className="grid grid-cols-2 gap-3 text-xs">
             <div className="p-2.5 rounded-md border-2 border-border/70 bg-muted/20">
               <span className="text-[10px] text-muted-foreground uppercase font-medium block">Resolution</span>
-              <span className="font-mono font-semibold text-foreground">1024 × 1024 px</span>
+              <span className="font-mono font-semibold text-foreground">
+                {mugshotDisplayUrl ? "512 × 512 px (ArcFace)" : "N/A (Avatar Reference)"}
+              </span>
             </div>
             <div className="p-2.5 rounded-md border-2 border-border/70 bg-muted/20">
               <span className="text-[10px] text-muted-foreground uppercase font-medium block">Enrollment Date</span>
-              <span className="font-mono font-semibold text-foreground">Jan 12, 2023, 10:15 AM</span>
+              <span className="font-mono font-semibold text-foreground">
+                {(criminal as any).biometricEnrolledAt
+                  ? new Date((criminal as any).biometricEnrolledAt).toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                    })
+                  : criminal.createdAt
+                  ? new Date(criminal.createdAt).toLocaleDateString("en-US", {
+                      month: "short",
+                      day: "numeric",
+                      year: "numeric",
+                    })
+                  : "Not Enrolled"}
+              </span>
             </div>
           </div>
         </div>
@@ -3187,13 +3207,24 @@ export function CriminalProfileTabs({
                   Reference Mugshot
                 </span>
                 <div className="relative aspect-square rounded-md overflow-hidden border-2 border-border/80 bg-black">
-                  <Image
-                    src={mugshotDisplayUrl || "/images/suspects/arjun-karthik.jpg"}
-                    alt="Reference"
-                    fill
-                    className="object-cover"
-                    sizes="200px"
-                  />
+                  {mugshotDisplayUrl && !mugshotDisplayUrl.includes("fly.storage.tigris.dev//") ? (
+                    <Image
+                      src={mugshotDisplayUrl}
+                      alt="Reference"
+                      fill
+                      className="object-cover"
+                      sizes="200px"
+                    />
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-black/40">
+                      <SuspectAvatar
+                        name={`${criminal.firstName} ${criminal.lastName}`}
+                        status={criminal.status}
+                        riskLevel={criminal.riskLevel}
+                        size="fill"
+                      />
+                    </div>
+                  )}
                   <span className="absolute bottom-1.5 left-1.5 text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-black/80 text-foreground border border-border">
                     {criminal.firstName} {criminal.lastName}
                   </span>
@@ -3206,13 +3237,21 @@ export function CriminalProfileTabs({
                   Candidate Match
                 </span>
                 <div className="relative aspect-square rounded-md overflow-hidden border-2 border-[#665AEF]/60 bg-black">
-                  <Image
-                    src={selectedCandidate.imageSrc}
-                    alt={selectedCandidate.name}
-                    fill
-                    className="object-cover"
-                    sizes="200px"
-                  />
+                  {selectedCandidate.imageSrc ? (
+                    <Image
+                      src={selectedCandidate.imageSrc}
+                      alt={selectedCandidate.name}
+                      fill
+                      className="object-cover"
+                      sizes="200px"
+                    />
+                  ) : (
+                    <SuspectAvatar
+                      name={selectedCandidate.name}
+                      status={selectedCandidate.status}
+                      size="fill"
+                    />
+                  )}
                   <span className="absolute bottom-1.5 left-1.5 text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-black/85 text-cyan-300 border border-cyan-400/60">
                     {selectedCandidate.name}
                   </span>

@@ -1,13 +1,11 @@
 import { getCriminalById } from "@/features/criminals/queries";
 import { getEvidenceSignedUrl } from "@/features/evidence/queries";
+import { getSafeStorageUrl } from "@/lib/storage-url";
 import { notFound } from "next/navigation";
 import Image from "next/image";
-import Link from "next/link";
+import crypto from "crypto";
 import {
   Shield,
-  ArrowLeft,
-  Printer,
-  Download,
   Fingerprint,
   QrCode,
   Calendar,
@@ -16,9 +14,10 @@ import {
   AlertTriangle,
   Scale,
   Camera,
-  Radio,
+  ScanFace,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { DossierActionButtons } from "@/components/criminals/dossier/dossier-actions";
+import { SuspectAvatar } from "@/components/criminals/suspect-avatar";
 
 export const dynamic = "force-dynamic";
 
@@ -54,7 +53,7 @@ export default async function CriminalDossierPage({
   }
 
   // Resolve Tigris S3 signed URL if needed
-  let resolvedMugshot = criminal.mugshotUrl;
+  let resolvedMugshot = criminal.mugshotUrl ? getSafeStorageUrl(criminal.mugshotUrl) : null;
   if (
     resolvedMugshot &&
     !resolvedMugshot.startsWith("http") &&
@@ -63,51 +62,47 @@ export default async function CriminalDossierPage({
     try {
       resolvedMugshot = await getEvidenceSignedUrl(resolvedMugshot);
     } catch {
-      resolvedMugshot = "/images/suspects/arjun-karthik.jpg";
+      resolvedMugshot = `/api/storage?key=${encodeURIComponent(criminal.mugshotUrl)}`;
     }
   }
 
   const demographics = (criminal.demographics as Record<string, any>) || {};
-  const fullName = `${criminal.firstName} ${criminal.lastName}`;
-  const aliasesList = Array.isArray(demographics.aliases)
+  const fullName = `${criminal.firstName} ${criminal.lastName}`.trim();
+  const aliasesList = Array.isArray(demographics.aliases) && demographics.aliases.length > 0
     ? (demographics.aliases as string[]).join(", ")
     : criminal.alias || "None documented";
 
   const formattedDob = criminal.dateOfBirth
-    ? new Date(criminal.dateOfBirth).toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      }) + " (32 years)"
-    : "Mar 14, 1992 (32 years)";
+    ? (() => {
+        const dob = new Date(criminal.dateOfBirth);
+        const age = Math.floor((Date.now() - dob.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+        return `${dob.toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        })} (${age} years)`;
+      })()
+    : "Not Documented";
 
   const records = criminal.records || [];
-  const hits = criminal.surveillanceHits || [];
+  const matches = criminal.recognitionResults || [];
   const caseLinks = criminal.caseLinks || [];
+
+  // Generate cryptographic authenticity seal
+  const recordDigest = crypto
+    .createHash("sha256")
+    .update(`${criminal.id}-${criminal.criminalId}-${criminal.updatedAt.toISOString()}`)
+    .digest("hex")
+    .toUpperCase();
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100 p-4 sm:p-8 print:p-0 print:bg-white print:text-black">
-      {/* Top Non-Printable Action Bar */}
-      <div className="max-w-4xl mx-auto mb-6 flex items-center justify-between print:hidden">
-        <Link
-          href={`/dashboard/criminals/${criminal.criminalId || criminal.id}`}
-          className="inline-flex items-center gap-1.5 text-xs font-medium text-neutral-400 hover:text-white transition-colors cursor-pointer"
-        >
-          <ArrowLeft className="size-4" />
-          <span>Back to Profile {criminal.criminalId}</span>
-        </Link>
-
-        <div className="flex items-center gap-2">
-          <Button
-            size="sm"
-            onClick={undefined}
-            className="h-8 gap-1.5 bg-[#665AEF] hover:bg-[#5749DF] text-white text-xs font-semibold px-3 shadow-md print:hidden cursor-pointer"
-          >
-            <Printer className="size-3.5" />
-            <span onClick={() => {}}>Print Official PDF</span>
-          </Button>
-        </div>
-      </div>
+      {/* Top Non-Printable Action Bar with Interactive Client Controller */}
+      <DossierActionButtons
+        criminalId={criminal.criminalId || criminal.id}
+        criminalName={fullName}
+        criminalData={criminal}
+      />
 
       {/* Main Official Dossier Sheet (Matches 8.5 x 11 / A4 ratio) */}
       <div className="max-w-4xl mx-auto bg-neutral-900 border-2 border-neutral-700/80 rounded-2xl p-6 sm:p-10 shadow-2xl print:border-none print:shadow-none print:p-6 print:bg-white print:text-black">
@@ -157,9 +152,12 @@ export default async function CriminalDossierPage({
                   priority
                 />
               ) : (
-                <div className="size-full flex items-center justify-center text-neutral-500">
-                  <Camera className="size-10" />
-                </div>
+                <SuspectAvatar
+                  name={fullName}
+                  status={criminal.status}
+                  riskLevel={criminal.riskLevel}
+                  size="fill"
+                />
               )}
               {/* Risk Badge Overlay */}
               <div className="absolute top-2 left-2 px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-600 text-white tracking-wider uppercase">
@@ -196,25 +194,28 @@ export default async function CriminalDossierPage({
               <div className="bg-neutral-800/50 p-2.5 rounded-lg border border-neutral-700/60 print:bg-neutral-100 print:border-neutral-300">
                 <span className="text-[10px] text-neutral-400 block font-mono">Watchlist Classification</span>
                 <span className="font-semibold text-rose-400 print:text-rose-700">
-                  {criminal.watchlistStatus || "PRIORITY WATCHLIST"}
+                  {((demographics.watchlistStatus as string) ||
+                    (criminal as any).watchlistStatus ||
+                    (criminal.status === "WANTED" ? "PRIORITY WATCHLIST" : "STANDARD WATCHLIST")
+                  ).toUpperCase()}
                 </span>
               </div>
               <div className="bg-neutral-800/50 p-2.5 rounded-lg border border-neutral-700/60 print:bg-neutral-100 print:border-neutral-300">
                 <span className="text-[10px] text-neutral-400 block font-mono">Height / Weight</span>
                 <span className="font-semibold text-neutral-100 print:text-black">
-                  {demographics.height || "5'10\""} / {demographics.weight || "72 kg"}
+                  {demographics.height || "Not Documented"} / {demographics.weight || "Not Documented"}
                 </span>
               </div>
               <div className="bg-neutral-800/50 p-2.5 rounded-lg border border-neutral-700/60 print:bg-neutral-100 print:border-neutral-300">
                 <span className="text-[10px] text-neutral-400 block font-mono">Physical Build</span>
                 <span className="font-semibold text-neutral-100 print:text-black">
-                  {demographics.build || "Athletic"}
+                  {demographics.build || "Not Documented"}
                 </span>
               </div>
               <div className="bg-neutral-800/50 p-2.5 rounded-lg border border-neutral-700/60 print:bg-neutral-100 print:border-neutral-300">
                 <span className="text-[10px] text-neutral-400 block font-mono">Aadhaar / National ID</span>
                 <span className="font-semibold text-neutral-100 print:text-black">
-                  {demographics.aadharId || "XXXX-XXXX-7789"}
+                  {demographics.aadharId || "Not Enrolled"}
                 </span>
               </div>
             </div>
@@ -224,7 +225,7 @@ export default async function CriminalDossierPage({
                 Distinctive Marks & Tattoos
               </span>
               <p className="text-neutral-200 print:text-black">
-                {demographics.distinctiveMarks || "Scar on left eyebrow. Tattoo of dagger/dragon on right forearm."}
+                {demographics.distinctiveMarks || "No prominent physical scars or tattoos recorded in database."}
               </p>
             </div>
           </div>
@@ -279,48 +280,50 @@ export default async function CriminalDossierPage({
           )}
         </div>
 
-        {/* Section 3: Live Surveillance Sensor Radar Hits */}
+        {/* Section 3: Forensic Biometrics & AI Recognition Matches */}
         <div className="mb-8 pb-6 border-b border-neutral-800 print:border-neutral-300">
           <div className="flex items-center gap-2 mb-3">
-            <Radio className="size-4 text-emerald-400 print:text-black" />
+            <ScanFace className="size-4 text-cyan-400 print:text-black" />
             <h3 className="text-sm font-bold uppercase tracking-wider text-white print:text-black">
-              Recent Live Surveillance Radar Hits ({hits.length})
+              Forensic Biometrics & AI Recognition Matches ({matches.length})
             </h3>
           </div>
 
-          {hits.length > 0 ? (
+          {matches.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-              {hits.slice(0, 4).map((h: any) => (
+              {matches.slice(0, 4).map((m: any) => (
                 <div
-                  key={h.id}
-                  className="p-3 rounded-lg border border-neutral-800 bg-neutral-950/60 print:bg-neutral-50 print:border-neutral-300 flex flex-col justify-between gap-1"
+                  key={m.id}
+                  className="p-3 rounded-lg border border-neutral-800 bg-neutral-950/60 print:bg-neutral-50 print:border-neutral-300 flex flex-col justify-between gap-1.5"
                 >
                   <div className="flex items-center justify-between">
-                    <span className="font-mono font-semibold text-emerald-400 print:text-emerald-700">
-                      {h.sensorId}
+                    <span className="font-mono font-semibold text-cyan-400 print:text-cyan-700">
+                      {m.sketch?.case?.caseNumber || "PROBE-MATCH"}
                     </span>
-                    <span className="text-[10px] font-mono text-neutral-400">
-                      {Math.round(h.confidenceScore * 100)}% MATCH
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 print:border-neutral-400 print:text-black">
+                      {(m.matchScore * 100).toFixed(1)}% SIMILARITY
                     </span>
                   </div>
-                  <p className="text-neutral-200 print:text-black text-[11px] font-medium">{h.location}</p>
+                  <p className="text-neutral-200 print:text-black text-[11px] font-medium">
+                    {m.sketch?.case?.title || "Facial Biometric Feature Vector Match"}
+                  </p>
                   <div className="text-[10px] font-mono text-neutral-500 flex items-center justify-between pt-1 border-t border-neutral-800 print:border-neutral-200">
-                    <span>GPS: {h.latitude.toFixed(4)}, {h.longitude.toFixed(4)}</span>
-                    <span>{new Date(h.createdAt).toLocaleDateString()}</span>
+                    <span>Status: {m.status}</span>
+                    <span>{new Date(m.createdAt).toLocaleDateString()}</span>
                   </div>
                 </div>
               ))}
             </div>
           ) : (
-            <p className="text-xs text-neutral-400 italic">No automated camera sensor detections logged in past 30 days.</p>
+            <p className="text-xs text-neutral-400 italic">No automated facial biometrics or composite sketch matches logged in database.</p>
           )}
         </div>
 
-        {/* Section 4: Chain of Custody & Authentication Stamp */}
+        {/* Section 4: Cryptographic Authenticity Stamp */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 text-xs font-mono text-neutral-400 print:text-neutral-600 border-t border-neutral-800 print:border-neutral-300 pt-4">
           <div className="space-y-0.5">
             <div>ISSUED BY: FORENSIX AUTOMATED INTELLIGENCE CORE</div>
-            <div>SECURITY HASH: SHA256-AUTHENTICATED-LEDGER</div>
+            <div className="truncate max-w-md">SECURITY HASH: {recordDigest}</div>
           </div>
           <div className="text-right">
             <div>DOCUMENT STATUS: LAW ENFORCEMENT VERIFIED</div>

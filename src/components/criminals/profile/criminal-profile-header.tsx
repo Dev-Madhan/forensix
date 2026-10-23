@@ -9,7 +9,6 @@ import {
   FileText,
   Edit,
   ChevronDown,
-  Download,
   Printer,
   Share2,
   Eye,
@@ -43,6 +42,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import type { Criminal } from "@prisma/client";
 import { toggleCriminalWatchlist, updateCriminalPhoto } from "@/features/criminals/actions";
+import { SuspectAvatar } from "@/components/criminals/suspect-avatar";
 
 interface CriminalProfileHeaderProps {
   criminal: Criminal;
@@ -60,47 +60,50 @@ export function CriminalProfileHeader({
   const [isOnWatchlist, setIsOnWatchlist] = useState(
     demographics.watchlistStatus === "On Watchlist" || criminal.status === "WANTED"
   );
-  const [generatingReport, setGeneratingReport] = useState(false);
   const [isPhotoLightboxOpen, setIsPhotoLightboxOpen] = useState(false);
   const [isChangePhotoOpen, setIsChangePhotoOpen] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
 
   // Editable Profile fields (for interactive demo / live edit)
-  const [fullName, setFullName] = useState(`${criminal.firstName} ${criminal.lastName}`);
+  const [fullName, setFullName] = useState(`${criminal.firstName} ${criminal.lastName}`.trim());
   const [knownAs, setKnownAs] = useState(
-    Array.isArray(demographics.aliases)
+    Array.isArray(demographics.aliases) && demographics.aliases.length > 0
       ? (demographics.aliases as string[]).slice(0, 2).join(", ")
-      : "Karthik A., Black Karthik"
+      : criminal.alias || "None documented"
   );
   const [occupation, setOccupation] = useState(
-    (demographics.occupation as string) || "Unknown"
+    (demographics.occupation as string) || "Not Specified"
   );
   const [lastLocation, setLastLocation] = useState(
-    criminal.lastKnownLocation || "Chennai, Tamil Nadu"
+    criminal.lastKnownLocation || "Location Not Documented"
   );
   const [fathersName, setFathersName] = useState(
-    (demographics.fathersName as string) || "Karthik R."
+    (demographics.fathersName as string) || "Not Documented"
   );
   const [mothersName, setMothersName] = useState(
-    (demographics.mothersName as string) || "Meena R."
+    (demographics.mothersName as string) || "Not Documented"
   );
 
-  // Fallback image handling
+  // Safe resolved photo
   const resolvedPhoto =
-    mugshotDisplayUrl &&
-    !mugshotDisplayUrl.includes("fly.storage.tigris.dev//") &&
-    !mugshotDisplayUrl.includes("undefined")
+    mugshotDisplayUrl && !mugshotDisplayUrl.includes("undefined")
       ? mugshotDisplayUrl
-      : "/images/suspects/arjun-karthik.jpg";
+      : criminal.mugshotUrl
+      ? `/api/storage?key=${encodeURIComponent(criminal.mugshotUrl)}`
+      : null;
 
   const formattedDob = criminal.dateOfBirth
-    ? new Date(criminal.dateOfBirth).toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      }) + " (32 years)"
-    : "Mar 14, 1992 (32 years)";
+    ? (() => {
+        const dob = new Date(criminal.dateOfBirth);
+        const age = Math.floor((Date.now() - dob.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+        return `${dob.toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        })} (${age} years)`;
+      })()
+    : "Not Documented";
 
   const formattedUpdated = new Date(criminal.updatedAt).toLocaleString("en-US", {
     month: "short",
@@ -111,13 +114,13 @@ export function CriminalProfileHeader({
     hour12: true,
   });
 
-  const aadharId = (demographics.aadharId as string) || "XXXX-XXXX-7789";
-  const passportNo = (demographics.passportNo as string) || "Z6543219";
-  const drivingLicense = (demographics.drivingLicense as string) || "TN-DL-4382";
+  const aadharId = (demographics.aadharId as string) || "Not Enrolled";
+  const passportNo = (demographics.passportNo as string) || "Not Enrolled";
+  const drivingLicense = (demographics.drivingLicense as string) || "Not Documented";
   const otherId = (demographics.otherId as string) || "—";
-  const riskLevel = (demographics.riskLevel as string) || "High";
+  const riskLevel = (demographics.riskLevel as string) || criminal.riskLevel || "Medium";
   const threatAssessment =
-    (demographics.threatAssessment as string) || "Likely to re-offend";
+    (demographics.threatAssessment as string) || (criminal.status === "WANTED" ? "High Priority Capture" : "Under Evaluation");
 
   const [newPhotoFile, setNewPhotoFile] = useState<File | null>(null);
   const [newPhotoPreview, setNewPhotoPreview] = useState<string | null>(null);
@@ -136,7 +139,7 @@ export function CriminalProfileHeader({
       } else {
         if (next) {
           toast.success(`${fullName} placed on Priority Watchlist`, {
-            description: "Live sensor radar and ANPR alerts activated.",
+            description: "Automated alert flags and surveillance monitoring activated.",
           });
         } else {
           toast.info(`${fullName} removed from Priority Watchlist`);
@@ -170,76 +173,6 @@ export function CriminalProfileHeader({
       toast.error("Failed to upload photo to storage.");
     } finally {
       setIsUploadingPhoto(false);
-    }
-  };
-
-  // Generate Report
-  const handleGenerateReport = async () => {
-    setGeneratingReport(true);
-    toast.info(`Compiling forensic intelligence report for ${fullName}...`, {
-      duration: 3000,
-    });
-
-    try {
-      await new Promise((r) => setTimeout(r, 1800));
-
-      // Create a downloadable dossier
-      const dossierContent = `=====================================================
-FORENSIX AI FORENSIC INTELLIGENCE DOSSIER
-CONFIDENTIAL // LAW ENFORCEMENT SENSITIVE
-=====================================================
-SUBJECT IDENTIFICATION
-Criminal ID     : ${criminal.criminalId}
-Full Name       : ${fullName}
-Known As        : ${knownAs}
-Date of Birth   : ${formattedDob}
-Gender          : ${criminal.gender || "Male"}
-Nationality     : ${criminal.nationality || "Indian"}
-Last Location   : ${lastLocation}
-
-IDENTIFIERS
-Aadhaar ID      : ${aadharId}
-Passport No.    : ${passportNo}
-Driving License : ${drivingLicense}
-
-STATUS & CLASSIFICATION
-Current Status  : ${criminal.status}
-Risk Level      : ${riskLevel}
-Threat Level    : ${threatAssessment}
-Watchlist Status: ${isOnWatchlist ? "ON WATCHLIST" : "STANDARD"}
-
-PHYSICAL CHARACTERISTICS
-Height          : ${(demographics.height as string) || "5'10\" (178 cm)"}
-Weight          : ${(demographics.weight as string) || "70 kg"}
-Build           : ${(demographics.build as string) || "Athletic"}
-Eye Color       : ${(demographics.eyeColor as string) || "Brown"}
-Hair Color      : ${(demographics.hairColor as string) || "Black"}
-Complexion      : ${(demographics.complexion as string) || "Wheatish"}
-Distinctive Mark: ${(demographics.distinctiveMarks as string) || "Scar on left eyebrow"}
-Tattoos         : ${(demographics.tattoos as string) || "Dragon (right arm)"}
-
-CRIME SUMMARY
-${criminal.description || "Armed robbery at commercial establishments. Known to use two-wheelers."}
-
-Compiled by Forensix Intelligence Core
-Generated on: ${new Date().toISOString()}
-=====================================================`;
-
-      const blob = new Blob([dossierContent], { type: "text/plain;charset=utf-8" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `FORENSIX-DOSSIER-${criminal.criminalId}.txt`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-
-      toast.success(`Forensic Dossier for ${fullName} downloaded successfully.`);
-    } catch {
-      toast.error("Failed to compile forensic report.");
-    } finally {
-      setGeneratingReport(false);
     }
   };
 
@@ -290,20 +223,16 @@ Generated on: ${new Date().toISOString()}
             <span className="hidden xs:inline">{isOnWatchlist ? "On Watchlist" : "Watchlist"}</span>
           </Button>
 
-          {/* Generate Report — desktop only */}
+          {/* Official Dossier — desktop only */}
           <Button
             variant="outline"
             size="sm"
-            onClick={handleGenerateReport}
-            disabled={generatingReport}
+            render={<Link href={`/dashboard/criminals/${criminal.criminalId || criminal.id}/dossier`} />}
+            nativeButton={false}
             className="hidden sm:inline-flex h-9 gap-2 rounded-lg border-2 border-border/80 bg-card/60 text-xs font-medium hover:bg-muted/60 hover:text-foreground cursor-pointer shadow-xs"
           >
-            {generatingReport ? (
-              <Loader2 className="size-3.5 animate-spin text-muted-foreground" />
-            ) : (
-              <FileText className="size-3.5 text-muted-foreground" />
-            )}
-            <span>{generatingReport ? "Generating..." : "Generate Report"}</span>
+            <FileText className="size-3.5 text-muted-foreground" />
+            <span>Official Dossier</span>
           </Button>
 
           {/* Edit Profile — desktop only */}
@@ -343,11 +272,15 @@ Generated on: ${new Date().toISOString()}
               </DropdownMenuItem>
 
               <DropdownMenuItem
-                onClick={handleGenerateReport}
-                className="cursor-pointer gap-2 text-xs py-2 px-2.5 rounded-md hover:bg-muted font-medium text-foreground"
+                render={
+                  <Link
+                    href={`/dashboard/criminals/${criminal.criminalId || criminal.id}/dossier`}
+                    className="cursor-pointer gap-2 text-xs py-2 px-2.5 rounded-md hover:bg-muted font-medium text-foreground flex items-center"
+                  />
+                }
               >
-                <Download className="size-3.5 text-muted-foreground" />
-                <span>Export Dossier</span>
+                <FileText className="size-3.5 text-muted-foreground" />
+                <span>Official Forensic Dossier</span>
               </DropdownMenuItem>
 
               <DropdownMenuItem
@@ -439,14 +372,23 @@ Generated on: ${new Date().toISOString()}
         {/* CARD 1: MUGSHOT PHOTO */}
         <div className="sm:col-span-1 xl:col-span-2 2xl:col-span-2 flex flex-col">
           <div className="relative h-full min-h-[200px] sm:min-h-[260px] w-full rounded-xl overflow-hidden border-2 border-border/80 bg-card/60 shadow-xs group">
-            <Image
-              src={resolvedPhoto}
-              alt={fullName}
-              fill
-              priority
-              className="object-cover transition-transform duration-500 group-hover:scale-105"
-              sizes="(max-width: 768px) 100vw, 240px"
-            />
+            {resolvedPhoto ? (
+              <Image
+                src={resolvedPhoto}
+                alt={fullName}
+                fill
+                priority
+                className="object-cover transition-transform duration-500 group-hover:scale-105"
+                sizes="(max-width: 768px) 100vw, 240px"
+              />
+            ) : (
+              <SuspectAvatar
+                name={fullName}
+                status={criminal.status}
+                riskLevel={riskLevel}
+                size="fill"
+              />
+            )}
 
             {/* Gradient shadow overlay at bottom for change photo button */}
             <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-black/30 pointer-events-none" />
@@ -761,13 +703,22 @@ Generated on: ${new Date().toISOString()}
       >
         <div className="space-y-4">
           <div className="relative aspect-[3/4] w-full max-h-[540px] rounded-xl overflow-hidden border border-border/80 bg-black">
-            <Image
-              src={resolvedPhoto}
-              alt={fullName}
-              fill
-              className="object-contain"
-              sizes="(max-width: 768px) 100vw, 600px"
-            />
+            {resolvedPhoto ? (
+              <Image
+                src={resolvedPhoto}
+                alt={fullName}
+                fill
+                className="object-contain"
+                sizes="(max-width: 768px) 100vw, 600px"
+              />
+            ) : (
+              <SuspectAvatar
+                name={fullName}
+                status={status}
+                riskLevel={riskLevel}
+                size="fill"
+              />
+            )}
           </div>
           <div className="flex items-center justify-between text-xs text-muted-foreground pt-1">
             <span>Subject ID: {criminal.criminalId}</span>

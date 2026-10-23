@@ -6,6 +6,7 @@ import { MOCK_EVIDENCE_ITEMS } from "@/components/cases/evidence/mock-evidence";
 import { INITIAL_SUSPECTS } from "@/components/cases/suspects/mock-suspects";
 import type { EvidenceItem } from "@/components/cases/evidence/types";
 import type { SuspectItem, SuspectStatus, SuspectRole } from "@/components/cases/suspects/types";
+import { getSafeStorageUrl } from "@/lib/storage-url";
 
 export interface CaseAuditLogItem {
   id: string;
@@ -131,7 +132,7 @@ export function mapPrismaSuspectToItem(s: any, idx?: number): SuspectItem {
     numberIndex: String((idx ?? 0) + 1).padStart(2, "0"),
     name: `${c.firstName || ""} ${c.lastName || ""}`.trim() || "Unidentified Suspect",
     alias: c.alias ? `"${c.alias}"` : "None",
-    photo: c.mugshotUrl || "/images/suspects/arun-prakash.jpg",
+    photo: getSafeStorageUrl(c.mugshotUrl) || "/images/suspects/arun-prakash.jpg",
     status,
     role,
     matchConfidence: Math.round(s.matchConfidence || 85),

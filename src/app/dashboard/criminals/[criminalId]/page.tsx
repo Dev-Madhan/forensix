@@ -7,7 +7,16 @@ import { AppSidebar } from "@/components/app-sidebar";
 import {
   SidebarInset,
   SidebarProvider,
+  SidebarTrigger,
 } from "@/components/ui/sidebar";
+import {
+  Breadcrumb,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbList,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
 import { CriminalProfileHeader } from "@/components/criminals/profile/criminal-profile-header";
 import { CriminalProfileTabs } from "@/components/criminals/profile/criminal-profile-tabs";
 
@@ -79,16 +88,41 @@ export default async function CriminalProfilePage({
     <SidebarProvider>
       <AppSidebar user={user} />
       <SidebarInset>
-        <main className="flex flex-1 flex-col gap-6 p-4 sm:p-6 lg:p-8">
-          <CriminalProfileHeader
-            criminal={criminal}
-            mugshotDisplayUrl={mugshotDisplayUrl}
-          />
-          <CriminalProfileTabs
-            criminal={criminal}
-            mugshotDisplayUrl={mugshotDisplayUrl}
-          />
-        </main>
+        <div className="flex flex-col min-h-screen">
+          {/* Top Sticky Breadcrumbs & Navigation Header */}
+          <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 border-b border-border/60 bg-background/80 px-3 sm:px-6 backdrop-blur-md">
+            <SidebarTrigger className="-ml-1 size-7 text-muted-foreground hover:text-foreground cursor-pointer" />
+            <div className="h-4 w-px bg-border/60 mx-1" />
+            <Breadcrumb className="overflow-hidden min-w-0">
+              <BreadcrumbList className="flex-nowrap overflow-x-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden whitespace-nowrap text-xs sm:text-sm">
+                <BreadcrumbItem className="hidden sm:inline-flex">
+                  <BreadcrumbLink href="/dashboard">Dashboard</BreadcrumbLink>
+                </BreadcrumbItem>
+                <BreadcrumbSeparator className="hidden sm:inline-flex" />
+                <BreadcrumbItem>
+                  <BreadcrumbLink href="/dashboard/criminals">Criminals</BreadcrumbLink>
+                </BreadcrumbItem>
+                <BreadcrumbSeparator />
+                <BreadcrumbItem>
+                  <BreadcrumbPage className="font-semibold text-foreground">
+                    {criminal.firstName} {criminal.lastName}
+                  </BreadcrumbPage>
+                </BreadcrumbItem>
+              </BreadcrumbList>
+            </Breadcrumb>
+          </header>
+
+          <main className="flex flex-1 flex-col gap-6 p-4 sm:p-6 lg:p-8">
+            <CriminalProfileHeader
+              criminal={criminal}
+              mugshotDisplayUrl={mugshotDisplayUrl}
+            />
+            <CriminalProfileTabs
+              criminal={criminal}
+              mugshotDisplayUrl={mugshotDisplayUrl}
+            />
+          </main>
+        </div>
       </SidebarInset>
     </SidebarProvider>
   );

@@ -16,6 +16,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { StudioCriminalOption } from "@/features/sketches/actions";
+import { getSafeStorageUrl } from "@/lib/storage-url";
 
 export interface MatchCandidate {
   criminal_id: string;
@@ -99,7 +100,8 @@ export function SuspectMatchPanel({
 
               const name = match.metadata?.name || (matchedProfile ? `${matchedProfile.firstName} ${matchedProfile.lastName}` : match.criminal_id);
               const alias = match.metadata?.alias || matchedProfile?.alias || "No known alias";
-              const mugshotUrl = match.metadata?.mugshot_url || matchedProfile?.mugshotUrl || "/images/suspects/arun-prakash.jpg";
+              const rawMugshot = match.metadata?.mugshot_url || matchedProfile?.mugshotUrl || "/images/suspects/arun-prakash.jpg";
+              const mugshotUrl = getSafeStorageUrl(rawMugshot) || "/images/suspects/arun-prakash.jpg";
               const pct = Math.round(match.confidence_score * 100);
               const isConfirmed = Boolean(confirmedMatches[match.criminal_id]);
 

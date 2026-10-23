@@ -30,7 +30,8 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import type { SuspectItem, SuspectStatus, SuspectRole } from "./types";
-import { INITIAL_CRIMINALS } from "@/constants/mock-criminals";
+import { SuspectAvatar } from "@/components/criminals/suspect-avatar";
+import { getSafeStorageUrl } from "@/lib/storage-url";
 import {
   MOCK_CASE_SKETCHES,
   type CaseSketchReference,
@@ -66,7 +67,7 @@ export function AddSuspectDialog({
 
   // Database Search & Criminals State
   const [dbSearchTerm, setDbSearchTerm] = useState("");
-  const [dbCriminals, setDbCriminals] = useState<any[]>(INITIAL_CRIMINALS);
+  const [dbCriminals, setDbCriminals] = useState<any[]>([]);
   const [isLoadingCriminals, setIsLoadingCriminals] = useState(false);
   const [dbCandidateRoles, setDbCandidateRoles] = useState<
     Record<string, { status: SuspectStatus; role: SuspectRole }>
@@ -80,14 +81,14 @@ export function AddSuspectDialog({
     getAvailableCriminalsForCase(dbSearchTerm)
       .then((res) => {
         if (!active) return;
-        if (res.data && res.data.length > 0) {
+        if (res.data) {
           setDbCriminals(res.data);
         } else {
-          setDbCriminals(INITIAL_CRIMINALS);
+          setDbCriminals([]);
         }
       })
       .catch(() => {
-        if (active) setDbCriminals(INITIAL_CRIMINALS);
+        if (active) setDbCriminals([]);
       })
       .finally(() => {
         if (active) setIsLoadingCriminals(false);
@@ -352,11 +353,30 @@ export function AddSuspectDialog({
                   {/* Filtered Criminal List */}
                   <div className="space-y-2.5 max-h-[380px] overflow-y-auto pr-1">
                     {isLoadingCriminals && (
-                      <div className="text-center py-4 text-xs text-muted-foreground animate-pulse">
+                      <div className="text-center py-6 text-xs text-muted-foreground animate-pulse">
                         Querying central forensic criminal repository...
                       </div>
                     )}
-                    {dbCriminals.filter((c) => {
+                    {!isLoadingCriminals && dbCriminals.filter((c) => {
+                      if (!dbSearchTerm.trim()) return true;
+                      const q = dbSearchTerm.toLowerCase();
+                      const name = `${c.firstName} ${c.lastName}`.toLowerCase();
+                      return (
+                        name.includes(q) ||
+                        c.alias?.toLowerCase().includes(q) ||
+                        c.criminalId?.toLowerCase().includes(q) ||
+                        c.lastKnownLocation?.toLowerCase().includes(q)
+                      );
+                    }).length === 0 && (
+                      <div className="text-center py-8 px-4 rounded-lg border-2 border-dashed border-border/70 bg-muted/10">
+                        <Database className="size-8 text-muted-foreground/40 mx-auto mb-2" />
+                        <p className="text-xs font-semibold text-foreground">No criminal records found</p>
+                        <p className="text-[11px] text-muted-foreground mt-0.5">
+                          {dbSearchTerm ? "Try refining your search keyword." : "Central repository contains no registered subjects."}
+                        </p>
+                      </div>
+                    )}
+                    {!isLoadingCriminals && dbCriminals.filter((c) => {
                       if (!dbSearchTerm.trim()) return true;
                       const q = dbSearchTerm.toLowerCase();
                       const name = `${c.firstName} ${c.lastName}`.toLowerCase();
@@ -380,12 +400,22 @@ export function AddSuspectDialog({
                           className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3 rounded-lg border-2 border-border/70 bg-card/60 hover:border-[#665AEF]/50 transition-colors"
                         >
                           <div className="flex items-center gap-3 min-w-0">
-                            <div className="size-11 rounded-lg overflow-hidden border border-border bg-muted/40 shrink-0">
-                              <img
-                                src={candidate.mugshotUrl || "/images/suspects/arun-prakash.jpg"}
-                                alt={candidateName}
-                                className="size-full object-cover"
-                              />
+                            <div className="size-11 rounded-lg overflow-hidden border border-border bg-muted/40 shrink-0 flex items-center justify-center">
+                              {candidate.mugshotUrl && !candidate.mugshotUrl.includes("fly.storage.tigris.dev//") ? (
+                                <img
+                                  src={getSafeStorageUrl(candidate.mugshotUrl) || candidate.mugshotUrl}
+                                  alt={candidateName}
+                                  className="size-full object-cover"
+                                />
+                              ) : (
+                                <SuspectAvatar
+                                  name={candidateName}
+                                  status={candidate.status}
+                                  riskLevel={candidate.riskLevel}
+                                  size="sm"
+                                  className="rounded-none border-0"
+                                />
+                              )}
                             </div>
                             <div className="min-w-0">
                               <div className="flex items-center gap-2">
@@ -420,7 +450,7 @@ export function AddSuspectDialog({
                                     numberIndex: String(nextIndexNumber).padStart(2, "0"),
                                     name: candidateName,
                                     alias: candidate.alias ? `Alias: ${candidate.alias}` : "Alias: None",
-                                    photo: candidate.mugshotUrl || "/images/suspects/arun-prakash.jpg",
+                                    photo: getSafeStorageUrl(candidate.mugshotUrl) || "/images/suspects/arun-prakash.jpg",
                                     status: currentCfg.status,
                                     role: currentCfg.role,
                                     matchConfidence: 88,

@@ -39,7 +39,6 @@ import {
   PenLine,
   Fingerprint,
   Globe,
-  Radio,
   Zap,
   Download,
   FileSpreadsheet,
@@ -47,17 +46,18 @@ import {
   CheckSquare,
 } from "lucide-react";
 import { toast } from "sonner";
-import { useCriminalRealtime } from "@/hooks/use-criminal-realtime";
+import { useSearchParams } from "next/navigation";
 import {
-  triggerLiveRadarSimulatedDetection,
   updateCriminalStatusAndRisk,
   bulkToggleCriminalWatchlist,
   bulkUpdateCriminalStatus,
 } from "@/features/criminals/actions";
 import { CriminalStatus } from "@prisma/client";
 
-import { INITIAL_CRIMINALS, type CriminalItem } from "@/constants/mock-criminals";
-export { INITIAL_CRIMINALS, type CriminalItem };
+import { type CriminalItem } from "@/constants/mock-criminals";
+import { getSafeStorageUrl } from "@/lib/storage-url";
+import { SuspectAvatar } from "./suspect-avatar";
+export { type CriminalItem };
 
 /**
  * Export suspects list to RFC 4180 compliant CSV format
@@ -121,6 +121,34 @@ function exportCriminalsToCSV(
   URL.revokeObjectURL(url);
 
   toast.success(`Exported ${criminals.length} suspect records to CSV`, {
+    description: `File saved as ${filename}`,
+  });
+}
+
+/**
+ * Export suspects list to formatted JSON
+ */
+function exportCriminalsToJSON(
+  criminals: CriminalItem[],
+  filename = `forensix-criminals-${new Date().toISOString().slice(0, 10)}.json`
+) {
+  if (!criminals || criminals.length === 0) {
+    toast.error("No suspect records to export.");
+    return;
+  }
+
+  const jsonContent = JSON.stringify(criminals, null, 2);
+  const blob = new Blob([jsonContent], { type: "application/json;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.setAttribute("href", url);
+  link.setAttribute("download", filename);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+
+  toast.success(`Exported ${criminals.length} suspect records to JSON`, {
     description: `File saved as ${filename}`,
   });
 }
@@ -219,76 +247,50 @@ interface CriminalsTableProps {
 }
 
 export function CriminalsTable({ initialCriminals = [] }: CriminalsTableProps) {
-  // Combine incoming criminals with baseline reference dataset into live mutable state
-  const [liveCriminals, setLiveCriminals] = React.useState<CriminalItem[]>(() => {
-    if (!initialCriminals || initialCriminals.length === 0) {
-      return INITIAL_CRIMINALS;
-    }
-    const existingIds = new Set(initialCriminals.map((c) => c.criminalId));
-    const dedupedInitial = INITIAL_CRIMINALS.filter((c) => !existingIds.has(c.criminalId));
-    return [...initialCriminals, ...dedupedInitial];
+  // Set local state strictly from incoming database records
+  const [criminalsList, setCriminalsList] = React.useState<CriminalItem[]>(() => {
+    return initialCriminals || [];
   });
 
   // Keep state synchronized with prop updates
   React.useEffect(() => {
-    if (initialCriminals && initialCriminals.length > 0) {
-      const existingIds = new Set(initialCriminals.map((c) => c.criminalId));
-      const dedupedInitial = INITIAL_CRIMINALS.filter((c) => !existingIds.has(c.criminalId));
-      setLiveCriminals([...initialCriminals, ...dedupedInitial]);
-    }
+    setCriminalsList(initialCriminals || []);
   }, [initialCriminals]);
 
-  // Connect to real-time Server-Sent Events (SSE) stream
-  const { isConnected, recentHits } = useCriminalRealtime({
-    enableToasts: true,
-    onStatusChanged: (evt) => {
-      if (evt.data?.status) {
-        setLiveCriminals((prev) =>
-          prev.map((c) =>
-            c.id === evt.criminalId || c.criminalId === evt.criminalId
-              ? {
-                  ...c,
-                  status:
-                    evt.data.status === "WANTED"
-                      ? "Wanted"
-                      : evt.data.status === "ACTIVE"
-                      ? "Active"
-                      : "In Custody",
-                }
-              : c
-          )
-        );
-      }
-    },
-    onSurveillanceHit: (evt) => {
-      setLiveCriminals((prev) =>
-        prev.map((c) =>
-          c.id === evt.criminalId || c.criminalId === evt.criminalId
-            ? {
-                ...c,
-                recentRadarHit: {
-                  sensorId: evt.data?.sensorId || "SENSOR",
-                  location: evt.data?.location || "Perimeter Sensor",
-                  confidence: evt.data?.confidenceScore || 0.95,
-                  time: evt.timestamp,
-                },
-              }
-            : c
-        )
-      );
-    },
-  });
+  const allCriminals = criminalsList;
 
-  const allCriminals = liveCriminals;
+  const searchParams = useSearchParams();
 
-  // Filter states
-  const [searchTerm, setSearchTerm] = React.useState("");
-  const [categoryFilter, setCategoryFilter] = React.useState<string | null>(null);
-  const [riskFilter, setRiskFilter] = React.useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = React.useState<string | null>(null);
+  // Filter states initialized from URL search params
+  const [searchTerm, setSearchTerm] = React.useState(
+    () => searchParams?.get("q") || ""
+  );
+  const [categoryFilter, setCategoryFilter] = React.useState<string | null>(
+    () => searchParams?.get("category") || null
+  );
+  const [riskFilter, setRiskFilter] = React.useState<string | null>(
+    () => searchParams?.get("risk") || null
+  );
+  const [statusFilter, setStatusFilter] = React.useState<string | null>(
+    () => searchParams?.get("status") || null
+  );
   const [hoveredCategory, setHoveredCategory] = React.useState<string | null>(null);
   const [hoveredRisk, setHoveredRisk] = React.useState<string | null>(null);
   const [hoveredStatus, setHoveredStatus] = React.useState<string | null>(null);
+
+
+  // Synchronize filter changes with URL query string
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams();
+    if (searchTerm.trim()) params.set("q", searchTerm.trim());
+    if (statusFilter) params.set("status", statusFilter);
+    if (riskFilter) params.set("risk", riskFilter);
+    if (categoryFilter) params.set("category", categoryFilter);
+    const qs = params.toString();
+    const newUrl = qs ? `${window.location.pathname}?${qs}` : window.location.pathname;
+    window.history.replaceState(null, "", newUrl);
+  }, [searchTerm, statusFilter, riskFilter, categoryFilter]);
 
   // Selection states (for bulk operations)
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
@@ -541,271 +543,293 @@ export function CriminalsTable({ initialCriminals = [] }: CriminalsTableProps) {
     >
       {/* Left Column: Criminals Table (expands to 100% when preview is closed) */}
       <div className="space-y-4 min-w-0 w-full">
-        {/* 1. Filter Bar matching reference image with border-2 & Live Radar Pill */}
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
-          {/* Search Bar */}
-          <div className="relative flex-1 min-w-0">
-            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
-            <Input
-              placeholder="Search by name, alias, ID, or other details..."
-              value={searchTerm}
-              onChange={(e) => {
-                setSearchTerm(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="h-10 pl-9.5 rounded-lg border-2 border-border bg-card/60 text-sm placeholder:text-muted-foreground/70 focus-visible:border-[#665AEF] focus-visible:ring-1 focus-visible:ring-[#665AEF]"
-            />
-          </div>
-
-          {/* Real-time Sensor Radar Status Pill */}
-          <div className="flex items-center gap-2 px-3 py-2 rounded-lg border-2 border-emerald-500/30 bg-emerald-500/10 text-emerald-400 text-xs font-medium shrink-0 shadow-sm shadow-emerald-500/10">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-            </span>
-            <span className="font-mono text-[11px] tracking-wide">
-              {isConnected ? "LIVE RADAR SYNCED" : "RECONNECTING RADAR"}
-            </span>
-            {recentHits.length > 0 && (
-              <span className="px-1.5 py-0.2 rounded-full bg-emerald-500/25 text-[10px] font-bold text-emerald-200">
-                +{recentHits.length} Hits
-              </span>
-            )}
-          </div>
-
-          <div className="flex flex-wrap items-end gap-2.5 sm:gap-3">
-            {/* Category Dropdown */}
-            <div className="space-y-1 shrink-0">
-              <span className="text-[11px] font-medium text-muted-foreground block">
-                Category
-              </span>
-              <DropdownMenu>
-                <DropdownMenuTrigger
-                  render={
-                    <Button
-                      variant="outline"
-                      className="h-10 min-w-32.5 justify-between rounded-lg border-2 border-border bg-card/60 px-3 text-xs sm:text-sm font-normal hover:bg-muted/60 hover:text-foreground cursor-pointer"
-                    />
-                  }
+        {/* 1. Filter & Command Bar: 2-tier responsive layout preventing search input collapse */}
+        <div className="flex flex-col gap-3">
+          {/* Row 1: Full-width Search Bar with Clear Button & Real-time Live Radar Telemetry */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+            <div className="relative flex-1 min-w-0">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
+              <Input
+                placeholder="Search by name, alias, ID, or other details..."
+                value={searchTerm}
+                onChange={(e) => {
+                  setSearchTerm(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="h-10 pl-9.5 pr-8 rounded-lg border-2 border-border bg-card/60 text-sm placeholder:text-muted-foreground/70 focus-visible:border-[#665AEF] focus-visible:ring-1 focus-visible:ring-[#665AEF] w-full"
+              />
+              {searchTerm && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchTerm("");
+                    setCurrentPage(1);
+                  }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-0.5 rounded cursor-pointer"
+                  aria-label="Clear search"
                 >
-                  <span>{categoryFilter || "All Categories"}</span>
-                  <ChevronDown className="size-3.5 text-muted-foreground opacity-70" />
-                </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  align="start"
-                  side="bottom"
-                  sideOffset={6}
-                  className="w-44 max-h-80 overflow-y-auto no-scrollbar scrollbar-none [&::-webkit-scrollbar]:hidden p-1 rounded-xl shadow-xl bg-card/95 backdrop-blur-xl border-2 border-border"
-                  onPointerLeave={() => setHoveredCategory(null)}
-                >
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.96, y: -6 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.96, y: -6 }}
-                    transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-                    className="space-y-0.5"
-                  >
-                    {[
-                      "All Categories",
-                      "Theft",
-                      "Assault",
-                      "Fraud",
-                      "Cyber Crime",
-                      "Drug Offense",
-                      "Violence",
-                      "Arson",
-                      "Robbery",
-                      "Burglary",
-                      "Forgery",
-                      "Extortion",
-                      "Smuggling",
-                    ].map((cat) => {
-                      const isAll = cat === "All Categories";
-                      return (
-                        <DropdownMenuItem
-                          key={cat}
-                          onPointerEnter={() => setHoveredCategory(cat)}
-                          onClick={() => {
-                            setCategoryFilter(isAll ? null : cat);
-                            setCurrentPage(1);
-                          }}
-                          className="relative z-0 group flex items-center justify-between cursor-pointer px-2.5 py-1.5 rounded-md transition-colors focus:text-accent-foreground hover:text-accent-foreground bg-transparent! text-xs font-medium"
-                        >
-                          {hoveredCategory === cat && (
-                            <motion.div
-                              layoutId="category-filter-hover"
-                              className="absolute inset-0 z-[-1] rounded-md bg-accent/80"
-                              transition={{
-                                type: "spring",
-                                bounce: 0.3,
-                                duration: 0.4,
-                              }}
-                            />
-                          )}
-                          <span>{cat}</span>
-                        </DropdownMenuItem>
-                      );
-                    })}
-                  </motion.div>
-                </DropdownMenuContent>
-              </DropdownMenu>
+                  <X className="size-3.5" />
+                </button>
+              )}
             </div>
-
-            {/* Risk Level Dropdown */}
-            <div className="space-y-1 shrink-0">
-              <span className="text-[11px] font-medium text-muted-foreground block">
-                Risk Level
-              </span>
-              <DropdownMenu>
-                <DropdownMenuTrigger
-                  render={
-                    <Button
-                      variant="outline"
-                      className="h-10 min-w-32.5 justify-between rounded-lg border-2 border-border bg-card/60 px-3 text-xs sm:text-sm font-normal hover:bg-muted/60 hover:text-foreground cursor-pointer"
-                    />
-                  }
-                >
-                  <span>{riskFilter || "All Levels"}</span>
-                  <ChevronDown className="size-3.5 text-muted-foreground opacity-70" />
-                </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  align="start"
-                  side="bottom"
-                  sideOffset={6}
-                  className="w-44 p-1 rounded-xl shadow-xl bg-card/95 backdrop-blur-xl border-2 border-border overflow-hidden"
-                  onPointerLeave={() => setHoveredRisk(null)}
-                >
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.96, y: -6 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.96, y: -6 }}
-                    transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-                    className="space-y-0.5"
-                  >
-                    {["All Levels", "High", "Medium", "Low"].map((level) => {
-                      const isAll = level === "All Levels";
-                      return (
-                        <DropdownMenuItem
-                          key={level}
-                          onPointerEnter={() => setHoveredRisk(level)}
-                          onClick={() => {
-                            setRiskFilter(isAll ? null : level);
-                            setCurrentPage(1);
-                          }}
-                          className="relative z-0 group flex items-center justify-between cursor-pointer px-2.5 py-1.5 rounded-md transition-colors focus:text-accent-foreground hover:text-accent-foreground bg-transparent! text-xs font-medium"
-                        >
-                          {hoveredRisk === level && (
-                            <motion.div
-                              layoutId="risk-filter-hover"
-                              className="absolute inset-0 z-[-1] rounded-md bg-accent/80"
-                              transition={{
-                                type: "spring",
-                                bounce: 0.3,
-                                duration: 0.4,
-                              }}
-                            />
-                          )}
-                          <span>{level}</span>
-                        </DropdownMenuItem>
-                      );
-                    })}
-                  </motion.div>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-
-            {/* Status Dropdown */}
-            <div className="space-y-1 shrink-0">
-              <span className="text-[11px] font-medium text-muted-foreground block">
-                Status
-              </span>
-              <DropdownMenu>
-                <DropdownMenuTrigger
-                  render={
-                    <Button
-                      variant="outline"
-                      className="h-10 min-w-32.5 justify-between rounded-lg border-2 border-border bg-card/60 px-3 text-xs sm:text-sm font-normal hover:bg-muted/60 hover:text-foreground cursor-pointer"
-                    />
-                  }
-                >
-                  <span>{statusFilter || "All Statuses"}</span>
-                  <ChevronDown className="size-3.5 text-muted-foreground opacity-70" />
-                </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  align="start"
-                  side="bottom"
-                  sideOffset={6}
-                  className="w-44 p-1 rounded-xl shadow-xl bg-card/95 backdrop-blur-xl border-2 border-border overflow-hidden"
-                  onPointerLeave={() => setHoveredStatus(null)}
-                >
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.96, y: -6 }}
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    exit={{ opacity: 0, scale: 0.96, y: -6 }}
-                    transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-                    className="space-y-0.5"
-                  >
-                    {[
-                      "All Statuses",
-                      "Active",
-                      "Wanted",
-                      "In Custody",
-                      "Under Surveillance",
-                      "Inactive",
-                    ].map((s) => {
-                      const isAll = s === "All Statuses";
-                      return (
-                        <DropdownMenuItem
-                          key={s}
-                          onPointerEnter={() => setHoveredStatus(s)}
-                          onClick={() => {
-                            setStatusFilter(isAll ? null : s);
-                            setCurrentPage(1);
-                          }}
-                          className="relative z-0 group flex items-center justify-between cursor-pointer px-2.5 py-1.5 rounded-md transition-colors focus:text-accent-foreground hover:text-accent-foreground bg-transparent! text-xs font-medium"
-                        >
-                          {hoveredStatus === s && (
-                            <motion.div
-                              layoutId="status-filter-hover-criminal"
-                              className="absolute inset-0 z-[-1] rounded-md bg-accent/80"
-                              transition={{
-                                type: "spring",
-                                bounce: 0.3,
-                                duration: 0.4,
-                              }}
-                            />
-                          )}
-                          <span>{s}</span>
-                        </DropdownMenuItem>
-                      );
-                    })}
-                  </motion.div>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-
-            {/* Export Filtered CSV Button */}
-            <Button
-              variant="outline"
-              onClick={() => exportCriminalsToCSV(filteredCriminals)}
-              className="h-10 px-3 rounded-lg border-2 border-border bg-card/60 text-xs sm:text-sm font-medium hover:bg-muted/60 hover:text-foreground cursor-pointer gap-2 transition-colors shrink-0 self-end"
-              title={`Export ${filteredCriminals.length} matching suspects to CSV`}
-            >
-              <Download className="size-3.5 text-muted-foreground" />
-              <span className="hidden sm:inline">Export CSV</span>
-            </Button>
 
             {/* Toggle button to reopen preview when closed */}
             {!showPreview && (
               <Button
                 variant="outline"
                 onClick={() => handleOpenPreview()}
-                className="h-10 px-3 rounded-lg border-2 border-border bg-card/60 text-xs font-medium hover:bg-muted/60 hover:text-foreground cursor-pointer gap-1.5 transition-colors shrink-0 self-end"
+                className="h-10 px-3 rounded-lg border-2 border-border bg-card/60 text-xs font-medium hover:bg-muted/60 hover:text-foreground cursor-pointer gap-1.5 transition-colors shrink-0"
               >
                 <User className="size-3.5 text-muted-foreground" />
                 <span>Show Profile</span>
               </Button>
             )}
+          </div>
+
+          {/* Row 2: Filter Dropdowns, Active Filter Reset & Export Action */}
+          <div className="flex flex-wrap items-end justify-between gap-2.5 sm:gap-3">
+            <div className="flex flex-wrap items-end gap-2.5 sm:gap-3">
+              {/* Category Dropdown */}
+              <div className="space-y-1 shrink-0">
+                <span className="text-[11px] font-medium text-muted-foreground block">
+                  Category
+                </span>
+                <DropdownMenu>
+                  <DropdownMenuTrigger
+                    render={
+                      <Button
+                        variant="outline"
+                        className="h-10 min-w-32.5 justify-between rounded-lg border-2 border-border bg-card/60 px-3 text-xs sm:text-sm font-normal hover:bg-muted/60 hover:text-foreground cursor-pointer"
+                      />
+                    }
+                  >
+                    <span>{categoryFilter || "All Categories"}</span>
+                    <ChevronDown className="size-3.5 text-muted-foreground opacity-70" />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    align="start"
+                    side="bottom"
+                    sideOffset={6}
+                    className="w-44 max-h-80 overflow-y-auto no-scrollbar scrollbar-none [&::-webkit-scrollbar]:hidden p-1 rounded-xl shadow-xl bg-card/95 backdrop-blur-xl border-2 border-border"
+                    onPointerLeave={() => setHoveredCategory(null)}
+                  >
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.96, y: -6 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.96, y: -6 }}
+                      transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+                      className="space-y-0.5"
+                    >
+                      {[
+                        "All Categories",
+                        "Theft",
+                        "Assault",
+                        "Fraud",
+                        "Cyber Crime",
+                        "Drug Offense",
+                        "Violence",
+                        "Arson",
+                        "Robbery",
+                        "Burglary",
+                        "Forgery",
+                        "Extortion",
+                        "Smuggling",
+                      ].map((cat) => {
+                        const isAll = cat === "All Categories";
+                        return (
+                          <DropdownMenuItem
+                            key={cat}
+                            onPointerEnter={() => setHoveredCategory(cat)}
+                            onClick={() => {
+                              setCategoryFilter(isAll ? null : cat);
+                              setCurrentPage(1);
+                            }}
+                            className="relative z-0 group flex items-center justify-between cursor-pointer px-2.5 py-1.5 rounded-md transition-colors focus:text-accent-foreground hover:text-accent-foreground bg-transparent! text-xs font-medium"
+                          >
+                            {hoveredCategory === cat && (
+                              <motion.div
+                                layoutId="category-filter-hover"
+                                className="absolute inset-0 z-[-1] rounded-md bg-accent/80"
+                                transition={{
+                                  type: "spring",
+                                  bounce: 0.3,
+                                  duration: 0.4,
+                                }}
+                              />
+                            )}
+                            <span>{cat}</span>
+                          </DropdownMenuItem>
+                        );
+                      })}
+                    </motion.div>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+
+              {/* Risk Level Dropdown */}
+              <div className="space-y-1 shrink-0">
+                <span className="text-[11px] font-medium text-muted-foreground block">
+                  Risk Level
+                </span>
+                <DropdownMenu>
+                  <DropdownMenuTrigger
+                    render={
+                      <Button
+                        variant="outline"
+                        className="h-10 min-w-32.5 justify-between rounded-lg border-2 border-border bg-card/60 px-3 text-xs sm:text-sm font-normal hover:bg-muted/60 hover:text-foreground cursor-pointer"
+                      />
+                    }
+                  >
+                    <span>{riskFilter || "All Levels"}</span>
+                    <ChevronDown className="size-3.5 text-muted-foreground opacity-70" />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    align="start"
+                    side="bottom"
+                    sideOffset={6}
+                    className="w-44 p-1 rounded-xl shadow-xl bg-card/95 backdrop-blur-xl border-2 border-border overflow-hidden"
+                    onPointerLeave={() => setHoveredRisk(null)}
+                  >
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.96, y: -6 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.96, y: -6 }}
+                      transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+                      className="space-y-0.5"
+                    >
+                      {["All Levels", "High", "Medium", "Low"].map((level) => {
+                        const isAll = level === "All Levels";
+                        return (
+                          <DropdownMenuItem
+                            key={level}
+                            onPointerEnter={() => setHoveredRisk(level)}
+                            onClick={() => {
+                              setRiskFilter(isAll ? null : level);
+                              setCurrentPage(1);
+                            }}
+                            className="relative z-0 group flex items-center justify-between cursor-pointer px-2.5 py-1.5 rounded-md transition-colors focus:text-accent-foreground hover:text-accent-foreground bg-transparent! text-xs font-medium"
+                          >
+                            {hoveredRisk === level && (
+                              <motion.div
+                                layoutId="risk-filter-hover"
+                                className="absolute inset-0 z-[-1] rounded-md bg-accent/80"
+                                transition={{
+                                  type: "spring",
+                                  bounce: 0.3,
+                                  duration: 0.4,
+                                }}
+                              />
+                            )}
+                            <span>{level}</span>
+                          </DropdownMenuItem>
+                        );
+                      })}
+                    </motion.div>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+
+              {/* Status Dropdown */}
+              <div className="space-y-1 shrink-0">
+                <span className="text-[11px] font-medium text-muted-foreground block">
+                  Status
+                </span>
+                <DropdownMenu>
+                  <DropdownMenuTrigger
+                    render={
+                      <Button
+                        variant="outline"
+                        className="h-10 min-w-32.5 justify-between rounded-lg border-2 border-border bg-card/60 px-3 text-xs sm:text-sm font-normal hover:bg-muted/60 hover:text-foreground cursor-pointer"
+                      />
+                    }
+                  >
+                    <span>{statusFilter || "All Statuses"}</span>
+                    <ChevronDown className="size-3.5 text-muted-foreground opacity-70" />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    align="start"
+                    side="bottom"
+                    sideOffset={6}
+                    className="w-44 p-1 rounded-xl shadow-xl bg-card/95 backdrop-blur-xl border-2 border-border overflow-hidden"
+                    onPointerLeave={() => setHoveredStatus(null)}
+                  >
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.96, y: -6 }}
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      exit={{ opacity: 0, scale: 0.96, y: -6 }}
+                      transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+                      className="space-y-0.5"
+                    >
+                      {[
+                        "All Statuses",
+                        "Active",
+                        "Wanted",
+                        "In Custody",
+                        "Under Surveillance",
+                        "Inactive",
+                      ].map((s) => {
+                        const isAll = s === "All Statuses";
+                        return (
+                          <DropdownMenuItem
+                            key={s}
+                            onPointerEnter={() => setHoveredStatus(s)}
+                            onClick={() => {
+                              setStatusFilter(isAll ? null : s);
+                              setCurrentPage(1);
+                            }}
+                            className="relative z-0 group flex items-center justify-between cursor-pointer px-2.5 py-1.5 rounded-md transition-colors focus:text-accent-foreground hover:text-accent-foreground bg-transparent! text-xs font-medium"
+                          >
+                            {hoveredStatus === s && (
+                              <motion.div
+                                layoutId="status-filter-hover-criminal"
+                                className="absolute inset-0 z-[-1] rounded-md bg-accent/80"
+                                transition={{
+                                  type: "spring",
+                                  bounce: 0.3,
+                                  duration: 0.4,
+                                }}
+                              />
+                            )}
+                            <span>{s}</span>
+                          </DropdownMenuItem>
+                        );
+                      })}
+                    </motion.div>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+
+              {/* Reset Filters button when any filter or search query is active */}
+              {(categoryFilter || riskFilter || statusFilter || searchTerm) && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setCategoryFilter(null);
+                    setRiskFilter(null);
+                    setStatusFilter(null);
+                    setSearchTerm("");
+                    setCurrentPage(1);
+                  }}
+                  className="h-10 px-2.5 text-xs text-muted-foreground hover:text-foreground cursor-pointer gap-1.5 rounded-lg border border-dashed border-border/80 hover:border-border transition-colors self-end"
+                >
+                  <X className="size-3.5" />
+                  <span>Reset Filters</span>
+                </Button>
+              )}
+            </div>
+
+            {/* Export Filtered CSV Button */}
+            <Button
+              variant="outline"
+              onClick={() => exportCriminalsToCSV(filteredCriminals)}
+              className="h-10 px-3 rounded-lg border-2 border-border bg-card/60 text-xs sm:text-sm font-medium hover:bg-muted/60 hover:text-foreground cursor-pointer gap-2 transition-colors shrink-0 self-end ml-auto sm:ml-0"
+              title={`Export ${filteredCriminals.length} matching suspects to CSV`}
+            >
+              <Download className="size-3.5 text-muted-foreground" />
+              <span className="hidden sm:inline">Export CSV</span>
+              <span className="sm:hidden">CSV</span>
+            </Button>
           </div>
         </div>
 
@@ -887,19 +911,27 @@ export function CriminalsTable({ initialCriminals = [] }: CriminalsTableProps) {
                       {/* Photo column */}
                       <TableCell className="px-2.5 py-3">
                         <div className="relative size-9 rounded-full overflow-hidden border border-border/60 bg-muted/60 shrink-0">
-                          {c.mugshotUrl ? (
-                            <Image
-                              src={c.mugshotUrl}
-                              alt={`${c.firstName} ${c.lastName}`}
-                              fill
-                              className="object-cover"
-                              sizes="36px"
-                            />
-                          ) : (
-                            <div className="size-full flex items-center justify-center text-muted-foreground">
-                              <User className="size-4" />
-                            </div>
-                          )}
+                          {(() => {
+                            const photoSrc = getSafeStorageUrl(c.mugshotUrl);
+                            return photoSrc ? (
+                              <Image
+                                src={photoSrc}
+                                alt={`${c.firstName} ${c.lastName}`}
+                                fill
+                                className="object-cover"
+                                sizes="36px"
+                                unoptimized={photoSrc.startsWith("/api/storage")}
+                              />
+                            ) : (
+                              <SuspectAvatar
+                                firstName={c.firstName}
+                                lastName={c.lastName}
+                                status={c.status as any}
+                                riskLevel={c.riskLevel as any}
+                                className="size-full rounded-none"
+                              />
+                            );
+                          })()}
                         </div>
                       </TableCell>
                       {/* Name + ID */}
@@ -1092,6 +1124,23 @@ export function CriminalsTable({ initialCriminals = [] }: CriminalsTableProps) {
                 <span>Export CSV</span>
               </Button>
 
+              {/* Export Selected Suspects JSON */}
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  const selectedItems = allCriminals.filter((c) => selectedIds.has(c.id));
+                  exportCriminalsToJSON(
+                    selectedItems,
+                    `selected-suspects-${new Date().toISOString().slice(0, 10)}.json`
+                  );
+                }}
+                className="h-8 px-2.5 sm:px-3 rounded-lg border-2 border-border bg-card/80 hover:bg-muted/60 text-xs font-medium cursor-pointer gap-1.5"
+              >
+                <Download className="size-3.5 text-cyan-400" />
+                <span>Export JSON</span>
+              </Button>
+
               {/* Priority Watchlist Bulk Toggle */}
               <Button
                 size="sm"
@@ -1145,6 +1194,7 @@ export function CriminalsTable({ initialCriminals = [] }: CriminalsTableProps) {
                     { label: "Active", value: "ACTIVE" },
                     { label: "Wanted", value: "WANTED" },
                     { label: "In Custody", value: "IN_CUSTODY" },
+                    { label: "Inactive", value: "INACTIVE" },
                   ].map((st) => (
                     <DropdownMenuItem
                       key={st.value}
@@ -1184,6 +1234,7 @@ export function CriminalsTable({ initialCriminals = [] }: CriminalsTableProps) {
           </motion.div>
         )}
       </AnimatePresence>
+
     </div>
   );
 }
@@ -1313,20 +1364,28 @@ function CriminalProfilePreview({
             <div className="flex gap-4">
               {/* Mugshot (Portrait aspect ~3:4.2 matching key info height) */}
               <div className="relative w-[130px] sm:w-[138px] h-[190px] rounded-lg overflow-hidden border-2 border-border/80 bg-black/40 shrink-0 shadow-inner">
-                {criminal.mugshotUrl ? (
-                  <Image
-                    src={criminal.mugshotUrl}
-                    alt={`${criminal.firstName} ${criminal.lastName} mugshot`}
-                    fill
-                    className="object-cover"
-                    sizes="140px"
-                    priority
-                  />
-                ) : (
-                  <div className="size-full flex items-center justify-center text-muted-foreground bg-muted/30">
-                    <User className="size-10 opacity-40" />
-                  </div>
-                )}
+                {(() => {
+                  const previewSrc = getSafeStorageUrl(criminal.mugshotUrl);
+                  return previewSrc ? (
+                    <Image
+                      src={previewSrc}
+                      alt={`${criminal.firstName} ${criminal.lastName} mugshot`}
+                      fill
+                      className="object-cover"
+                      sizes="140px"
+                      priority
+                      unoptimized={previewSrc.startsWith("/api/storage")}
+                    />
+                  ) : (
+                    <SuspectAvatar
+                      firstName={criminal.firstName}
+                      lastName={criminal.lastName}
+                      status={criminal.status as any}
+                      riskLevel={criminal.riskLevel as any}
+                      className="size-full rounded-none"
+                    />
+                  );
+                })()}
               </div>
 
               {/* Key metadata list evenly distributed */}
@@ -1513,27 +1572,6 @@ function CriminalProfilePreview({
                 </Button>
               </div>
 
-              {/* Simulated Live Radar Trigger Button for Testing & Verification */}
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={async () => {
-                  toast.loading("Pinging nearest surveillance radar node...", { id: "radar-sim" });
-                  const res = await triggerLiveRadarSimulatedDetection(criminal.id);
-                  if (res.success) {
-                    toast.success("Radar Hit Recorded & Broadcast Live!", {
-                      id: "radar-sim",
-                      description: `Detection registered for ${criminal.firstName} ${criminal.lastName} at ${res.data?.location}`,
-                    });
-                  } else {
-                    toast.error("Failed to trigger radar ping", { id: "radar-sim" });
-                  }
-                }}
-                className="w-full h-8 rounded-lg border border-dashed border-emerald-500/40 bg-emerald-500/5 hover:bg-emerald-500/15 text-emerald-400 hover:text-emerald-300 text-[11px] font-medium cursor-pointer gap-1.5 transition-colors"
-              >
-                <Radio className="size-3.5 animate-pulse text-emerald-400" />
-                <span>Simulate Live Radar Ping</span>
-              </Button>
             </div>
       </div>
     </div>

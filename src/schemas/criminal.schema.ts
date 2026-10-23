@@ -57,19 +57,6 @@ export const LinkCriminalToCaseSchema = z.object({
 
 export type LinkCriminalToCaseInput = z.infer<typeof LinkCriminalToCaseSchema>;
 
-export const RecordSurveillanceHitSchema = z.object({
-  criminalId: z.string().min(1, "Criminal ID is required"),
-  sensorId: z.string().min(1, "Sensor ID is required"),
-  sensorName: z.string().optional(),
-  location: z.string().min(1, "Location is required"),
-  latitude: z.number(),
-  longitude: z.number(),
-  confidenceScore: z.number().min(0).max(1),
-  capturedMediaUrl: z.string().optional(),
-  details: z.string().optional(),
-});
-
-export type RecordSurveillanceHitInput = z.infer<typeof RecordSurveillanceHitSchema>;
 
 export const CreateCriminalRecordSchema = z.object({
   criminalId: z.string().min(1, "Criminal ID is required"),

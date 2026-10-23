@@ -113,6 +113,105 @@ function formatRelativeTime(date: Date): string {
   return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
+function formatAuditAction(
+  rawAction: string,
+  detailsObj: Record<string, unknown> = {},
+  officerName = "Authorized Investigator"
+): { title: string; details: string } {
+  const norm = rawAction.toUpperCase().replace(/\s+/g, "_");
+
+  if (typeof detailsObj.details === "string" && detailsObj.details.trim()) {
+    return {
+      title: formatActionTitle(rawAction),
+      details: detailsObj.details,
+    };
+  }
+
+  if (typeof detailsObj.description === "string" && detailsObj.description.trim()) {
+    return {
+      title: formatActionTitle(rawAction),
+      details: detailsObj.description,
+    };
+  }
+
+  const location = typeof detailsObj.location === "string" ? detailsObj.location : null;
+  const score = typeof detailsObj.confidenceScore === "number" ? detailsObj.confidenceScore : null;
+
+  switch (norm) {
+    case "SURVEILLANCE_HIT_RECORDED":
+    case "SURVEILLANCE_HIT":
+    case "SURVEILLANCE_MATCH":
+      return {
+        title: "Surveillance Sighting Logged",
+        details: location
+          ? `Automated surveillance detection recorded at ${location}${score ? ` with ${(score * 100).toFixed(1)}% match confidence` : ""}.`
+          : "Surveillance sighting verified and logged into subject chain of custody.",
+      };
+    case "PLACED_ON_WATCHLIST":
+    case "ADD_WATCHLIST":
+      return {
+        title: "Placed on Priority Watchlist",
+        details: `Subject flagged for priority surveillance monitoring and checkpoint alerts by ${officerName}.`,
+      };
+    case "REMOVED_FROM_WATCHLIST":
+    case "REMOVE_WATCHLIST":
+      return {
+        title: "Removed from Watchlist",
+        details: `Priority surveillance flag removed following administrative supervisory review by ${officerName}.`,
+      };
+    case "BIOMETRIC_ASSET_ENROLLED":
+    case "BIOMETRICS_ENROLLED":
+      return {
+        title: "Biometric Feature Vector Enrolled",
+        details: "512-dimensional facial recognition embedding generated and indexed into high-dimensional vector space.",
+      };
+    case "PHOTO_UPDATED":
+    case "MUGSHOT_UPDATED":
+      return {
+        title: "Booking Photograph Updated",
+        details: "New verified booking mugshot uploaded and cryptographic identity token regenerated.",
+      };
+    case "CRIMINAL_CREATED":
+    case "CRIMINAL_ENROLLED":
+      return {
+        title: "Criminal Record Initialized",
+        details: "Official subject identity and criminal record established in Forensix database.",
+      };
+    case "RECORD_ADDED":
+    case "OFFENCE_RECORDED":
+      return {
+        title: "Offence Record Documented",
+        details: "Incident charges, location details, and case identifiers registered into criminal ledger.",
+      };
+    case "EVIDENCE_ATTACHED":
+    case "EVIDENCE_LINKED":
+      return {
+        title: "Forensic Evidence Linked",
+        details: "Physical or digital evidence item registered under authenticated chain-of-custody.",
+      };
+    case "CASE_LINKED":
+    case "CASE_ATTACHED":
+      return {
+        title: "Case Association Linked",
+        details: "Subject associated as suspect or person of interest to active investigative case file.",
+      };
+    default: {
+      const cleanTitle = formatActionTitle(rawAction);
+      return {
+        title: cleanTitle,
+        details: `${cleanTitle} recorded by ${officerName} in official custody chain.`,
+      };
+    }
+  }
+}
+
+function formatActionTitle(rawAction: string): string {
+  return rawAction
+    .replace(/_/g, " ")
+    .toLowerCase()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 /**
  * Fetches real activity logs for a criminal from Prisma AuditLog and RecognitionResult.
  * No fake/seed data is returned. If no audit logs exist yet, records the genuine initial
@@ -296,22 +395,22 @@ export async function fetchCriminalActivityLogs(criminalId: string): Promise<Cri
         severity = "success";
       }
 
+      const officerName = log.user?.name || "System Investigator";
+      const { title, details } = formatAuditAction(log.action, detailsObj, officerName);
+
       rawEvents.push({
         id: log.id,
-        action: log.action.replace(/_/g, " "),
+        action: title,
         category,
         severity,
         date: log.createdAt,
         officer: {
-          name: log.user?.name || "System Investigator",
+          name: officerName,
           badgeId: log.user?.badgeId || (log.user?.role === "ADMIN" ? "ADMIN-HQ" : "TN-POLICE"),
           role: (log.user?.role as string) || "Forensic Custodian",
           avatarUrl: log.user?.image || undefined,
         },
-        details:
-          (typeof detailsObj.details === "string" && detailsObj.details) ||
-          (typeof detailsObj.description === "string" && detailsObj.description) ||
-          `Recorded ${log.action.replace(/_/g, " ")} on subject file in official ledger.`,
+        details,
         location: typeof detailsObj.location === "string" ? detailsObj.location : undefined,
         sensorId: typeof detailsObj.sensorId === "string" ? detailsObj.sensorId : undefined,
         caseNumber: typeof detailsObj.caseNumber === "string" ? detailsObj.caseNumber : undefined,
@@ -538,7 +637,7 @@ export async function fetchCriminalAccessHandlers(
       userEmail: log.user?.email || "system@forensix.gov",
       badgeId: log.user?.badgeId || (log.user?.role === "ADMIN" ? "ADMIN-HQ" : "TN-POLICE"),
       role: (log.user?.role as string) || "Authorized Custodian",
-      action: `${log.action.replace(/_/g, " ")} (Registry)`,
+      action: formatAuditAction(log.action, (log.details as Record<string, unknown>) || {}, log.user?.name || "").title,
       timestamp: log.createdAt.toLocaleDateString("en-US", {
         month: "short",
         day: "numeric",

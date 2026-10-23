@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { headers } from "next/headers";
 import Link from "next/link";
 import { auth } from "@/lib/auth";
@@ -102,7 +103,15 @@ export default async function CriminalsPage() {
             <CriminalSectionCards metrics={metrics} />
 
             {/* Criminals Table and Criminal Profile Preview */}
-            <CriminalsTable initialCriminals={criminals} />
+            <Suspense
+              fallback={
+                <div className="h-96 w-full rounded-2xl border-2 border-border/60 bg-card/40 animate-pulse flex items-center justify-center">
+                  <span className="text-xs font-mono text-muted-foreground">Loading forensic catalog...</span>
+                </div>
+              }
+            >
+              <CriminalsTable initialCriminals={criminals} />
+            </Suspense>
           </div>
         </div>
       </SidebarInset>
