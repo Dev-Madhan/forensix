@@ -60,6 +60,7 @@ import {
 import { getCriminalSlug } from "@/features/criminals/slug";
 import { SuspectAvatar } from "@/components/criminals/suspect-avatar";
 import { LinkCriminalCaseDialog } from "@/components/criminals/link-criminal-case-dialog";
+import { getSafeStorageUrl } from "@/lib/storage-url";
 
 interface CriminalProfileHeaderProps {
   criminal: Criminal;
@@ -125,12 +126,14 @@ export function CriminalProfileHeader({
     (demographics.mothersName as string) || "Not Documented"
   );
 
+  const [photoLoadError, setPhotoLoadError] = useState(false);
+
   // Safe resolved photo
   const resolvedPhoto =
     mugshotDisplayUrl && !mugshotDisplayUrl.includes("undefined")
-      ? mugshotDisplayUrl
+      ? getSafeStorageUrl(mugshotDisplayUrl)
       : criminal.mugshotUrl
-      ? `/api/storage?key=${encodeURIComponent(criminal.mugshotUrl)}`
+      ? getSafeStorageUrl(criminal.mugshotUrl)
       : null;
 
   const formattedDob = criminal.dateOfBirth
@@ -582,7 +585,7 @@ export function CriminalProfileHeader({
         {/* CARD 1: MUGSHOT PHOTO */}
         <div className="sm:col-span-1 xl:col-span-2 2xl:col-span-2 flex flex-col">
           <div className="relative h-full min-h-50 sm:min-h-65 w-full rounded-xl overflow-hidden border-2 border-border/80 bg-card/60 shadow-xs group">
-            {resolvedPhoto ? (
+            {resolvedPhoto && !photoLoadError ? (
               <Image
                 src={resolvedPhoto}
                 alt={fullName}
@@ -590,6 +593,8 @@ export function CriminalProfileHeader({
                 priority
                 className="object-cover transition-transform duration-500 group-hover:scale-105"
                 sizes="(max-width: 768px) 100vw, 240px"
+                onError={() => setPhotoLoadError(true)}
+                unoptimized={resolvedPhoto.startsWith("/api/storage")}
               />
             ) : (
               <SuspectAvatar

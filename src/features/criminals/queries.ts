@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { CriminalRiskLevel, CriminalStatus, Prisma } from "@prisma/client";
 import { type CriminalItem } from "@/constants/mock-criminals";
-import { getEvidenceSignedUrl } from "@/features/evidence/queries";
+import { getSafeStorageUrl } from "@/lib/storage-url";
 
 export interface GetCriminalsFilters {
   status?: CriminalStatus;
@@ -103,24 +103,9 @@ export async function getCriminalsForTable(filters?: GetCriminalsFilters): Promi
           ? [demo.primaryCategory || "Robbery", String(demo.secondaryCategories)]
           : [demo.primaryCategory || "Robbery / Theft"];
 
-        // Resolve raw storage keys to signed URLs or fallback to safe static placeholder
-        let resolvedMugshot = c.mugshotUrl;
-        if (
-          resolvedMugshot &&
-          !resolvedMugshot.startsWith("http://") &&
-          !resolvedMugshot.startsWith("https://") &&
-          !resolvedMugshot.startsWith("/")
-        ) {
-          try {
-            resolvedMugshot = await getEvidenceSignedUrl(resolvedMugshot);
-          } catch (err) {
-            console.warn("Failed to sign mugshot URL for table:", err);
-            resolvedMugshot = `/api/storage?key=${encodeURIComponent(c.mugshotUrl!)}`;
-          }
-        }
-        if (!resolvedMugshot) {
-          resolvedMugshot = "/images/suspects/arun-prakash.jpg";
-        }
+        // Resolve raw storage keys or Tigris URLs to permanent safe proxy endpoint
+        const resolvedMugshot =
+          getSafeStorageUrl(c.mugshotUrl) || "/images/suspects/arun-prakash.jpg";
 
         return {
           id: c.id,

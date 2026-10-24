@@ -96,7 +96,7 @@ export function mapPrismaEvidenceToItem(e: any): EvidenceItem {
     hash: e.sha256Hash ? `${e.sha256Hash.slice(0, 4)}...${e.sha256Hash.slice(-4)}` : "sha256",
     location: e.locationFound || `/evidence/${e.storageKey}`,
     thumbnailType,
-    previewImage: isImage ? (e.fileUrl || "/images/cctv-suspect.jpg") : undefined,
+    previewImage: isImage ? (getSafeStorageUrl(e.storageKey || e.fileUrl) || "/images/cctv-suspect.jpg") : undefined,
     camId: meta.camId || undefined,
     timestamp: dt.toISOString().slice(0, 19).replace("T", " "),
     fullDescription: e.description || e.fileName,

@@ -83,10 +83,12 @@ export function SuspectAvatar({
   }
 
   // Fallback Monogram Avatar
+  const isSmall = size === "sm" || size === "md";
+
   return (
     <div
       className={cn(
-        "relative flex flex-col items-center justify-center rounded-xl font-mono font-bold tracking-wider select-none shrink-0",
+        "relative flex flex-col items-center justify-center font-mono font-bold tracking-wider select-none shrink-0 overflow-hidden",
         isWanted
           ? "bg-rose-950/40 text-rose-300 border-2 border-rose-500/40"
           : isCritical
@@ -96,13 +98,19 @@ export function SuspectAvatar({
         className
       )}
     >
-      <div className="flex flex-col items-center gap-1.5 p-2 text-center">
-        <User className="size-5 opacity-60" />
-        <span>{initials}</span>
-      </div>
-      <div className="absolute bottom-1 right-1 text-[9px] uppercase px-1 py-0.5 rounded bg-black/60 font-sans tracking-tight">
-        {status}
-      </div>
+      {isSmall ? (
+        <span className="text-xs uppercase">{initials}</span>
+      ) : (
+        <>
+          <div className="flex flex-col items-center gap-1.5 p-2 text-center">
+            <User className="size-5 opacity-60" />
+            <span>{initials}</span>
+          </div>
+          <div className="absolute bottom-1 right-1 text-[9px] uppercase px-1 py-0.5 rounded bg-black/60 font-sans tracking-tight">
+            {status}
+          </div>
+        </>
+      )}
     </div>
   );
 }

@@ -9,7 +9,7 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { getCriminalById } from "@/features/criminals/queries";
-import { getEvidenceSignedUrl } from "@/features/evidence/queries";
+import { getSafeStorageUrl } from "@/lib/storage-url";
 import { getCriminalSlug } from "@/features/criminals/slug";
 import { CriminalEditForm } from "@/components/criminals/criminal-edit-form";
 import {
@@ -54,19 +54,8 @@ export default async function CriminalEditPage({
     notFound();
   }
 
-  // Resolve private Tigris S3 storage key to signed URL if applicable
-  let mugshotDisplayUrl = criminal.mugshotUrl;
-  if (
-    mugshotDisplayUrl &&
-    !mugshotDisplayUrl.startsWith("http") &&
-    !mugshotDisplayUrl.startsWith("/")
-  ) {
-    try {
-      mugshotDisplayUrl = await getEvidenceSignedUrl(mugshotDisplayUrl);
-    } catch (err) {
-      console.warn("Failed to get signed URL for mugshot in edit page:", err);
-    }
-  }
+  // Resolve private Tigris S3 storage key to safe permanent streaming endpoint
+  const mugshotDisplayUrl = getSafeStorageUrl(criminal.mugshotUrl);
 
   let user;
   try {

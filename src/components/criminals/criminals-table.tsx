@@ -1101,29 +1101,15 @@ export function CriminalsTable({
                       </TableCell>
                       {/* Photo column */}
                       <TableCell className="px-2.5 py-3">
-                        <div className="relative size-9 rounded-full overflow-hidden border border-border/60 bg-muted/60 shrink-0">
-                          {(() => {
-                            const photoSrc = getSafeStorageUrl(c.mugshotUrl);
-                            return photoSrc ? (
-                              <Image
-                                src={photoSrc}
-                                alt={`${c.firstName} ${c.lastName}`}
-                                fill
-                                className="object-cover"
-                                sizes="36px"
-                                unoptimized={photoSrc.startsWith("/api/storage")}
-                              />
-                            ) : (
-                              <SuspectAvatar
-                                firstName={c.firstName}
-                                lastName={c.lastName}
-                                status={c.status as any}
-                                riskLevel={c.riskLevel as any}
-                                className="size-full rounded-none"
-                              />
-                            );
-                          })()}
-                        </div>
+                        <SuspectAvatar
+                          mugshotUrl={c.mugshotUrl}
+                          firstName={c.firstName}
+                          lastName={c.lastName}
+                          status={c.status as any}
+                          riskLevel={c.riskLevel as any}
+                          size="sm"
+                          className="size-9 rounded-full border border-border/60"
+                        />
                       </TableCell>
                       {/* Name + ID */}
                       <TableCell className="px-2.5 py-3 whitespace-nowrap">
@@ -1734,28 +1720,16 @@ function CriminalProfilePreview({
             <div className="flex gap-4">
               {/* Mugshot (Portrait aspect ~3:4.2 matching key info height) */}
               <div className="relative w-32.5 sm:w-34.5 h-47.5 rounded-lg overflow-hidden border-2 border-border/80 bg-black/40 shrink-0 shadow-inner">
-                {(() => {
-                  const previewSrc = getSafeStorageUrl(criminal.mugshotUrl);
-                  return previewSrc ? (
-                    <Image
-                      src={previewSrc}
-                      alt={`${criminal.firstName} ${criminal.lastName} mugshot`}
-                      fill
-                      className="object-cover"
-                      sizes="140px"
-                      priority
-                      unoptimized={previewSrc.startsWith("/api/storage")}
-                    />
-                  ) : (
-                    <SuspectAvatar
-                      firstName={criminal.firstName}
-                      lastName={criminal.lastName}
-                      status={criminal.status as any}
-                      riskLevel={criminal.riskLevel as any}
-                      className="size-full rounded-none"
-                    />
-                  );
-                })()}
+                <SuspectAvatar
+                  mugshotUrl={criminal.mugshotUrl}
+                  firstName={criminal.firstName}
+                  lastName={criminal.lastName}
+                  status={criminal.status as any}
+                  riskLevel={criminal.riskLevel as any}
+                  size="fill"
+                  className="size-full rounded-none"
+                  priority
+                />
               </div>
 
               {/* Key metadata list evenly distributed */}

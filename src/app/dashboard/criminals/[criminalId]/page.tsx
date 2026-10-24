@@ -1,5 +1,5 @@
 import { getCriminalById } from "@/features/criminals/queries";
-import { getEvidenceSignedUrl } from "@/features/evidence/queries";
+import { getSafeStorageUrl } from "@/lib/storage-url";
 import { notFound } from "next/navigation";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
@@ -53,19 +53,8 @@ export default async function CriminalProfilePage({
     notFound();
   }
 
-  // Resolve private Tigris S3 storage key to a signed URL only if it's an S3 key and not a local / path or http URL
-  let mugshotDisplayUrl = criminal.mugshotUrl;
-  if (
-    mugshotDisplayUrl &&
-    !mugshotDisplayUrl.startsWith("http") &&
-    !mugshotDisplayUrl.startsWith("/")
-  ) {
-    try {
-      mugshotDisplayUrl = await getEvidenceSignedUrl(mugshotDisplayUrl);
-    } catch (err) {
-      console.warn("Failed to get signed URL for mugshot:", err);
-    }
-  }
+  // Resolve private Tigris S3 storage key or URL to safe permanent streaming endpoint
+  const mugshotDisplayUrl = getSafeStorageUrl(criminal.mugshotUrl);
 
   let user;
   try {

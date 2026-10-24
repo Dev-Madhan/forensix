@@ -51,6 +51,16 @@ const nextConfig: NextConfig = {
         hostname: "fly.storage.tigris.dev",
         pathname: "/**",
       },
+      {
+        protocol: "https",
+        hostname: "*.storage.tigris.dev",
+        pathname: "/**",
+      },
+      {
+        protocol: "https",
+        hostname: "storage.tigris.dev",
+        pathname: "/**",
+      },
     ],
   },
 };
