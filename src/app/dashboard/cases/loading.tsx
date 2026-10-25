@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { AppSidebar } from "@/components/app-sidebar";
-import { CasePageSkeleton } from "@/components/cases/case-page-skeleton";
+import { AppSidebar } from "@/components/layout/app-sidebar";
+import { CasePageSkeleton } from "@/features/cases/components/case-page-skeleton";
 import {
   Breadcrumb,
   BreadcrumbItem,

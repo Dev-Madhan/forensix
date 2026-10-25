@@ -1,14 +1,14 @@
 import { headers } from "next/headers";
 import Link from "next/link";
 import { auth } from "@/lib/auth";
-import { AppSidebar } from "@/components/app-sidebar";
+import { AppSidebar } from "@/components/layout/app-sidebar";
 import {
   SidebarInset,
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { resolveCaseBySlug } from "@/features/cases/resolve-case";
-import { CaseEditForm } from "@/components/cases/case-edit-form";
+import { CaseEditForm } from "@/features/cases/components/case-edit-form";
 import {
   Breadcrumb,
   BreadcrumbItem,

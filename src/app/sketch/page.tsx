@@ -1,7 +1,7 @@
 import { Metadata } from "next";
 import { Suspense } from "react";
 import { Loader2 } from "lucide-react";
-import { SketchStudioWorkbench } from "@/components/sketch/sketch-studio-workbench";
+import { SketchStudioWorkbench } from "@/features/sketches/components/sketch-studio-workbench";
 
 export const metadata: Metadata = {
   title: "Sketch Generator | Forensix",

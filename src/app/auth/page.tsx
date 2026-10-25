@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
-import { Auth1 } from "@/components/watermelon-ui/auth-01";
+import { Auth1 } from "@/features/auth/components/auth-form";
 
 export const metadata: Metadata = {
   title: "Sign In | Forensix",

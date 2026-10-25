@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { searchSuspectRecognition } from "@/services/ai/recognition";
-import { AIServiceError } from "@/services/ai/client";
+import { searchSuspectRecognition } from "@/features/sketches/services/recognition";
+import { AIServiceError } from "@/features/sketches/services/client";
 import { searchSuspectsByVector, executeNeonQuery } from "@/lib/neon-pgvector";
 
 export const maxDuration = 60;

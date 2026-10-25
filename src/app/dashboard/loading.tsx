@@ -1,5 +1,5 @@
-import { AppSidebar } from "@/components/app-sidebar"
-import { DashboardSkeleton } from "@/components/dashboard-skeleton"
+import { AppSidebar } from "@/components/layout/app-sidebar"
+import { DashboardSkeleton } from "@/features/dashboard/components/dashboard-skeleton"
 import {
   Breadcrumb,
   BreadcrumbItem,

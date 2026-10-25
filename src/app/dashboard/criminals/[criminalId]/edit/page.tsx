@@ -2,7 +2,7 @@ import { headers } from "next/headers";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { auth } from "@/lib/auth";
-import { AppSidebar } from "@/components/app-sidebar";
+import { AppSidebar } from "@/components/layout/app-sidebar";
 import {
   SidebarInset,
   SidebarProvider,
@@ -11,7 +11,7 @@ import {
 import { getCriminalById } from "@/features/criminals/queries";
 import { getSafeStorageUrl } from "@/lib/storage-url";
 import { getCriminalSlug } from "@/features/criminals/slug";
-import { CriminalEditForm } from "@/components/criminals/criminal-edit-form";
+import { CriminalEditForm } from "@/features/criminals/components/criminal-edit-form";
 import {
   Breadcrumb,
   BreadcrumbItem,

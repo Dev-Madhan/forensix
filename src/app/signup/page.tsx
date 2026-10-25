@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
-import { SignUpCard } from "@/components/watermelon-ui/signup-01";
+import { SignUpCard } from "@/features/auth/components/signup-form";
 
 export const metadata: Metadata = {
   title: "Create Account | Forensix",

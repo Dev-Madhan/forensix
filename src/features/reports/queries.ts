@@ -1,8 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { resolveCaseBySlug } from "@/features/cases/resolve-case";
-import { MOCK_EVIDENCE_ITEMS } from "@/components/cases/evidence/mock-evidence";
-import { MOCK_CASE_SKETCHES } from "@/components/cases/suspects/mock-case-sketches";
-import { INITIAL_SUSPECTS } from "@/components/cases/suspects/mock-suspects";
+import { MOCK_EVIDENCE_ITEMS } from "@/features/cases/components/evidence/mock-evidence";
+import { MOCK_CASE_SKETCHES } from "@/features/cases/components/suspects/mock-case-sketches";
+import { INITIAL_SUSPECTS } from "@/features/cases/components/suspects/mock-suspects";
 
 export interface CaseReportRawSource {
   dbCase: any | null;

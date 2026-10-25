@@ -2,7 +2,7 @@ import { headers } from "next/headers";
 import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { AppSidebar } from "@/components/app-sidebar";
+import { AppSidebar } from "@/components/layout/app-sidebar";
 import {
   SidebarInset,
   SidebarProvider,
@@ -19,8 +19,8 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
-import { CaseSectionCards } from "@/components/cases/case-section-cards";
-import { CasesTable, type CaseItem } from "@/components/cases/cases-table";
+import { CaseSectionCards } from "@/features/cases/components/case-section-cards";
+import { CasesTable, type CaseItem } from "@/features/cases/components/cases-table";
 
 export const metadata = {
   title: "Case | Forensix",

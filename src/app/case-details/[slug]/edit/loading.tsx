@@ -1,5 +1,5 @@
-import { AppSidebar } from "@/components/app-sidebar";
-import { CaseFormSkeleton } from "@/components/cases/case-form-skeleton";
+import { AppSidebar } from "@/components/layout/app-sidebar";
+import { CaseFormSkeleton } from "@/features/cases/components/case-form-skeleton";
 import {
   Breadcrumb,
   BreadcrumbItem,

@@ -1,5 +1,5 @@
-import { AppSidebar } from "@/components/app-sidebar";
-import { CaseDetailsSkeleton } from "@/components/cases/case-details-skeleton";
+import { AppSidebar } from "@/components/layout/app-sidebar";
+import { CaseDetailsSkeleton } from "@/features/cases/components/case-details-skeleton";
 import {
   SidebarInset,
   SidebarProvider,

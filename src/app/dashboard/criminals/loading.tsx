@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { AppSidebar } from "@/components/app-sidebar";
-import { CriminalPageSkeleton } from "@/components/criminals/criminal-page-skeleton";
+import { AppSidebar } from "@/components/layout/app-sidebar";
+import { CriminalPageSkeleton } from "@/features/criminals/components/criminal-page-skeleton";
 import {
   Breadcrumb,
   BreadcrumbItem,

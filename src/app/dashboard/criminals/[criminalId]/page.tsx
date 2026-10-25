@@ -3,7 +3,7 @@ import { getSafeStorageUrl } from "@/lib/storage-url";
 import { notFound } from "next/navigation";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
-import { AppSidebar } from "@/components/app-sidebar";
+import { AppSidebar } from "@/components/layout/app-sidebar";
 import {
   SidebarInset,
   SidebarProvider,
@@ -17,8 +17,8 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
-import { CriminalProfileHeader } from "@/components/criminals/profile/criminal-profile-header";
-import { CriminalProfileTabs } from "@/components/criminals/profile/criminal-profile-tabs";
+import { CriminalProfileHeader } from "@/features/criminals/components/profile/criminal-profile-header";
+import { CriminalProfileTabs } from "@/features/criminals/components/profile/criminal-profile-tabs";
 
 export async function generateMetadata({
   params,
@@ -41,10 +41,17 @@ export async function generateMetadata({
 
 export default async function CriminalProfilePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ criminalId: string }>;
+  searchParams?: Promise<{ tab?: string; record?: string }>;
 }) {
   const resolvedParams = await params;
+  const resolvedSearchParams = searchParams ? await searchParams : undefined;
+  const initialTab =
+    typeof resolvedSearchParams?.tab === "string"
+      ? resolvedSearchParams.tab
+      : undefined;
 
   let criminal;
   try {
@@ -109,6 +116,7 @@ export default async function CriminalProfilePage({
             <CriminalProfileTabs
               criminal={criminal}
               mugshotDisplayUrl={mugshotDisplayUrl}
+              initialTab={initialTab}
             />
           </main>
         </div>

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { aiFetch, AIServiceError } from "@/services/ai/client";
+import { aiFetch, AIServiceError } from "@/features/sketches/services/client";
 
 export const maxDuration = 10;
 export const dynamic = "force-dynamic";

@@ -1,6 +1,6 @@
-import { Hero } from "@/components/flx/blocks/hero/hero-09/hero";
-import { Feature02 } from "@/components/flx/blocks/feature/feature-02/feature";
-import { BoldStats } from "@/components/blocks/stats-bold";
+import { Hero } from "@/features/marketing/components/hero";
+import { Feature02 } from "@/features/marketing/components/features";
+import { BoldStats } from "@/features/marketing/components/bold-stats";
 
 export default function Home() {
   return (

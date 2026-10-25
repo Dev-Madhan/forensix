@@ -3,7 +3,7 @@ import { headers } from "next/headers";
 import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { AppSidebar } from "@/components/app-sidebar";
+import { AppSidebar } from "@/components/layout/app-sidebar";
 import {
   SidebarInset,
   SidebarProvider,
@@ -21,8 +21,8 @@ import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import { getCriminalsForTable, getCriminalIntelligenceMetrics } from "@/features/criminals/queries";
-import { CriminalSectionCards } from "@/components/criminals/criminal-section-cards";
-import { CriminalsTable } from "@/components/criminals/criminals-table";
+import { CriminalSectionCards } from "@/features/criminals/components/criminal-section-cards";
+import { CriminalsTable } from "@/features/criminals/components/criminals-table";
 
 export const metadata = {
   title: "Criminal Database | Forensix",

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { processWitnessStatement } from "@/services/ai/witness";
-import { AIServiceError } from "@/services/ai/client";
+import { processWitnessStatement } from "@/features/sketches/services/witness";
+import { AIServiceError } from "@/features/sketches/services/client";
 
 export const maxDuration = 60;
 export const dynamic = "force-dynamic";

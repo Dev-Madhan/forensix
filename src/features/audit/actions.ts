@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
-import type { ActivityItem, ActivityCategory, ActivityActionType } from "@/components/cases/activity/types";
+import type { ActivityItem, ActivityCategory, ActivityActionType } from "@/features/cases/components/activity/types";
 
 export interface CreateAuditLogParams {
   caseId?: string;

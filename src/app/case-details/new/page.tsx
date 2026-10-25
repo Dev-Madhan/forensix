@@ -1,6 +1,6 @@
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
-import { AppSidebar } from "@/components/app-sidebar";
+import { AppSidebar } from "@/components/layout/app-sidebar";
 import {
   SidebarInset,
   SidebarProvider,
@@ -14,7 +14,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
-import { CaseNewForm } from "@/components/cases/case-new-form";
+import { CaseNewForm } from "@/features/cases/components/case-new-form";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";

@@ -1,9 +1,9 @@
 import { Suspense } from "react"
 import { headers } from "next/headers"
 import { auth } from "@/lib/auth"
-import { AppSidebar } from "@/components/app-sidebar"
-import { DashboardContent } from "@/components/dashboard-content"
-import { DashboardSkeleton } from "@/components/dashboard-skeleton"
+import { AppSidebar } from "@/components/layout/app-sidebar"
+import { DashboardContent } from "@/features/dashboard/components/dashboard-content"
+import { DashboardSkeleton } from "@/features/dashboard/components/dashboard-skeleton"
 import {
   Breadcrumb,
   BreadcrumbItem,

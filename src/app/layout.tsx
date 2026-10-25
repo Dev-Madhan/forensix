@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { Inter, Space_Grotesk, Bricolage_Grotesque } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
-import { HeaderServer } from "@/components/header-server";
-import { ToastListener } from "@/components/toast-listener";
+import { HeaderServer } from "@/components/layout/header-server";
+import { ToastListener } from "@/components/shared/toast-listener";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import "./globals.css";
 

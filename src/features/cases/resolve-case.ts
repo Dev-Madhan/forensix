@@ -1,11 +1,11 @@
 import { prisma } from "@/lib/prisma";
 import { CaseStatus, CasePriority } from "@prisma/client";
 import crypto from "crypto";
-import { INITIAL_CASES, type CaseItem } from "@/constants/mock-cases";
-import { MOCK_EVIDENCE_ITEMS } from "@/components/cases/evidence/mock-evidence";
-import { INITIAL_SUSPECTS } from "@/components/cases/suspects/mock-suspects";
-import type { EvidenceItem } from "@/components/cases/evidence/types";
-import type { SuspectItem, SuspectStatus, SuspectRole } from "@/components/cases/suspects/types";
+import { INITIAL_CASES, type CaseItem } from "@/features/cases/types";
+import { MOCK_EVIDENCE_ITEMS } from "@/features/cases/components/evidence/mock-evidence";
+import { INITIAL_SUSPECTS } from "@/features/cases/components/suspects/mock-suspects";
+import type { EvidenceItem } from "@/features/cases/components/evidence/types";
+import type { SuspectItem, SuspectStatus, SuspectRole } from "@/features/cases/components/suspects/types";
 import { getSafeStorageUrl } from "@/lib/storage-url";
 
 export interface CaseAuditLogItem {

@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { CriminalRiskLevel, CriminalStatus, Prisma } from "@prisma/client";
-import { type CriminalItem } from "@/constants/mock-criminals";
+import { type CriminalItem } from "@/features/criminals/types";
 import { getSafeStorageUrl } from "@/lib/storage-url";
 
 export interface GetCriminalsFilters {

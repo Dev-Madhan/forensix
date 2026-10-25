@@ -3,7 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
-import { CreateCaseSchema, UpdateCaseSchema } from "@/schemas/case.schema";
+import { CreateCaseSchema, UpdateCaseSchema } from "@/features/cases/schemas";
 import { revalidatePath } from "next/cache";
 
 export async function createCase(data: unknown) {

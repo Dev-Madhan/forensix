@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { buildForensicPrompt } from "@/services/ai/sketch-prompt-builder";
-import { synthesizeProceduralSketch } from "@/services/ai/forensic-procedural-synthesizer";
+import { buildForensicPrompt } from "@/features/sketches/services/sketch-prompt-builder";
+import { synthesizeProceduralSketch } from "@/features/sketches/services/forensic-procedural-synthesizer";
 import { env } from "@/env";
 import crypto from "crypto";
 import { prisma } from "@/lib/prisma";

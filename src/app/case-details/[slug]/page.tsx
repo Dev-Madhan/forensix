@@ -1,13 +1,13 @@
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
-import { AppSidebar } from "@/components/app-sidebar";
+import { AppSidebar } from "@/components/layout/app-sidebar";
 import {
   SidebarInset,
   SidebarProvider,
 } from "@/components/ui/sidebar";
 import { resolveCaseBySlug } from "@/features/cases/resolve-case";
-import { CaseDetailsHeader } from "@/components/cases/case-details-header";
-import { CaseDetailsTabs } from "@/components/cases/case-details-tabs";
+import { CaseDetailsHeader } from "@/features/cases/components/case-details-header";
+import { CaseDetailsTabs } from "@/features/cases/components/case-details-tabs";
 
 export async function generateMetadata({
   params,
