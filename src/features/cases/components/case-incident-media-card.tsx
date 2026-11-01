@@ -30,10 +30,26 @@ export function CaseIncidentMediaCard({
     [caseData]
   );
 
-  // Dynamic incident media: prioritizes real AI composite sketches, then CCTV frames
+  // Dynamic incident media: prioritizes real case evidence and AI composite sketches
   const mediaItems: MediaItem[] = React.useMemo(() => {
     const items: MediaItem[] = [];
 
+    // 1. Real evidence items uploaded to this case
+    if (caseData.evidences && caseData.evidences.length > 0) {
+      caseData.evidences.forEach((ev, idx) => {
+        if (ev.previewImage) {
+          items.push({
+            id: ev.id,
+            cam: ev.camId || (ev.type === "Video" ? `CCTV [CAM-${idx + 1}]` : `EVIDENCE #${idx + 1}`),
+            timestamp: ev.timestamp || `${caseData.dateReported || "2026-11-01"} 21:14:00`,
+            src: ev.previewImage,
+            caption: ev.name || "Forensic case evidence artifact",
+          });
+        }
+      });
+    }
+
+    // 2. Real sketches linked to this case
     if (caseData.sketches && caseData.sketches.length > 0) {
       caseData.sketches.forEach((sk, idx) => {
         items.push({
@@ -48,42 +64,11 @@ export function CaseIncidentMediaCard({
       });
     }
 
-    items.push(
-      {
-        id: "cctv-1",
-        cam: "CAM 01",
-        timestamp: `${caseData.dateReported || "2026-10-04"} 21:14:32`,
-        src: "/images/cctv-suspect.jpg",
-        caption: "CCTV footage of the suspect",
-      },
-      {
-        id: "cctv-2",
-        cam: "CAM 02",
-        timestamp: `${caseData.dateReported || "2026-10-04"} 21:14:48`,
-        src: "/images/cctv-suspect.jpg",
-        caption: `Suspect exiting towards ${resolvedLoc.title}`,
-      },
-      {
-        id: "cctv-3",
-        cam: "CAM 03",
-        timestamp: "2026-10-04 21:15:05",
-        src: "/images/cctv-suspect.jpg",
-        caption: "Alleyway perimeter security camera capture",
-      },
-      {
-        id: "cctv-4",
-        cam: "CAM 04",
-        timestamp: "2026-10-04 21:15:30",
-        src: "/images/cctv-suspect.jpg",
-        caption: "Commercial store entrance night surveillance",
-      }
-    );
-
     return items;
-  }, [caseData, resolvedLoc]);
+  }, [caseData]);
 
   const total = mediaItems.length;
-  const currentMedia = mediaItems[currentIndex] || mediaItems[0];
+  const currentMedia = total > 0 ? mediaItems[currentIndex] || mediaItems[0] : null;
 
   const handlePrev = () => {
     setCurrentIndex((prev) => (prev === 0 ? total - 1 : prev - 1));
@@ -121,64 +106,78 @@ export function CaseIncidentMediaCard({
 
       <CardContent className="pt-4 pb-4 px-4 sm:px-5">
         {/* Media Frame Viewer */}
-        <div className="relative aspect-[16/10] w-full rounded-lg overflow-hidden border-2 border-border/80 bg-black/90 group shadow-inner">
-          <Image
-            key={currentMedia.id}
-            src={currentMedia.src}
-            alt={currentMedia.caption}
-            fill
-            unoptimized
-            className="object-cover transition-opacity duration-300"
-            sizes="(max-width: 1280px) 100vw, 400px"
-            priority
-          />
+        {currentMedia ? (
+          <div className="relative aspect-[16/10] w-full rounded-lg overflow-hidden border-2 border-border/80 bg-black/90 group shadow-inner">
+            <Image
+              key={currentMedia.id}
+              src={currentMedia.src}
+              alt={currentMedia.caption}
+              fill
+              unoptimized
+              className="object-cover transition-opacity duration-300"
+              sizes="(max-width: 1280px) 100vw, 400px"
+              priority
+            />
 
-          {/* Top-Right Forensic Timestamp & Camera ID */}
-          <div className="absolute top-2.5 right-2.5 flex flex-col items-end text-right bg-black/70 backdrop-blur-xs px-2.5 py-1 rounded-md border-2 border-white/15 shadow-sm font-heading">
-            <span className="text-[11px] font-heading font-bold tracking-wider text-white leading-tight">
-              {currentMedia.cam}
-            </span>
-            <span className="text-[10px] font-heading font-medium text-zinc-300 leading-tight mt-0.5">
-              {currentMedia.timestamp}
-            </span>
+            {/* Top-Right Forensic Timestamp & Camera ID */}
+            <div className="absolute top-2.5 right-2.5 flex flex-col items-end text-right bg-black/70 backdrop-blur-xs px-2.5 py-1 rounded-md border-2 border-white/15 shadow-sm font-heading">
+              <span className="text-[11px] font-heading font-bold tracking-wider text-white leading-tight">
+                {currentMedia.cam}
+              </span>
+              <span className="text-[10px] font-heading font-medium text-zinc-300 leading-tight mt-0.5">
+                {currentMedia.timestamp}
+              </span>
+            </div>
+
+            {/* Navigation buttons */}
+            {total > 1 && (
+              <>
+                <button
+                  type="button"
+                  onClick={handlePrev}
+                  aria-label="Previous image"
+                  className="absolute left-2.5 top-1/2 -translate-y-1/2 size-7 rounded-full bg-black/60 hover:bg-black/85 text-white/90 hover:text-white backdrop-blur-xs border-2 border-white/20 flex items-center justify-center transition-all cursor-pointer shadow-md"
+                >
+                  <ChevronLeft className="size-4" />
+                </button>
+                <button
+                  type="button"
+                  onClick={handleNext}
+                  aria-label="Next image"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 size-7 rounded-full bg-black/60 hover:bg-black/85 text-white/90 hover:text-white backdrop-blur-xs border-2 border-white/20 flex items-center justify-center transition-all cursor-pointer shadow-md"
+                >
+                  <ChevronRight className="size-4" />
+                </button>
+              </>
+            )}
+
+            {/* Bottom-Right Counter Badge (2/4) with Inter font */}
+            <div
+              className="absolute bottom-2.5 right-2.5 px-2 py-0.5 rounded-md bg-black/75 backdrop-blur-xs border-2 border-white/15 text-[11px] font-inter font-medium text-white shadow-sm tabular-nums"
+              style={{
+                fontFamily:
+                  'var(--font-inter), "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+              }}
+            >
+              {currentIndex + 1}/{total}
+            </div>
           </div>
-
-          {/* Previous Arrow Button */}
-          <button
-            type="button"
-            onClick={handlePrev}
-            aria-label="Previous image"
-            className="absolute left-2.5 top-1/2 -translate-y-1/2 size-7 rounded-full bg-black/60 hover:bg-black/85 text-white/90 hover:text-white backdrop-blur-xs border-2 border-white/20 flex items-center justify-center transition-all cursor-pointer shadow-md"
-          >
-            <ChevronLeft className="size-4" />
-          </button>
-
-          {/* Next Arrow Button */}
-          <button
-            type="button"
-            onClick={handleNext}
-            aria-label="Next image"
-            className="absolute right-2.5 top-1/2 -translate-y-1/2 size-7 rounded-full bg-black/60 hover:bg-black/85 text-white/90 hover:text-white backdrop-blur-xs border-2 border-white/20 flex items-center justify-center transition-all cursor-pointer shadow-md"
-          >
-            <ChevronRight className="size-4" />
-          </button>
-
-          {/* Bottom-Right Counter Badge (2/4) with Inter font */}
-          <div
-            className="absolute bottom-2.5 right-2.5 px-2 py-0.5 rounded-md bg-black/75 backdrop-blur-xs border-2 border-white/15 text-[11px] font-inter font-medium text-white shadow-sm tabular-nums"
-            style={{
-              fontFamily:
-                'var(--font-inter), "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-            }}
-          >
-            {currentIndex + 1}/{total}
+        ) : (
+          <div className="relative aspect-[16/10] w-full rounded-lg overflow-hidden border-2 border-dashed border-border/80 bg-muted/20 flex flex-col items-center justify-center gap-2 p-6 text-center">
+            <Film className="size-8 text-muted-foreground/40" />
+            <div className="space-y-1">
+              <p className="text-xs font-semibold text-foreground">No Incident Media Attached</p>
+              <p className="text-[11px] text-muted-foreground max-w-[260px]">
+                Surveillance footage, scene photos, and AI sketches attached to this case will display here.
+              </p>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Caption & View All Media Link */}
         <div className="mt-3 flex items-center justify-between gap-3 text-xs">
           <span className="text-muted-foreground font-medium truncate">
-            {currentMedia.caption}
+            {currentMedia?.caption || "Forensic Case Evidence"}
           </span>
           <button
             type="button"

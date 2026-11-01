@@ -5,6 +5,7 @@ import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { CreateCaseSchema, UpdateCaseSchema } from "@/features/cases/schemas";
 import { revalidatePath } from "next/cache";
+import { broadcastForensicEvent } from "@/lib/forensic-events";
 
 export async function createCase(data: unknown) {
   const session = await auth.api.getSession({
@@ -90,6 +91,22 @@ export async function createCase(data: unknown) {
       console.warn("AuditLog creation warning:", auditErr);
     }
 
+    try {
+      broadcastForensicEvent({
+        type: "CASE_CREATED",
+        data: {
+          id: newCase.id,
+          caseNumber: newCase.caseNumber,
+          title: newCase.title,
+          status: newCase.status,
+          createdAt: newCase.createdAt.toISOString(),
+        },
+        timestamp: Date.now(),
+      });
+    } catch (evErr) {
+      console.warn("Broadcast event warning:", evErr);
+    }
+
     revalidatePath("/dashboard/cases");
     revalidatePath(`/case-details/${newCase.caseNumber}`);
     revalidatePath(`/case-details/${newCase.id}`);
@@ -160,6 +177,21 @@ export async function updateCase(data: unknown) {
           userId: session.user.id,
         },
       });
+
+      try {
+        broadcastForensicEvent({
+          type: "CASE_STATUS_CHANGED",
+          data: {
+            id: updatedCase.id,
+            caseNumber: updatedCase.caseNumber,
+            title: updatedCase.title,
+            status: updatedCase.status,
+          },
+          timestamp: Date.now(),
+        });
+      } catch (evErr) {
+        console.warn("Broadcast event warning:", evErr);
+      }
 
       revalidatePath("/dashboard/cases");
       revalidatePath(`/dashboard/cases/${updatedCase.id}`);

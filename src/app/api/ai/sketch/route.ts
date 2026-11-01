@@ -4,6 +4,7 @@ import { synthesizeProceduralSketch } from "@/features/sketches/services/forensi
 import { env } from "@/env";
 import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
+import { broadcastForensicEvent } from "@/lib/forensic-events";
 
 // Maximum duration for Vercel Serverless Function execution (RTX 4050 GPU generation takes ~12-25s)
 export const maxDuration = 60;
@@ -210,6 +211,49 @@ export async function POST(request: NextRequest) {
           imageUrl: finalImageUrl,
         }
       });
+
+      // Broadcast unified forensic event for real-time dashboard updates
+      try {
+        let caseNumber = "FX-2026-185";
+        let caseTitle = "Operation Apex: Downtown Transit Incident";
+        if (caseId) {
+          const c = await prisma.case.findFirst({
+            where: { OR: [{ id: caseId }, { caseNumber: caseId }] },
+            select: { caseNumber: true, title: true },
+          }).catch(() => null);
+          if (c) {
+            caseNumber = c.caseNumber;
+            caseTitle = c.title;
+          }
+        }
+
+        const promptText = prompt || (components ? Object.values(components).join(", ") : "Witness Composite");
+        const lower = promptText.toLowerCase();
+        const genderLabel = lower.includes("female") || lower.includes("woman") ? "Female Suspect" : "Male Suspect";
+        const ageMatch = promptText.match(/(\d{2})\s*(?:to\s*(\d{2}))?\s*(?:years|yr|yo|s\b)?/i);
+        const title = ageMatch
+          ? ageMatch[2]
+            ? `${genderLabel} • ~${ageMatch[1]}–${ageMatch[2]} Yrs`
+            : `${genderLabel} • ~${ageMatch[1]} Yrs`
+          : `${genderLabel} • Composite`;
+
+        broadcastForensicEvent({
+          type: "SKETCH_GENERATED",
+          data: {
+            id: job.id,
+            imageUrl: finalImageUrl,
+            title,
+            prompt: promptText,
+            caseId,
+            caseNumber,
+            caseTitle,
+            createdAt: new Date().toISOString(),
+          },
+          timestamp: Date.now(),
+        });
+      } catch (evErr) {
+        console.warn("[AI Route] Broadcast sketch event notice:", evErr);
+      }
 
       // Return the complete result directly — no polling needed
       return NextResponse.json({

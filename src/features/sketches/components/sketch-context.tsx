@@ -275,6 +275,33 @@ export function SketchProvider({ children }: { children: React.ReactNode }) {
 
       setSavedSketchId(res.sketch?.id || null);
       setSavedFileUrl(res.fileUrl || null);
+
+      // Broadcast to other open browser tabs (e.g. Dashboard) for instantaneous update
+      if (typeof window !== "undefined") {
+        try {
+          const bc = new BroadcastChannel("forensix:sketches");
+          bc.postMessage({
+            type: "SKETCH_GENERATED",
+            sketch: {
+              id: res.sketch?.id || `sketch-${Date.now()}`,
+              imageUrl: res.fileUrl || generatedImageUrl,
+              title: res.sketch?.description || `AI Composite • ${res.caseNumber || selectedCase?.caseNumber || "Case"}`,
+              prompt: promptText.trim() || undefined,
+              caseNumber: res.caseNumber || selectedCase?.caseNumber || "FX-2026-185",
+              caseTitle: selectedCase?.title || "Active Investigation",
+              date: new Date().toLocaleDateString("en-US", {
+                month: "short",
+                day: "numeric",
+                year: "numeric",
+              }),
+            },
+          });
+          bc.close();
+        } catch {
+          // BroadcastChannel unsupported or blocked
+        }
+      }
+
       toast.success(
         `Sketch saved to Case Vault (${res.caseNumber || selectedCase?.caseNumber || "Case"})!`,
         {
@@ -668,6 +695,33 @@ export function SketchProvider({ children }: { children: React.ReactNode }) {
       }
       
       setGenerationStatus("generated");
+
+      // Broadcast generated sketch to other open browser tabs (e.g. Dashboard)
+      if (typeof window !== "undefined" && finalImageUrl) {
+        try {
+          const bc = new BroadcastChannel("forensix:sketches");
+          bc.postMessage({
+            type: "SKETCH_GENERATED",
+            sketch: {
+              id: data.job_id || `sketch-${Date.now()}`,
+              imageUrl: finalImageUrl,
+              title: "Composite Suspect Portrait",
+              prompt: promptText.trim() || undefined,
+              caseNumber: selectedCase?.caseNumber || "FX-2026-185",
+              caseTitle: selectedCase?.title || "Active Investigation",
+              date: new Date().toLocaleDateString("en-US", {
+                month: "short",
+                day: "numeric",
+                year: "numeric",
+              }),
+            },
+          });
+          bc.close();
+        } catch {
+          // ignore
+        }
+      }
+
       // Auto-switch to output tab on mobile when sketch is generated
       setActiveMobileTab("output");
     } catch (err: unknown) {

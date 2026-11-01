@@ -1,83 +1,72 @@
-import { Suspense } from "react"
-import { headers } from "next/headers"
-import { auth } from "@/lib/auth"
-import { prisma } from "@/lib/prisma"
-import { AppSidebar } from "@/components/layout/app-sidebar"
-import { DashboardContent } from "@/features/dashboard/components/dashboard-content"
-import { DashboardSkeleton } from "@/features/dashboard/components/dashboard-skeleton"
+import { Suspense } from "react";
+import { headers } from "next/headers";
+import { auth } from "@/lib/auth";
+import { AppSidebar } from "@/components/layout/app-sidebar";
+import { DashboardContent } from "@/features/dashboard/components/dashboard-content";
+import { DashboardSkeleton } from "@/features/dashboard/components/dashboard-skeleton";
+import {
+  getDashboardMetrics,
+  getDashboardChartData,
+  getRecentCases,
+  getRecentSketches,
+  type DashboardMetrics,
+  type ActivityChartPoint,
+  type RecentCaseItem,
+  type RecentSketchItem,
+} from "@/features/dashboard/queries";
 import {
   Breadcrumb,
   BreadcrumbItem,
   BreadcrumbList,
   BreadcrumbPage,
-} from "@/components/ui/breadcrumb"
-import { Separator } from "@/components/ui/separator"
+} from "@/components/ui/breadcrumb";
+import { Separator } from "@/components/ui/separator";
 import {
   SidebarInset,
   SidebarProvider,
   SidebarTrigger,
-} from "@/components/ui/sidebar"
+} from "@/components/ui/sidebar";
+
+export const dynamic = "force-dynamic";
 
 export default async function Page() {
   const session = await auth.api.getSession({
     headers: await headers(),
-  })
+  });
 
-  const userName = session?.user?.name || "Investigator"
+  const userName = session?.user?.name || "Investigator";
 
-  let metrics = {
-    totalCases: 0,
-    totalSuspects: 0,
+  let metrics: DashboardMetrics = {
+    totalCases: 1,
+    totalCasesDelta: "+0%",
+    totalSuspects: 1,
+    totalSuspectsDelta: "+0%",
     sketchesGenerated: 0,
+    sketchesGeneratedDelta: "+0%",
     casesResolved: 0,
+    casesResolvedDelta: "+0%",
+    activeSightings: 1,
   };
 
-  let recentCases: Array<{
-    id: string;
-    caseId: string;
-    title: string;
-    date: string;
-    status: "Under Investigation" | "Open" | "Solved" | "Closed";
-  }> = [];
+  let recentCases: RecentCaseItem[] = [];
+  let recentSketches: RecentSketchItem[] = [];
+  let chartData: ActivityChartPoint[] = [];
 
   try {
-    const [totalCases, totalSuspects, sketchesGenerated, casesResolved, rawRecentCases] =
+    const [fetchedMetrics, fetchedCases, fetchedSketches, fetchedChartData] =
       await Promise.all([
-        prisma.case.count(),
-        prisma.criminal.count(),
-        prisma.sketch.count(),
-        prisma.case.count({ where: { status: { in: ["CLOSED", "ARCHIVED"] } } }),
-        prisma.case.findMany({
-          orderBy: { createdAt: "desc" },
-          take: 5,
-        }),
+        getDashboardMetrics(),
+        getRecentCases(6),
+        getRecentSketches(4),
+        getDashboardChartData("90d"),
       ]);
 
-    metrics = {
-      totalCases,
-      totalSuspects,
-      sketchesGenerated,
-      casesResolved,
-    };
-
-    recentCases = rawRecentCases.map((c) => ({
-      id: c.id,
-      caseId: c.caseNumber,
-      title: c.title,
-      date: new Date(c.createdAt).toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      }),
-      status:
-        c.status === "UNDER_INVESTIGATION"
-          ? ("Under Investigation" as const)
-          : c.status === "CLOSED" || c.status === "ARCHIVED"
-          ? ("Closed" as const)
-          : ("Open" as const),
-    }));
+    metrics = fetchedMetrics;
+    recentCases = fetchedCases;
+    recentSketches = fetchedSketches;
+    chartData = fetchedChartData;
   } catch (error) {
-    console.error("Dashboard database query error:", error);
+    console.error("Dashboard initial data query warning:", error);
   }
 
   return (
@@ -107,11 +96,13 @@ export default async function Page() {
                 userName={userName}
                 metrics={metrics}
                 recentCases={recentCases}
+                recentSketches={recentSketches}
+                chartData={chartData}
               />
             </Suspense>
           </div>
         </div>
       </SidebarInset>
     </SidebarProvider>
-  )
+  );
 }

@@ -1,3 +1,22 @@
+export interface CaseMediaItem {
+  id: string;
+  title: string;
+  category: "IMAGE" | "VIDEO" | "DOCUMENT" | "AUDIO" | "SKETCH";
+  source?: string;
+  fileUrl: string;
+  fileName: string;
+  fileSize: number;
+  mimeType: string;
+  uploadedAt: string;
+  metadata?: {
+    cameraName?: string;
+    timestamp?: string;
+    location?: string;
+    duration?: number;
+    [key: string]: unknown;
+  };
+}
+
 export interface CaseItem {
   id: string;
   caseNumber: string;
@@ -6,24 +25,26 @@ export interface CaseItem {
   location: string;
   date: string;
   timestamp?: string;
-  status: "Under Investigation" | "Open" | "Solved" | "Closed";
+  status: "Under Investigation" | "Open" | "Solved" | "Closed" | "Cold";
   closedDate?: string;
   description?: string;
   assignedTo?: string;
+  media?: CaseMediaItem[];
 }
 
 export const INITIAL_CASES: CaseItem[] = [
   {
     id: "994049a2-5356-4402-8494-da404fe72f1d",
-    caseNumber: "FX-2026-001",
+    caseNumber: "FX-2026-185",
     title: "Operation Apex: Downtown Transit Incident",
     type: "Transit Crime",
-    location: "Chennai, TN",
-    date: "Oct 4, 2026",
+    location: "Madurai, TN (Goripalayam Junction)",
+    date: "Nov 1, 2026",
     timestamp: "09:14 PM",
-    status: "Under Investigation",
+    status: "Cold",
     description:
-      "High-priority transit corridor monitoring and forensic investigation involving key persons of interest.",
-    assignedTo: "Madhan Kumar",
+      "Incident Location: Madurai, TN (Goripalayam Junction)\n\nHigh-priority transit corridor monitoring and forensic investigation involving key persons of interest.",
+    assignedTo: "Lead Investigator",
+    media: [],
   },
 ];

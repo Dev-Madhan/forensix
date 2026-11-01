@@ -30,6 +30,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogClose,
 } from "@/components/ui/dialog";
 import { Blocks } from "loading-dev";
 import { toast } from "sonner";
@@ -528,26 +529,37 @@ export function CompositeOutputPreview() {
         </div>
       )}
 
-      {/* Biometric Suspect Recognition Dialog */}
+      {/* ── Biometric Suspect Recognition Dialog ── */}
       <Dialog open={isBioModalOpen} onOpenChange={setIsBioModalOpen}>
-        <DialogContent className="max-w-3xl bg-[#0c0c11] border-border/80 text-foreground p-5 max-h-[88vh] overflow-y-auto">
-          <DialogHeader className="pb-3 border-b border-border/40">
-            <DialogTitle className="flex items-center gap-2 text-base font-semibold">
-              <Fingerprint className="size-5 text-purple-400" />
-              Biometric Suspect Recognition Matcher
-            </DialogTitle>
-            <DialogDescription className="text-xs text-muted-foreground">
-              Deep feature vector projection (InsightFace ArcFace 512D) matching across registered criminal mugshots using Neon pgvector HNSW indexing.
-            </DialogDescription>
+        <DialogContent className="w-[calc(100%-1.25rem)] max-w-[540px] max-h-[90dvh] overflow-hidden flex flex-col p-0 gap-0 bg-card border border-border/80 shadow-2xl rounded-2xl min-w-0">
+          {/* Responsive Header */}
+          <DialogHeader className="px-4 py-3 sm:px-5 sm:py-3.5 border-b border-border/40 shrink-0 bg-card z-10 w-full min-w-0">
+            <div className="flex items-center gap-2.5 sm:gap-3 pr-8 min-w-0 w-full">
+              <div className="flex size-7 sm:size-8 shrink-0 items-center justify-center rounded-lg bg-purple-500/10 border border-purple-500/20 text-purple-400">
+                <Fingerprint className="size-3.5 sm:size-4" />
+              </div>
+              <div className="flex flex-col gap-0.5 min-w-0 flex-1">
+                <DialogTitle className="text-xs sm:text-sm font-semibold text-foreground tracking-tight truncate">
+                  Biometric Suspect Identification
+                </DialogTitle>
+                <DialogDescription className="text-[10px] sm:text-xs text-muted-foreground truncate">
+                  Facial feature comparison against registered criminal records
+                </DialogDescription>
+              </div>
+            </div>
           </DialogHeader>
 
-          <div className="pt-2">
+          {/* Responsive Body */}
+          <div className="flex-1 overflow-y-auto overflow-x-hidden min-w-0 w-full p-3 sm:p-4">
             <SuspectMatchPanel
               matches={matches}
               isSearching={isSearchingBio}
               criminalsCatalog={criminalsCatalog}
               onConfirmMatch={handleConfirmMatch}
               confirmedMatches={confirmedMatches}
+              sketchImageUrl={generatedImageUrl}
+              caseNumber={selectedCase?.caseNumber || "FX-2026-185"}
+              onClose={() => setIsBioModalOpen(false)}
             />
           </div>
         </DialogContent>

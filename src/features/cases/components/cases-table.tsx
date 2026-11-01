@@ -18,6 +18,16 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+  DialogClose,
+} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -43,10 +53,16 @@ import {
   User,
   ArrowRight,
   Folder,
+  Camera,
+  FileText,
+  FileVideo,
+  UploadCloud,
+  ExternalLink,
+  ZoomIn,
 } from "lucide-react";
-
-import { INITIAL_CASES, type CaseItem } from "@/features/cases/types";
-export { INITIAL_CASES, type CaseItem };
+import { EvidenceUploadDialog } from "./evidence/evidence-upload-dialog";
+import { INITIAL_CASES, type CaseItem, type CaseMediaItem } from "@/features/cases/types";
+export { INITIAL_CASES, type CaseItem, type CaseMediaItem };
 
 const MotionTableBody = motion.create(TableBody);
 
@@ -135,10 +151,23 @@ interface CasesTableProps {
 }
 
 export function CasesTable({ initialCases = [] }: CasesTableProps) {
-  // Use pure database cases directly (no mock fallback injection)
-  const allCases = React.useMemo(() => {
-    return initialCases || [];
+  // Use pure database cases directly with live local update capabilities
+  const [localCases, setLocalCases] = React.useState<CaseItem[]>(initialCases);
+  React.useEffect(() => {
+    setLocalCases(initialCases);
   }, [initialCases]);
+
+  const allCases = localCases;
+
+  const handleMediaAdded = (caseId: string, mediaItem: CaseMediaItem) => {
+    setLocalCases((prev) =>
+      prev.map((c) =>
+        c.id === caseId
+          ? { ...c, media: [mediaItem, ...(c.media || [])] }
+          : c
+      )
+    );
+  };
 
   // Filter states
   const [searchTerm, setSearchTerm] = React.useState("");
@@ -674,7 +703,7 @@ export function CasesTable({ initialCases = [] }: CasesTableProps) {
 
       {/* Right Column: Case Details Component (col-span-4) matching screenshot */}
       <div className="xl:col-span-4 2xl:col-span-4 xl:sticky xl:top-6 min-w-0">
-        <CaseDetailsPreview caseItem={activeCase} />
+        <CaseDetailsPreview caseItem={activeCase} onMediaAdded={handleMediaAdded} />
       </div>
     </div>
   );
@@ -682,21 +711,26 @@ export function CasesTable({ initialCases = [] }: CasesTableProps) {
 
 interface CaseDetailsPreviewProps {
   caseItem?: CaseItem | null;
+  onMediaAdded?: (caseId: string, mediaItem: CaseMediaItem) => void;
 }
 
-function CaseDetailsPreview({ caseItem }: CaseDetailsPreviewProps) {
-  const [cctvIndex, setCctvIndex] = React.useState(1);
-  const totalCctvAngles = 4;
+function formatBytes(bytes: number): string {
+  if (!bytes || bytes === 0) return "0 B";
+  const k = 1024;
+  const sizes = ["B", "KB", "MB", "GB", "TB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
+}
 
-  const handlePrev = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setCctvIndex((prev) => (prev > 1 ? prev - 1 : totalCctvAngles));
-  };
+function CaseDetailsPreview({ caseItem, onMediaAdded }: CaseDetailsPreviewProps) {
+  const [mediaIndex, setMediaIndex] = React.useState(0);
+  const [isUploadOpen, setIsUploadOpen] = React.useState(false);
+  const [isMediaModalOpen, setIsMediaModalOpen] = React.useState(false);
 
-  const handleNext = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setCctvIndex((prev) => (prev < totalCctvAngles ? prev + 1 : 1));
-  };
+  // Sync index when selected case changes
+  React.useEffect(() => {
+    setMediaIndex(0);
+  }, [caseItem?.id]);
 
   if (!caseItem) {
     return (
@@ -709,6 +743,20 @@ function CaseDetailsPreview({ caseItem }: CaseDetailsPreviewProps) {
       </div>
     );
   }
+
+  const mediaList: CaseMediaItem[] = caseItem.media || [];
+  const totalMedia = mediaList.length;
+  const currentMedia = totalMedia > 0 ? mediaList[Math.min(mediaIndex, totalMedia - 1)] : null;
+
+  const handlePrev = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setMediaIndex((prev) => (prev > 0 ? prev - 1 : totalMedia - 1));
+  };
+
+  const handleNext = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setMediaIndex((prev) => (prev < totalMedia - 1 ? prev + 1 : 0));
+  };
 
   // Status text only (no badge) for the card
   const renderStatusText = (status: CaseItem["status"]) => {
@@ -731,6 +779,12 @@ function CaseDetailsPreview({ caseItem }: CaseDetailsPreviewProps) {
             Solved
           </span>
         );
+      case "Cold":
+        return (
+          <span className="text-xs font-semibold text-cyan-400 whitespace-nowrap">
+            Cold
+          </span>
+        );
       case "Closed":
       default:
         return (
@@ -742,127 +796,291 @@ function CaseDetailsPreview({ caseItem }: CaseDetailsPreviewProps) {
   };
 
   return (
-    <div className="rounded-xl border-2 border-border bg-card/40 p-4 sm:p-5 shadow-xs overflow-hidden">
-      <div className="relative grid grid-cols-1 grid-rows-1">
-        <AnimatePresence initial={false}>
-          <motion.div
-            key={caseItem.id}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-            className="col-start-1 row-start-1 w-full flex flex-col gap-4"
-          >
-          {/* CCTV Camera Feed Carousel matching screenshot */}
-          <div className="relative aspect-video w-full rounded-lg overflow-hidden border border-border/60 bg-black/80 shadow-inner group">
-            <Image
-              src="/images/cctv-suspect.jpg"
-              alt="CCTV surveillance footage"
-              fill
-              className="object-cover"
-              sizes="(max-width: 1280px) 100vw, 400px"
-              priority
-            />
-            {/* Timestamp & Camera ID Overlay */}
-            <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5 font-heading font-semibold text-[10px] tracking-wider text-white/90 bg-black/70 backdrop-blur-xs px-2 py-0.5 rounded">
-              <span className="size-1.5 rounded-full bg-rose-500 animate-pulse" />
-              <span>CAM-0{cctvIndex} [REC]</span>
-            </div>
-
-            <div className="absolute bottom-2.5 left-2.5 font-mono text-[10px] text-white/80 bg-black/60 px-1.5 py-0.5 rounded">
-              {caseItem.date} 21:14:0{cctvIndex}
-            </div>
-
-            {/* Navigation arrows for CCTV Carousel */}
-            <button
-              onClick={handlePrev}
-              className="absolute left-2 top-1/2 -translate-y-1/2 size-7 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-              aria-label="Previous camera angle"
+    <>
+      <div className="rounded-xl border-2 border-border bg-card/40 p-4 sm:p-5 shadow-xs overflow-hidden">
+        <div className="relative grid grid-cols-1 grid-rows-1">
+          <AnimatePresence initial={false}>
+            <motion.div
+              key={caseItem.id}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+              className="col-start-1 row-start-1 w-full flex flex-col gap-4"
             >
-              <ChevronLeft className="size-4" />
-            </button>
-            <button
-              onClick={handleNext}
-              className="absolute right-2 top-1/2 -translate-y-1/2 size-7 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-              aria-label="Next camera angle"
-            >
-              <ChevronRight className="size-4" />
-            </button>
+              {/* Dynamic Evidence Media Carousel */}
+              {currentMedia ? (
+                <div
+                  onClick={() => setIsMediaModalOpen(true)}
+                  className="relative aspect-video w-full rounded-lg overflow-hidden border border-border/60 bg-black/80 shadow-inner group cursor-pointer"
+                >
+                  {currentMedia.category === "VIDEO" ? (
+                    <video
+                      src={currentMedia.fileUrl}
+                      controls={false}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : currentMedia.category === "DOCUMENT" || currentMedia.category === "AUDIO" ? (
+                    <div className="w-full h-full bg-zinc-950/80 p-4 flex flex-col justify-between">
+                      <div className="flex items-center justify-between">
+                        <Badge variant="outline" className="text-[10px] font-mono">
+                          {currentMedia.category}
+                        </Badge>
+                        <span className="text-[10px] text-muted-foreground font-mono">
+                          {formatBytes(currentMedia.fileSize)}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2.5">
+                        <FileText className="size-6 text-[#a594fd] shrink-0" />
+                        <p className="text-xs font-medium text-foreground truncate">
+                          {currentMedia.fileName}
+                        </p>
+                      </div>
+                      <span className="text-[10px] text-muted-foreground/70">
+                        Click to inspect file
+                      </span>
+                    </div>
+                  ) : (
+                    <Image
+                      src={currentMedia.fileUrl}
+                      alt={currentMedia.title}
+                      fill
+                      unoptimized
+                      className="object-cover"
+                      sizes="(max-width: 1280px) 100vw, 400px"
+                      priority
+                    />
+                  )}
 
-            {/* Bottom-right 1/4 Pagination badge */}
-            <div className="absolute bottom-2.5 right-2.5 font-mono text-[10px] text-white/90 bg-black/75 backdrop-blur-xs px-2 py-0.5 rounded tabular-nums">
-              {cctvIndex}/{totalCctvAngles}
-            </div>
-          </div>
+                  {/* Timestamp & Camera ID / Source Overlay */}
+                  <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5 font-heading font-semibold text-[10px] tracking-wider text-white/90 bg-black/70 backdrop-blur-xs px-2 py-0.5 rounded">
+                    <span
+                      className={cn(
+                        "size-1.5 rounded-full animate-pulse",
+                        currentMedia.category === "VIDEO" ? "bg-rose-500" : "bg-emerald-400"
+                      )}
+                    />
+                    <span>
+                      {currentMedia.metadata?.cameraName ||
+                        (currentMedia.category === "VIDEO"
+                          ? "CAM-01 [REC]"
+                          : currentMedia.category === "SKETCH"
+                          ? "AI COMPOSITE"
+                          : "EVIDENCE PHOTO")}
+                    </span>
+                  </div>
 
-          {/* Case Header: Case ID & Status Text */}
-          <div className="flex items-center justify-between gap-2 pt-1">
-            <span className="font-heading text-xs font-semibold text-muted-foreground tracking-wider">
-              {caseItem.caseNumber}
-            </span>
-            {renderStatusText(caseItem.status)}
-          </div>
+                  <div className="absolute bottom-2.5 left-2.5 font-mono text-[10px] text-white/80 bg-black/60 px-1.5 py-0.5 rounded">
+                    {currentMedia.metadata?.timestamp || caseItem.date}
+                  </div>
 
-          {/* Case Title & Description */}
-          <div className="space-y-1.5">
-            <h2 className="text-xl font-bold tracking-tight text-foreground font-heading">
-              {caseItem.title}
-            </h2>
-            <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3">
-              {caseItem.description ||
-                "Armed robbery at a commercial establishment in T. Nagar. Suspect seen on CCTV fleeing towards North Boag Road."}
-            </p>
-          </div>
+                  {/* Navigation arrows for Evidence Carousel */}
+                  {totalMedia > 1 && (
+                    <>
+                      <button
+                        onClick={handlePrev}
+                        className="absolute left-2 top-1/2 -translate-y-1/2 size-7 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer z-10"
+                        aria-label="Previous camera angle"
+                      >
+                        <ChevronLeft className="size-4" />
+                      </button>
+                      <button
+                        onClick={handleNext}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 size-7 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer z-10"
+                        aria-label="Next camera angle"
+                      >
+                        <ChevronRight className="size-4" />
+                      </button>
+                    </>
+                  )}
 
-          {/* Metadata Detail List matching screenshot */}
-          <div className="space-y-3 pt-1 text-xs text-muted-foreground">
-            {/* Row 1: Date & Time */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <CalendarIcon className="size-3.5 text-muted-foreground/80 shrink-0" />
-                <span className="text-foreground/90 font-medium">{caseItem.date}</span>
+                  {/* Bottom-right 1/N Pagination badge */}
+                  <div className="absolute bottom-2.5 right-2.5 font-mono text-[10px] text-white/90 bg-black/75 backdrop-blur-xs px-2 py-0.5 rounded tabular-nums">
+                    {mediaIndex + 1}/{totalMedia}
+                  </div>
+                </div>
+              ) : (
+                <div className="relative aspect-video w-full rounded-lg overflow-hidden border-2 border-dashed border-border/60 bg-muted/15 flex flex-col items-center justify-center gap-2 p-4 text-center">
+                  <Camera className="size-7 text-muted-foreground/40" />
+                  <div className="space-y-0.5">
+                    <p className="text-xs font-medium text-foreground">No Evidence Attached</p>
+                    <p className="text-[10px] text-muted-foreground max-w-[210px]">
+                      Photos, CCTV video, and forensic documents will render here once uploaded.
+                    </p>
+                  </div>
+                  <Button
+                    size="xs"
+                    variant="outline"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsUploadOpen(true);
+                    }}
+                    className="mt-1 h-7 text-xs gap-1.5 cursor-pointer hover:bg-muted/60"
+                  >
+                    <UploadCloud className="size-3.5" />
+                    <span>Attach Evidence</span>
+                  </Button>
+                </div>
+              )}
+
+              {/* Case Header: Case ID & Status Text */}
+              <div className="flex items-center justify-between gap-2 pt-1">
+                <span className="font-heading text-xs font-semibold text-muted-foreground tracking-wider">
+                  {caseItem.caseNumber}
+                </span>
+                {renderStatusText(caseItem.status)}
               </div>
-              <div className="flex items-center gap-2">
-                <Clock className="size-3.5 text-muted-foreground/80 shrink-0" />
-                <span className="text-foreground/90 font-medium">{caseItem.timestamp || "09:14 PM"}</span>
+
+              {/* Case Title & Description */}
+              <div className="space-y-1.5">
+                <h2 className="text-xl font-bold tracking-tight text-foreground font-heading">
+                  {caseItem.title}
+                </h2>
+                <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3">
+                  {caseItem.description || "No formal incident description cataloged for this case."}
+                </p>
               </div>
-            </div>
 
-            {/* Row 2: Location */}
-            <div className="flex items-center gap-2">
-              <MapPin className="size-3.5 text-muted-foreground/80 shrink-0" />
-              <span className="text-foreground/90 font-medium">{caseItem.location}</span>
-            </div>
+              {/* Metadata Detail List matching screenshot */}
+              <div className="space-y-3 pt-1 text-xs text-muted-foreground">
+                {/* Row 1: Date & Time */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <CalendarIcon className="size-3.5 text-muted-foreground/80 shrink-0" />
+                    <span className="text-foreground/90 font-medium">{caseItem.date}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Clock className="size-3.5 text-muted-foreground/80 shrink-0" />
+                    <span className="text-foreground/90 font-medium">{caseItem.timestamp || "09:14 PM"}</span>
+                  </div>
+                </div>
 
-            {/* Row 3: Case Type */}
-            <div className="flex items-center gap-2">
-              <Tag className="size-3.5 text-muted-foreground/80 shrink-0" />
-              <span className="text-foreground/90 font-medium">{caseItem.type}</span>
-            </div>
+                {/* Row 2: Location */}
+                <div className="flex items-center gap-2">
+                  <MapPin className="size-3.5 text-muted-foreground/80 shrink-0" />
+                  <span className="text-foreground/90 font-medium">{caseItem.location}</span>
+                </div>
 
-            {/* Row 4: Suspect / Assignee */}
-            <div className="flex items-center gap-2">
-              <User className="size-3.5 text-muted-foreground/80 shrink-0" />
-              <span className="text-foreground/90 font-medium">
-                {caseItem.assignedTo || "Unknown Suspect"}
+                {/* Row 3: Case Type */}
+                <div className="flex items-center gap-2">
+                  <Tag className="size-3.5 text-muted-foreground/80 shrink-0" />
+                  <span className="text-foreground/90 font-medium">{caseItem.type}</span>
+                </div>
+
+                {/* Row 4: Suspect / Assignee */}
+                <div className="flex items-center gap-2">
+                  <User className="size-3.5 text-muted-foreground/80 shrink-0" />
+                  <span className="text-foreground/90 font-medium">
+                    {caseItem.assignedTo || "Lead Investigator"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Bottom CTA Button */}
+              <div className="pt-2 mt-auto">
+                <Button
+                  className="w-full h-10 rounded-lg bg-[#665AEF] hover:bg-[#5749DF] text-white text-sm font-medium shadow-sm shadow-[#665AEF]/25 flex items-center justify-center gap-2 cursor-pointer transition-all"
+                  render={<Link href={`/case-details/${caseItem.caseNumber}`} />}
+                  nativeButton={false}
+                >
+                  <span>View Case Details</span>
+                  <ArrowRight className="size-4" />
+                </Button>
+              </div>
+            </motion.div>
+          </AnimatePresence>
+        </div>
+      </div>
+
+      {/* Full Evidence Inspection Modal */}
+      {currentMedia && (
+        <Dialog open={isMediaModalOpen} onOpenChange={setIsMediaModalOpen}>
+          <DialogContent className="sm:max-w-2xl p-0 overflow-hidden bg-card border border-border">
+            <DialogHeader className="p-4 border-b">
+              <div className="flex items-center justify-between pr-6">
+                <DialogTitle className="text-sm font-semibold">{currentMedia.title}</DialogTitle>
+                <Badge variant="outline" className="font-mono text-xs">
+                  {currentMedia.category}
+                </Badge>
+              </div>
+              <DialogDescription className="text-xs text-muted-foreground">
+                Forensic evidence record • {caseItem.caseNumber}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="p-4 flex flex-col items-center justify-center bg-black/90 min-h-[300px]">
+              {currentMedia.category === "VIDEO" ? (
+                <video
+                  src={currentMedia.fileUrl}
+                  controls
+                  autoPlay
+                  className="max-h-[460px] rounded"
+                />
+              ) : currentMedia.category === "DOCUMENT" || currentMedia.category === "AUDIO" ? (
+                <div className="flex flex-col items-center gap-3 p-8 text-center text-white">
+                  <FileText className="size-12 text-[#a594fd]" />
+                  <p className="text-sm font-medium">{currentMedia.fileName}</p>
+                  <p className="text-xs text-zinc-400 font-mono">
+                    {formatBytes(currentMedia.fileSize)}
+                  </p>
+                  <a
+                    href={currentMedia.fileUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-xs text-[#a594fd] hover:underline mt-2"
+                  >
+                    <span>Open / Download File</span>
+                    <ExternalLink className="size-3" />
+                  </a>
+                </div>
+              ) : (
+                <div className="relative aspect-auto max-h-[460px] w-full h-[360px]">
+                  <Image
+                    src={currentMedia.fileUrl}
+                    alt={currentMedia.title}
+                    fill
+                    unoptimized
+                    className="object-contain"
+                  />
+                </div>
+              )}
+            </div>
+            <DialogFooter className="p-3 border-t bg-muted/20 flex justify-between">
+              <span className="text-xs text-muted-foreground font-mono self-center">
+                Uploaded: {new Date(currentMedia.uploadedAt).toLocaleDateString()}
               </span>
-            </div>
-          </div>
+              <DialogClose render={<Button variant="outline" size="sm">Close</Button>} />
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
-          {/* Bottom CTA Button */}
-          <div className="pt-2 mt-auto">
-            <Button
-              className="w-full h-10 rounded-lg bg-[#665AEF] hover:bg-[#5749DF] text-white text-sm font-medium shadow-sm shadow-[#665AEF]/25 flex items-center justify-center gap-2 cursor-pointer transition-all"
-              render={<Link href={`/case-details/${caseItem.caseNumber}`} />}
-              nativeButton={false}
-            >
-              <span>View Case Details</span>
-              <ArrowRight className="size-4" />
-            </Button>
-          </div>
-        </motion.div>
-      </AnimatePresence>
-    </div>
-  </div>
-);
+      {/* Attach Evidence Upload Dialog */}
+      <EvidenceUploadDialog
+        open={isUploadOpen}
+        onOpenChange={setIsUploadOpen}
+        caseId={caseItem.id}
+        caseNumber={caseItem.caseNumber}
+        onAddEvidence={(item) => {
+          const newMedia: CaseMediaItem = {
+            id: item.id,
+            title: item.name,
+            category: (item.type?.toUpperCase() as CaseMediaItem["category"]) || "IMAGE",
+            source: item.source || "INVESTIGATOR",
+            fileUrl: item.previewImage || "",
+            fileName: item.name,
+            fileSize: 1024 * 1024,
+            mimeType: item.type === "Video" ? "video/mp4" : "image/jpeg",
+            uploadedAt: new Date().toISOString(),
+            metadata: {
+              cameraName: item.camId,
+              timestamp: item.timestamp,
+              location: item.location,
+            },
+          };
+          onMediaAdded?.(caseItem.id, newMedia);
+          setIsUploadOpen(false);
+        }}
+      />
+    </>
+  );
 }

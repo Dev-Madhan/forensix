@@ -8,6 +8,7 @@ import { PutObjectCommand } from "@aws-sdk/client-s3";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import crypto from "crypto";
+import { broadcastForensicEvent } from "@/lib/forensic-events";
 
 export interface StudioCaseOption {
   id: string;
@@ -262,7 +263,31 @@ export async function attachSketchToCase(data: {
       // Non-fatal audit log failure
     }
 
+    try {
+      const c = await prisma.case.findFirst({
+        where: { OR: [{ id: data.caseId }, { caseNumber: data.caseId }] },
+        select: { caseNumber: true, title: true },
+      });
+      broadcastForensicEvent({
+        type: "SKETCH_GENERATED",
+        data: {
+          id: sketch.id,
+          imageUrl: sketch.imageUrl,
+          title: sketch.description || "Forensic Composite Sketch",
+          prompt: sketch.description,
+          caseId: sketch.caseId,
+          caseNumber: c?.caseNumber || "FX-2026-185",
+          caseTitle: c?.title || "Active Case",
+          createdAt: sketch.createdAt.toISOString(),
+        },
+        timestamp: Date.now(),
+      });
+    } catch (evErr) {
+      console.warn("Broadcast sketch attach notice:", evErr);
+    }
+
     revalidatePath("/sketch");
+    revalidatePath("/dashboard");
     revalidatePath(`/cases/${data.caseId}`);
     return { success: true, sketch };
   } catch (error: unknown) {
@@ -470,6 +495,29 @@ export async function saveSketchToVault(data: {
         },
       });
 
+      try {
+        broadcastForensicEvent({
+          type: "SKETCH_GENERATED",
+          data: {
+            id: sketch.id,
+            imageUrl: sketch.imageUrl,
+            title: sketch.description || "Forensic Composite Sketch",
+            prompt: data.promptUsed,
+            caseId: sketch.caseId,
+            caseNumber: targetCase.caseNumber,
+            caseTitle: targetCase.title,
+            createdAt: sketch.createdAt.toISOString(),
+          },
+          timestamp: Date.now(),
+        });
+      } catch (evErr) {
+        console.warn("Broadcast remote sketch event notice:", evErr);
+      }
+
+      revalidatePath("/sketch");
+      revalidatePath("/dashboard");
+      revalidatePath(`/cases/${realCaseId}`);
+
       return {
         success: true,
         sketch,
@@ -512,6 +560,25 @@ export async function saveSketchToVault(data: {
         description: data.description || `AI Forensic Composite Sketch (${targetCase.caseNumber})`,
       },
     });
+
+    try {
+      broadcastForensicEvent({
+        type: "SKETCH_GENERATED",
+        data: {
+          id: sketch.id,
+          imageUrl: sketch.imageUrl,
+          title: sketch.description || "Forensic Composite Sketch",
+          prompt: data.promptUsed,
+          caseId: sketch.caseId,
+          caseNumber: targetCase.caseNumber,
+          caseTitle: targetCase.title,
+          createdAt: sketch.createdAt.toISOString(),
+        },
+        timestamp: Date.now(),
+      });
+    } catch (evErr) {
+      console.warn("Broadcast sketch event notice:", evErr);
+    }
 
     // 2. Dual-catalog into Case Evidence so it immediately appears in Case Intelligence Evidence gallery
     let evidenceId: string | undefined;
@@ -570,6 +637,7 @@ export async function saveSketchToVault(data: {
 
     try {
       revalidatePath("/sketch");
+      revalidatePath("/dashboard");
       revalidatePath(`/case-details/${targetCase.caseNumber}`);
       revalidatePath(`/case-details/${realCaseId}`);
     } catch {

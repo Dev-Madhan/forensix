@@ -168,15 +168,22 @@ export function RecentSketchesSkeleton() {
         </div>
         <Skeleton className="h-3.5 w-16 rounded bg-muted/40" />
       </CardHeader>
-      <CardContent className="p-5 flex-1 flex flex-col justify-center">
-        <div className="py-12 border-2 border-dashed border-border/50 rounded-xl bg-card/30 flex flex-col items-center justify-center gap-3 text-center">
-          <Skeleton className="h-4 w-44 rounded bg-muted/60" />
-          <Skeleton className="h-3.5 w-60 rounded bg-muted/40" />
-          <Skeleton className="h-8 w-32 rounded-lg bg-muted/50 mt-2" />
+      <CardContent className="p-4 sm:p-5 flex-1 flex flex-col justify-center">
+        <div className="grid grid-cols-2 gap-3 sm:gap-3.5">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="rounded-xl border border-border/60 bg-card/40 p-2 space-y-2">
+              <Skeleton className="aspect-[4/3] sm:aspect-square w-full rounded-lg bg-muted/50" />
+              <Skeleton className="h-3.5 w-24 rounded bg-muted/40" />
+              <div className="flex justify-between items-center">
+                <Skeleton className="h-3 w-16 rounded bg-muted/30" />
+                <Skeleton className="h-3 w-8 rounded bg-muted/30" />
+              </div>
+            </div>
+          ))}
         </div>
       </CardContent>
     </Card>
-  )
+  );
 }
 
 export function DashboardSkeleton() {

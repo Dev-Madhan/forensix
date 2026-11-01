@@ -1,9 +1,9 @@
-"use client"
+"use client";
 
-import * as React from "react"
-import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts"
-import { motion } from "motion/react"
-import { ChevronDown, Check } from "lucide-react"
+import * as React from "react";
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
+import { motion } from "motion/react";
+import { ChevronDown, Check } from "lucide-react";
 
 import {
   Card,
@@ -11,83 +11,28 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card"
+} from "@/components/ui/card";
 import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
   type ChartConfig,
-} from "@/components/ui/chart"
+} from "@/components/ui/chart";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+} from "@/components/ui/dropdown-menu";
+import type { ActivityChartPoint } from "@/features/dashboard/queries";
 
-export const description = "Investigation activity area chart"
+export type { ActivityChartPoint };
 
 const timeOptions = [
   { value: "7d", label: "Last 7 days" },
   { value: "30d", label: "Last 30 days" },
   { value: "90d", label: "Last 90 days" },
-]
-
-const chartData = [
-  // July 2026
-  { date: "2026-07-06", cases: 7, sketches: 4, searches: 9 },
-  { date: "2026-07-10", cases: 9, sketches: 6, searches: 11 },
-  { date: "2026-07-14", cases: 12, sketches: 8, searches: 14 },
-  { date: "2026-07-18", cases: 8, sketches: 5, searches: 10 },
-  { date: "2026-07-22", cases: 14, sketches: 10, searches: 15 },
-  { date: "2026-07-26", cases: 11, sketches: 7, searches: 12 },
-  { date: "2026-07-30", cases: 9, sketches: 6, searches: 10 },
-  // August 2026
-  { date: "2026-08-03", cases: 6, sketches: 4, searches: 8 },
-  { date: "2026-08-07", cases: 10, sketches: 7, searches: 12 },
-  { date: "2026-08-11", cases: 13, sketches: 9, searches: 14 },
-  { date: "2026-08-15", cases: 8, sketches: 5, searches: 9 },
-  { date: "2026-08-19", cases: 11, sketches: 8, searches: 12 },
-  { date: "2026-08-23", cases: 15, sketches: 10, searches: 16 },
-  { date: "2026-08-27", cases: 9, sketches: 6, searches: 11 },
-  { date: "2026-08-31", cases: 7, sketches: 4, searches: 8 },
-  // September 2026 (Focus 30-day range matching reference image)
-  { date: "2026-09-01", cases: 4, sketches: 2, searches: 6 },
-  { date: "2026-09-02", cases: 5, sketches: 3, searches: 7 },
-  { date: "2026-09-03", cases: 4, sketches: 2, searches: 5 },
-  { date: "2026-09-04", cases: 3, sketches: 2, searches: 5 },
-  { date: "2026-09-05", cases: 4, sketches: 2, searches: 6 },
-  { date: "2026-09-06", cases: 3, sketches: 3, searches: 5 },
-  { date: "2026-09-07", cases: 5, sketches: 4, searches: 7 },
-  { date: "2026-09-08", cases: 4, sketches: 3, searches: 6 },
-  { date: "2026-09-09", cases: 6, sketches: 5, searches: 8 },
-  { date: "2026-09-10", cases: 8, sketches: 6, searches: 9 },
-  { date: "2026-09-11", cases: 11, sketches: 8, searches: 12 },
-  { date: "2026-09-12", cases: 10, sketches: 9, searches: 11 },
-  { date: "2026-09-13", cases: 8, sketches: 7, searches: 8 },
-  { date: "2026-09-14", cases: 6, sketches: 5, searches: 7 },
-  { date: "2026-09-15", cases: 7, sketches: 6, searches: 9 },
-  { date: "2026-09-16", cases: 10, sketches: 8, searches: 11 },
-  { date: "2026-09-17", cases: 9, sketches: 7, searches: 10 },
-  { date: "2026-09-18", cases: 8, sketches: 6, searches: 8 },
-  { date: "2026-09-19", cases: 7, sketches: 5, searches: 7 },
-  { date: "2026-09-20", cases: 9, sketches: 6, searches: 8 },
-  { date: "2026-09-21", cases: 11, sketches: 8, searches: 10 },
-  { date: "2026-09-22", cases: 10, sketches: 7, searches: 9 },
-  { date: "2026-09-23", cases: 8, sketches: 6, searches: 8 },
-  { date: "2026-09-24", cases: 14, sketches: 10, searches: 11 },
-  { date: "2026-09-25", cases: 22, sketches: 15, searches: 14 },
-  { date: "2026-09-26", cases: 30, sketches: 20, searches: 18 },
-  { date: "2026-09-27", cases: 35, sketches: 24, searches: 20 },
-  { date: "2026-09-28", cases: 28, sketches: 22, searches: 17 },
-  { date: "2026-09-29", cases: 24, sketches: 19, searches: 15 },
-  { date: "2026-09-30", cases: 26, sketches: 20, searches: 16 },
-  // October 2026
-  { date: "2026-10-01", cases: 28, sketches: 21, searches: 18 },
-  { date: "2026-10-02", cases: 24, sketches: 18, searches: 15 },
-  { date: "2026-10-03", cases: 16, sketches: 13, searches: 12 },
-  { date: "2026-10-04", cases: 12, sketches: 10, searches: 9 },
-]
+];
 
 const chartConfig = {
   cases: {
@@ -99,45 +44,57 @@ const chartConfig = {
     color: "#665AEF",
   },
   searches: {
-    label: "Database Searches",
-    color: "#94a3b8",
+    label: "Telemetry & Hits",
+    color: "#10b981",
   },
-} satisfies ChartConfig
+} satisfies ChartConfig;
 
-export function ChartAreaInteractive() {
-  const [timeRange, setTimeRange] = React.useState("30d")
-  const [hoveredItem, setHoveredItem] = React.useState<string | null>(null)
+interface ChartAreaInteractiveProps {
+  data?: ActivityChartPoint[];
+}
 
+export function ChartAreaInteractive({ data = [] }: ChartAreaInteractiveProps) {
+  const [timeRange, setTimeRange] = React.useState<"7d" | "30d" | "90d">("30d");
+  const [hoveredItem, setHoveredItem] = React.useState<string | null>(null);
+
+  // Filter the full dataset based on selected timeRange (7d, 30d, 90d)
   const filteredData = React.useMemo(() => {
-    const referenceDate = new Date("2026-10-04")
-    let daysToSubtract = 30
-    if (timeRange === "90d") {
-      daysToSubtract = 90
-    } else if (timeRange === "7d") {
-      daysToSubtract = 7
+    if (!data || data.length === 0) {
+      // Generate clean zero-filled array up to today
+      const count = timeRange === "7d" ? 7 : timeRange === "90d" ? 90 : 30;
+      const now = new Date();
+      const points: ActivityChartPoint[] = [];
+      for (let i = count; i >= 0; i--) {
+        const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
+        points.push({
+          date: d.toISOString().slice(0, 10),
+          cases: 0,
+          sketches: 0,
+          searches: 0,
+        });
+      }
+      return points;
     }
-    const startDate = new Date(referenceDate)
-    startDate.setDate(startDate.getDate() - daysToSubtract)
 
-    return chartData.filter((item) => {
-      const date = new Date(item.date)
-      return date >= startDate && date <= referenceDate
-    })
-  }, [timeRange])
+    const daysCount = timeRange === "7d" ? 7 : timeRange === "90d" ? 90 : 30;
+    // Take the last N days from the sorted chronological dataset
+    return data.slice(-daysCount - 1);
+  }, [data, timeRange]);
 
-  // Dynamically calculate clean Y-Axis boundary for optimal visualization
+  // Dynamically calculate clean Y-Axis boundary
   const { maxY, yTicks } = React.useMemo(() => {
-    const max = Math.max(
-      ...filteredData.map((d) => Math.max(d.cases, d.sketches, d.searches)),
-      30
-    )
-    const upperLimit = Math.ceil(max / 10) * 10
-    const step = upperLimit / 4
+    const maxVal = Math.max(
+      ...filteredData.map((d) => Math.max(d.cases || 0, d.sketches || 0, d.searches || 0)),
+      0
+    );
+    // Upper boundary at least 5 for clean ticks
+    const upperLimit = Math.max(Math.ceil((maxVal + 1) / 4) * 4, 4);
+    const step = upperLimit / 4;
     return {
       maxY: upperLimit,
       yTicks: [0, step, step * 2, step * 3, upperLimit],
-    }
-  }, [filteredData])
+    };
+  }, [filteredData]);
 
   return (
     <Card className="@container/card rounded-xl border border-border/70 bg-card/70 shadow-xs">
@@ -147,7 +104,7 @@ export function ChartAreaInteractive() {
             Investigation Activity
           </CardTitle>
           <CardDescription className="text-xs text-muted-foreground">
-            Overview of cases, sketches and database searches over time.
+            Live database telemetry of cases, composite sketches, and surveillance signals.
           </CardDescription>
         </div>
         <div className="flex items-center">
@@ -184,7 +141,7 @@ export function ChartAreaInteractive() {
                   <DropdownMenuItem
                     key={option.value}
                     onPointerEnter={() => setHoveredItem(option.value)}
-                    onClick={() => setTimeRange(option.value)}
+                    onClick={() => setTimeRange(option.value as "7d" | "30d" | "90d")}
                     className="relative z-0 group flex items-center justify-between cursor-pointer px-2.5 py-1.5 rounded-md transition-colors focus:text-accent-foreground hover:text-accent-foreground !bg-transparent text-xs font-medium"
                   >
                     {hoveredItem === option.value && (
@@ -227,25 +184,25 @@ export function ChartAreaInteractive() {
             margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
           >
             <defs>
-              {/* Blue Cases gradient with subtle #665AEF purple blend */}
+              {/* Blue Cases gradient */}
               <linearGradient id="fillCases" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.35} />
-                <stop offset="50%" stopColor="#665AEF" stopOpacity={0.16} />
-                <stop offset="95%" stopColor="#665AEF" stopOpacity={0.0} />
+                <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.4} />
+                <stop offset="60%" stopColor="#3b82f6" stopOpacity={0.12} />
+                <stop offset="95%" stopColor="#3b82f6" stopOpacity={0.0} />
               </linearGradient>
 
-              {/* Sketches Generated: #665AEF gradient with professional subtle decay */}
+              {/* Sketches Generated: #665AEF gradient */}
               <linearGradient id="fillSketches" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#665AEF" stopOpacity={0.38} />
-                <stop offset="55%" stopColor="#665AEF" stopOpacity={0.14} />
+                <stop offset="0%" stopColor="#665AEF" stopOpacity={0.42} />
+                <stop offset="60%" stopColor="#665AEF" stopOpacity={0.14} />
                 <stop offset="95%" stopColor="#665AEF" stopOpacity={0.0} />
               </linearGradient>
 
-              {/* Database Searches: soft slate gradient with a subtle touch of #665AEF */}
+              {/* Telemetry & Hits: soft emerald */}
               <linearGradient id="fillSearches" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="0%" stopColor="#94a3b8" stopOpacity={0.20} />
-                <stop offset="60%" stopColor="#665AEF" stopOpacity={0.06} />
-                <stop offset="95%" stopColor="#94a3b8" stopOpacity={0.0} />
+                <stop offset="0%" stopColor="#10b981" stopOpacity={0.3} />
+                <stop offset="60%" stopColor="#10b981" stopOpacity={0.08} />
+                <stop offset="95%" stopColor="#10b981" stopOpacity={0.0} />
               </linearGradient>
             </defs>
 
@@ -262,11 +219,11 @@ export function ChartAreaInteractive() {
               tickMargin={10}
               minTickGap={24}
               tickFormatter={(value) => {
-                const date = new Date(value)
+                const date = new Date(value);
                 return date.toLocaleDateString("en-US", {
                   month: "short",
                   day: "numeric",
-                })
+                });
               }}
               className="text-xs fill-muted-foreground"
             />
@@ -293,7 +250,7 @@ export function ChartAreaInteractive() {
                       month: "short",
                       day: "numeric",
                       year: "numeric",
-                    })
+                    });
                   }}
                   indicator="dot"
                 />
@@ -302,16 +259,16 @@ export function ChartAreaInteractive() {
 
             <Area
               dataKey="searches"
-              type="natural"
+              type="monotone"
               fill="url(#fillSearches)"
-              stroke="#94a3b8"
+              stroke="#10b981"
               strokeWidth={1.5}
               isAnimationActive={true}
               animationDuration={450}
             />
             <Area
               dataKey="sketches"
-              type="natural"
+              type="monotone"
               fill="url(#fillSketches)"
               stroke="#665AEF"
               strokeWidth={2}
@@ -320,7 +277,7 @@ export function ChartAreaInteractive() {
             />
             <Area
               dataKey="cases"
-              type="natural"
+              type="monotone"
               fill="url(#fillCases)"
               stroke="#3b82f6"
               strokeWidth={2}
@@ -330,7 +287,7 @@ export function ChartAreaInteractive() {
           </AreaChart>
         </ChartContainer>
 
-        {/* Legend matching reference image */}
+        {/* Legend */}
         <div className="flex flex-wrap items-center justify-center gap-6 pt-4 text-xs text-muted-foreground">
           <div className="flex items-center gap-2">
             <span className="size-2.5 rounded-full bg-[#3b82f6]" />
@@ -341,11 +298,11 @@ export function ChartAreaInteractive() {
             <span className="font-medium text-foreground/90">Sketches Generated</span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="size-2.5 rounded-full bg-[#94a3b8]" />
-            <span className="font-medium text-foreground/90">Database Searches</span>
+            <span className="size-2.5 rounded-full bg-[#10b981]" />
+            <span className="font-medium text-foreground/90">Telemetry & Hits</span>
           </div>
         </div>
       </CardContent>
     </Card>
-  )
+  );
 }

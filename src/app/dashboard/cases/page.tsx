@@ -81,30 +81,122 @@ export default async function CasesPage() {
             email: true,
           },
         },
+        evidences: {
+          orderBy: { uploadedAt: "desc" },
+          select: {
+            id: true,
+            title: true,
+            fileName: true,
+            fileUrl: true,
+            fileSize: true,
+            mimeType: true,
+            category: true,
+            source: true,
+            metadata: true,
+            uploadedAt: true,
+          },
+        },
+        sketches: {
+          orderBy: { createdAt: "desc" },
+          select: {
+            id: true,
+            imageUrl: true,
+            description: true,
+            createdAt: true,
+          },
+        },
       },
-      take: 20,
+      take: 30,
     });
 
-    dbCases = rawCases.map((c) => ({
-      id: c.id,
-      caseNumber: c.caseNumber,
-      title: c.title,
-      type: "Theft",
-      location: "Chennai, TN",
-      date: new Date(c.createdAt).toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      }),
-      status:
-        c.status === "UNDER_INVESTIGATION"
-          ? "Under Investigation"
-          : c.status === "CLOSED" || c.status === "ARCHIVED"
-          ? "Closed"
-          : "Open",
-      description: c.description || undefined,
-      assignedTo: c.assignedTo?.name || "Lead Investigator",
-    }));
+    dbCases = rawCases.map((c) => {
+      // Extract clean location from description if present
+      let location = "Chennai, TN";
+      if (c.description) {
+        const match = c.description.match(/Incident Location:\s*([^\n\r]+)/i);
+        if (match && match[1]) {
+          location = match[1].trim();
+        }
+      }
+
+      // Map genuine case evidence & sketches into unified media list
+      const media: import("@/features/cases/types").CaseMediaItem[] = [];
+
+      for (const ev of c.evidences) {
+        let cat: import("@/features/cases/types").CaseMediaItem["category"] = "DOCUMENT";
+        if (ev.category === "IMAGE" || ev.mimeType.startsWith("image/")) cat = "IMAGE";
+        else if (ev.category === "VIDEO" || ev.mimeType.startsWith("video/")) cat = "VIDEO";
+        else if (ev.category === "AUDIO" || ev.mimeType.startsWith("audio/")) cat = "AUDIO";
+
+        const meta = (ev.metadata && typeof ev.metadata === "object" ? ev.metadata : {}) as Record<string, unknown>;
+
+        media.push({
+          id: ev.id,
+          title: ev.title || ev.fileName,
+          category: cat,
+          source: ev.source || "CRIME_SCENE",
+          fileUrl: ev.fileUrl || "",
+          fileName: ev.fileName,
+          fileSize: ev.fileSize,
+          mimeType: ev.mimeType,
+          uploadedAt: new Date(ev.uploadedAt).toISOString(),
+          metadata: {
+            cameraName:
+              (meta.cameraName as string) ||
+              (meta.sensorId as string) ||
+              (cat === "VIDEO" ? "CAM-01 [REC]" : undefined),
+            timestamp:
+              (meta.timestamp as string) ||
+              new Date(ev.uploadedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+            location: (meta.location as string) || location,
+          },
+        });
+      }
+
+      for (const sk of c.sketches) {
+        media.push({
+          id: sk.id,
+          title: sk.description || "AI Forensic Composite Sketch",
+          category: "SKETCH",
+          source: "FORENSIC_STUDIO",
+          fileUrl: sk.imageUrl,
+          fileName: `sketch_${sk.id.slice(0, 8)}.png`,
+          fileSize: 1024 * 512,
+          mimeType: "image/png",
+          uploadedAt: new Date(sk.createdAt).toISOString(),
+          metadata: {
+            cameraName: "AI COMPOSITE",
+            timestamp: new Date(sk.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          },
+        });
+      }
+
+      let mappedStatus: CaseItem["status"] = "Open";
+      if (c.status === "UNDER_INVESTIGATION") mappedStatus = "Under Investigation";
+      else if (c.status === "CLOSED" || c.status === "ARCHIVED") mappedStatus = "Closed";
+      else if (c.status === "COLD") mappedStatus = "Cold";
+
+      return {
+        id: c.id,
+        caseNumber: c.caseNumber,
+        title: c.title,
+        type: "Transit Crime",
+        location,
+        date: new Date(c.createdAt).toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        }),
+        timestamp: new Date(c.createdAt).toLocaleTimeString("en-US", {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+        status: mappedStatus,
+        description: c.description || undefined,
+        assignedTo: c.assignedTo?.name || "Lead Investigator",
+        media,
+      };
+    });
   } catch (error) {
     console.error("Failed to query cases from database:", error);
   }
