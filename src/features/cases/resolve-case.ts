@@ -1,9 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { CaseStatus, CasePriority } from "@prisma/client";
+import { notFound } from "next/navigation";
 import crypto from "crypto";
 import { INITIAL_CASES, type CaseItem } from "@/features/cases/types";
-import { MOCK_EVIDENCE_ITEMS } from "@/features/cases/components/evidence/mock-evidence";
-import { INITIAL_SUSPECTS } from "@/features/cases/components/suspects/mock-suspects";
 import type { EvidenceItem } from "@/features/cases/components/evidence/types";
 import type { SuspectItem, SuspectStatus, SuspectRole } from "@/features/cases/components/suspects/types";
 import { getSafeStorageUrl } from "@/lib/storage-url";
@@ -193,331 +192,186 @@ export async function resolveCaseBySlug(slug: string): Promise<ResolvedCaseDetai
     });
 
     if (!dbCase) {
-      const matchedInitial = INITIAL_CASES.find(
-        (c) =>
-          c.caseNumber.toLowerCase() === decodedSlug.toLowerCase() ||
-          c.id === decodedSlug ||
-          c.title.toLowerCase().includes(decodedSlug.toLowerCase())
-      );
-      if (matchedInitial) {
-        try {
-          const defaultOfficer = await prisma.user.findFirst({ select: { id: true } });
-          const officerId = defaultOfficer?.id || "clz-default-officer";
-          dbCase = await prisma.case.upsert({
-            where: { caseNumber: matchedInitial.caseNumber },
-            update: {},
-            create: {
-              caseNumber: matchedInitial.caseNumber,
-              title: matchedInitial.title,
-              description: matchedInitial.description || "Forensic investigation active file.",
-              status: matchedInitial.status === "Closed" ? "CLOSED" : "UNDER_INVESTIGATION",
-              priority: "HIGH",
-              assignedToId: officerId,
+      dbCase = await prisma.case.findFirst({
+        orderBy: { createdAt: "desc" },
+        include: {
+          assignedTo: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
             },
-            include: {
-              assignedTo: {
-                select: { id: true, name: true, email: true },
-              },
-              evidences: {
-                orderBy: { uploadedAt: "desc" },
-                include: { criminal: true },
-              },
-              suspects: {
-                orderBy: { addedAt: "desc" },
-                include: {
-                  criminal: {
-                    include: { records: true },
-                  },
-                  assignedOfficer: true,
-                },
-              },
-              sketches: {
-                orderBy: { createdAt: "desc" },
-                include: { recognitionResults: { include: { criminal: true } } },
-              },
-            },
-          });
-        } catch (seedErr) {
-          console.warn("Could not auto-seed case record:", seedErr);
-        }
-      }
-    }
-
-    if (dbCase) {
-      const created = new Date(dbCase.createdAt);
-
-      // Seed initial mock evidence records into Postgres if newly created case has zero evidence
-      if (dbCase.evidences.length === 0) {
-        try {
-          const defaultOfficer = await prisma.user.findFirst({ select: { id: true } });
-          const officerId = defaultOfficer?.id || "system";
-          await prisma.evidence.createMany({
-            data: MOCK_EVIDENCE_ITEMS.slice(0, 6).map((item) => ({
-              caseId: dbCase.id,
-              title: item.name,
-              description: item.fullDescription || item.description,
-              category: item.type.toUpperCase(),
-              source: item.source.toUpperCase().replace(/\s+/g, "_"),
-              status: item.status.toUpperCase().replace(/\s+/g, "_"),
-              locationFound: item.location,
-              fileName: item.name,
-              storageKey: `cases/${dbCase.id}/evidence/${item.id}/${item.name}`,
-              mimeType:
-                item.type === "Video"
-                  ? "video/mp4"
-                  : item.type === "Image"
-                  ? "image/jpeg"
-                  : item.type === "Audio"
-                  ? "audio/mp3"
-                  : "application/pdf",
-              fileSize: 1024 * 1024 * 3,
-              sha256Hash: crypto.createHash("sha256").update(item.name).digest("hex"),
-              fileUrl: item.previewImage,
-              metadata: { aiAnalysis: item.aiAnalysis, camId: item.camId } as any,
-              uploadedBy: officerId,
-            })),
-            skipDuplicates: true,
-          });
-
-          dbCase.evidences = await prisma.evidence.findMany({
-            where: { caseId: dbCase.id },
+          },
+          evidences: {
             orderBy: { uploadedAt: "desc" },
             include: { criminal: true },
-          });
-        } catch (seedEvErr) {
-          console.warn("Evidence initial seeding skipped:", seedEvErr);
-        }
-      }
-
-      // Seed initial suspects into Postgres if newly created case has zero suspects
-      if (dbCase.suspects.length === 0) {
-        try {
-          const existingCriminals = await prisma.criminal.findMany({ take: 3 });
-          if (existingCriminals.length > 0) {
-            await prisma.caseSuspect.createMany({
-              data: existingCriminals.map((crim, i) => ({
-                caseId: dbCase.id,
-                criminalId: crim.id,
-                status: (i === 0 ? "PRIMARY_SUSPECT" : "PERSON_OF_INTEREST") as any,
-                role: (i === 0 ? "DIRECT_INVOLVEMENT" : "UNDER_INVESTIGATION") as any,
-                matchConfidence: 88 - i * 6,
-                notes: `Forensic correlation verified for ${crim.firstName} ${crim.lastName}.`,
-              })),
-              skipDuplicates: true,
-            });
-
-            dbCase.suspects = await prisma.caseSuspect.findMany({
-              where: { caseId: dbCase.id },
-              orderBy: { addedAt: "desc" },
-              include: {
-                criminal: {
-                  include: { records: true },
-                },
-                assignedOfficer: true,
-              },
-            });
-          }
-        } catch (seedSuspErr) {
-          console.warn("Suspects initial seeding skipped:", seedSuspErr);
-        }
-      }
-
-      // Query real Audit Logs for this case
-      let auditLogItems: CaseAuditLogItem[] = [];
-      try {
-        const dbAuditLogs = await prisma.auditLog.findMany({
-          where: {
-            OR: [
-              { entityId: dbCase.id },
-              { details: { path: ["caseId"], equals: dbCase.id } },
-            ],
           },
-          include: { user: true },
-          orderBy: { createdAt: "desc" },
-          take: 40,
-        });
-
-        auditLogItems = dbAuditLogs.map((log) => {
-          const userName = log.user?.name || "System Investigator";
-          const initials = userName
-            .split(" ")
-            .map((n) => n[0])
-            .filter(Boolean)
-            .join("")
-            .toUpperCase()
-            .slice(0, 2) || "IN";
-
-          return {
-            id: log.id,
-            action: log.action,
-            entityType: log.entityType,
-            createdAt: log.createdAt.toISOString(),
-            userName,
-            userInitials: initials,
-            details: log.details,
-          };
-        });
-      } catch (logErr) {
-        console.warn("Audit logs lookup skipped:", logErr);
-      }
-
-      // Map real evidences or fallback to baseline demo if zero entries
-      const mappedEvidences: EvidenceItem[] =
-        dbCase.evidences && dbCase.evidences.length > 0
-          ? dbCase.evidences.map(mapPrismaEvidenceToItem)
-          : MOCK_EVIDENCE_ITEMS;
-
-      // Map real suspects or fallback to baseline demo if zero entries
-      const mappedSuspects: SuspectItem[] =
-        dbCase.suspects && dbCase.suspects.length > 0
-          ? dbCase.suspects.map(mapPrismaSuspectToItem)
-          : INITIAL_SUSPECTS;
-
-      return {
-        id: dbCase.id,
-        caseNumber: dbCase.caseNumber,
-        title: dbCase.title,
-        description:
-          dbCase.description ||
-          "Armed robbery at a commercial establishment in T. Nagar. Suspect seen on CCTV fleeing towards North Boag Road.",
-        status:
-          dbCase.status === "ARCHIVED"
-            ? "Archived"
-            : dbCase.status === "UNDER_INVESTIGATION"
-            ? "Under Investigation"
-            : dbCase.status === "OPEN"
-            ? "Open"
-            : dbCase.status === "CLOSED"
-            ? "Closed"
-            : "Under Investigation",
-        rawStatus: dbCase.status,
-        priority: dbCase.priority,
-        dateReported: created.toLocaleDateString("en-US", {
-          month: "short",
-          day: "numeric",
-          year: "numeric",
-        }),
-        closedDate:
-          dbCase.status === "CLOSED"
-            ? new Date(dbCase.updatedAt).toLocaleDateString("en-US", {
-                month: "short",
-                day: "numeric",
-                year: "numeric",
-              })
-            : undefined,
-        timeOfIncident: created.toLocaleTimeString("en-US", {
-          hour: "2-digit",
-          minute: "2-digit",
-          hour12: true,
-        }),
-        location:
-          dbCase.description && dbCase.description.toLowerCase().includes("bengaluru")
-            ? "Bengaluru, KA"
-            : dbCase.description && dbCase.description.toLowerCase().includes("coimbatore")
-            ? "Coimbatore, TN"
-            : dbCase.description && dbCase.description.toLowerCase().includes("madurai")
-            ? "Madurai, TN"
-            : dbCase.description && dbCase.description.toLowerCase().includes("trichy")
-            ? "Trichy, TN"
-            : dbCase.description && dbCase.description.toLowerCase().includes("salem")
-            ? "Salem, TN"
-            : "Chennai, TN",
-        caseType: dbCase.title.toLowerCase().includes("homicide")
-          ? "Homicide"
-          : dbCase.title.toLowerCase().includes("cyber")
-          ? "Cyber Crime"
-          : dbCase.title.toLowerCase().includes("fraud")
-          ? "Fraud"
-          : dbCase.title.toLowerCase().includes("missing")
-          ? "Missing Person"
-          : dbCase.title.toLowerCase().includes("assault")
-          ? "Assault"
-          : "Theft",
-        assignedToName: dbCase.assignedTo?.name || "Lead Investigator",
-        assignedToEmail: dbCase.assignedTo?.email || "officer@forensix.gov",
-        createdBy: "System",
-        lastUpdated: new Date(dbCase.updatedAt).toLocaleString("en-US", {
-          month: "short",
-          day: "numeric",
-          year: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-          hour12: true,
-        }),
-        detailedDescription: dbCase.description
-          ? `${dbCase.description} Forensic crime scene processing, witness testimony cataloging, and CCTV telemetry correlation are actively underway.`
-          : "Forensic crime scene investigation in active progress.",
-        tags: ["Forensics", "Active Case", "Investigation"],
-        evidenceCount: mappedEvidences.length,
-        suspectsCount: mappedSuspects.length,
-        notesCount: 6,
-        createdAt: dbCase.createdAt.toISOString(),
-        updatedAt: dbCase.updatedAt.toISOString(),
-        evidences: mappedEvidences,
-        suspects: mappedSuspects,
-        auditLogs: auditLogItems,
-        sketches: (dbCase.sketches || []).map((sk: any) => ({
-          id: sk.id,
-          imageUrl: sk.imageUrl,
-          description: sk.description,
-          createdAt: sk.createdAt.toISOString(),
-          recognitionResults: sk.recognitionResults || [],
-        })),
-      };
+          suspects: {
+            orderBy: { addedAt: "desc" },
+            include: {
+              criminal: {
+                include: { records: true },
+              },
+              assignedOfficer: true,
+            },
+          },
+          sketches: {
+            orderBy: { createdAt: "desc" },
+            include: { recognitionResults: { include: { criminal: true } } },
+          },
+        },
+      });
     }
+
+    if (!dbCase) {
+      notFound();
+    }
+
+    const created = new Date(dbCase.createdAt);
+
+    // Query real Audit Logs for this case
+    let auditLogItems: CaseAuditLogItem[] = [];
+    try {
+      const dbAuditLogs = await prisma.auditLog.findMany({
+        where: {
+          OR: [
+            { entityId: dbCase.id },
+            { details: { path: ["caseId"], equals: dbCase.id } },
+          ],
+        },
+        include: { user: true },
+        orderBy: { createdAt: "desc" },
+        take: 40,
+      });
+
+      auditLogItems = dbAuditLogs.map((log) => {
+        const userName = log.user?.name || "System Investigator";
+        const initials = userName
+          .split(" ")
+          .map((n) => n[0])
+          .filter(Boolean)
+          .join("")
+          .toUpperCase()
+          .slice(0, 2) || "IN";
+
+        return {
+          id: log.id,
+          action: log.action,
+          entityType: log.entityType,
+          createdAt: log.createdAt.toISOString(),
+          userName,
+          userInitials: initials,
+          details: log.details,
+        };
+      });
+    } catch (logErr) {
+      console.warn("Audit logs lookup skipped:", logErr);
+    }
+
+    // Map real evidences directly from database
+    const mappedEvidences: EvidenceItem[] =
+      dbCase.evidences && dbCase.evidences.length > 0
+        ? dbCase.evidences.map(mapPrismaEvidenceToItem)
+        : [];
+
+    // Map real suspects directly from database
+    const mappedSuspects: SuspectItem[] =
+      dbCase.suspects && dbCase.suspects.length > 0
+        ? dbCase.suspects.map(mapPrismaSuspectToItem)
+        : [];
+
+    return {
+      id: dbCase.id,
+      caseNumber: dbCase.caseNumber,
+      title: dbCase.title,
+      description: dbCase.description || "Active forensic investigation file.",
+      status:
+        dbCase.status === "ARCHIVED"
+          ? "Archived"
+          : dbCase.status === "UNDER_INVESTIGATION"
+          ? "Under Investigation"
+          : dbCase.status === "OPEN"
+          ? "Open"
+          : dbCase.status === "CLOSED"
+          ? "Closed"
+          : "Under Investigation",
+      rawStatus: dbCase.status,
+      priority: dbCase.priority,
+      dateReported: created.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      }),
+      closedDate:
+        dbCase.status === "CLOSED"
+          ? new Date(dbCase.updatedAt).toLocaleDateString("en-US", {
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+            })
+          : undefined,
+      timeOfIncident: created.toLocaleTimeString("en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+      }),
+      location:
+        dbCase.description && dbCase.description.toLowerCase().includes("bengaluru")
+          ? "Bengaluru, KA"
+          : dbCase.description && dbCase.description.toLowerCase().includes("coimbatore")
+          ? "Coimbatore, TN"
+          : dbCase.description && dbCase.description.toLowerCase().includes("madurai")
+          ? "Madurai, TN"
+          : dbCase.description && dbCase.description.toLowerCase().includes("trichy")
+          ? "Trichy, TN"
+          : dbCase.description && dbCase.description.toLowerCase().includes("salem")
+          ? "Salem, TN"
+          : "Chennai, TN",
+      caseType: dbCase.title.toLowerCase().includes("homicide")
+        ? "Homicide"
+        : dbCase.title.toLowerCase().includes("cyber")
+        ? "Cyber Crime"
+        : dbCase.title.toLowerCase().includes("fraud")
+        ? "Fraud"
+        : dbCase.title.toLowerCase().includes("missing")
+        ? "Missing Person"
+        : dbCase.title.toLowerCase().includes("assault")
+        ? "Assault"
+        : "Theft",
+      assignedToName: dbCase.assignedTo?.name || "Lead Investigator",
+      assignedToEmail: dbCase.assignedTo?.email || "officer@forensix.gov",
+      createdBy: "System",
+      lastUpdated: new Date(dbCase.updatedAt).toLocaleString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: true,
+      }),
+      detailedDescription: dbCase.description
+        ? `${dbCase.description} Forensic crime scene processing, witness testimony cataloging, and telemetry correlation are actively underway.`
+        : "Forensic crime scene investigation in active progress.",
+      tags: ["Forensics", "Active Case", "Investigation"],
+      evidenceCount: mappedEvidences.length,
+      suspectsCount: mappedSuspects.length,
+      notesCount: 6,
+      createdAt: dbCase.createdAt.toISOString(),
+      updatedAt: dbCase.updatedAt.toISOString(),
+      evidences: mappedEvidences,
+      suspects: mappedSuspects,
+      auditLogs: auditLogItems,
+      sketches: (dbCase.sketches || []).map((sk: any) => ({
+        id: sk.id,
+        imageUrl: sk.imageUrl,
+        description: sk.description,
+        createdAt: sk.createdAt.toISOString(),
+        recognitionResults: sk.recognitionResults || [],
+      })),
+    };
   } catch (err) {
-    console.warn("Database lookup for case slug skipped or unavailable:", err);
+    console.warn("Database lookup for case slug error:", err);
   }
 
-  // 2. Fallback to INITIAL_CASES dataset
-  const matchedInitial = INITIAL_CASES.find(
-    (c) =>
-      c.caseNumber.toLowerCase() === decodedSlug.toLowerCase() ||
-      c.id === decodedSlug ||
-      c.title.toLowerCase().includes(decodedSlug.toLowerCase())
-  );
-
-  const fallback: CaseItem = matchedInitial || INITIAL_CASES[0];
-
-  return {
-    id: fallback.id,
-    caseNumber: fallback.caseNumber,
-    title: fallback.title,
-    description:
-      fallback.description ||
-      "Armed robbery at a commercial establishment in T. Nagar. Suspect seen on CCTV fleeing towards North Boag Road.",
-    detailedDescription: fallback.description
-      ? `${fallback.description} Forensic crime scene processing, biometric evidence sequencing, and nearby surveillance telemetry analysis are actively underway.`
-      : `Forensic crime scene investigation in progress for ${fallback.title}. Physical evidence and telemetry records are being processed.`,
-    status: fallback.status,
-    rawStatus:
-      fallback.status === "Open"
-        ? CaseStatus.OPEN
-        : fallback.status === "Closed"
-        ? CaseStatus.CLOSED
-        : CaseStatus.UNDER_INVESTIGATION,
-    priority: CasePriority.HIGH,
-    dateReported: fallback.date || "Oct 4, 2026",
-    closedDate:
-      fallback.closedDate ||
-      (fallback.status === "Solved" || fallback.status === "Closed"
-        ? "Oct 3, 2026"
-        : undefined),
-    timeOfIncident: fallback.timestamp || "09:14 PM",
-    location: fallback.location || "Chennai, TN",
-    caseType: fallback.type || "Theft",
-    assignedToName: fallback.assignedTo || "Madhan Kumar",
-    assignedToEmail: "officer@forensix.gov",
-    createdBy: "System",
-    lastUpdated: "Oct 5, 2026, 11:32 AM",
-    tags: [fallback.type, fallback.location.split(",")[0].trim(), "Forensics", "Active File"],
-    evidenceCount: MOCK_EVIDENCE_ITEMS.length,
-    suspectsCount: INITIAL_SUSPECTS.length,
-    notesCount: 6,
-    createdAt: "2026-10-04T21:14:00.000Z",
-    updatedAt: "2026-10-05T11:32:00.000Z",
-    evidences: MOCK_EVIDENCE_ITEMS,
-    suspects: INITIAL_SUSPECTS,
-    auditLogs: [],
-  };
+  notFound();
 }

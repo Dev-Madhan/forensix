@@ -24,6 +24,10 @@ export function RelatedEvidenceCard({
   // Show 4 related evidence items
   const displayItems = items.slice(0, 4);
 
+  if (displayItems.length === 0) {
+    return null;
+  }
+
   return (
     <Card className="border-2 border-border/80 bg-card/40 backdrop-blur-xs rounded-xl shadow-xs overflow-hidden py-0 [--card-spacing:--spacing(3.5)]">
       {/* Header with purple Layers icon & View All link */}

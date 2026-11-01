@@ -43,8 +43,8 @@ export function buildCaseReportData(
 ): CaseReportData {
   const { dbCase, resolvedDetail, mockEvidence, mockSketches, mockSuspects } = source;
 
-  const caseId = dbCase?.id || resolvedDetail?.id || "FX-2026-184";
-  const caseNumber = dbCase?.caseNumber || resolvedDetail?.caseNumber || "FX-2026-184";
+  const caseId = dbCase?.id || resolvedDetail?.id || "FX-2026-001";
+  const caseNumber = dbCase?.caseNumber || resolvedDetail?.caseNumber || "FX-2026-001";
   const caseTitle = dbCase?.title || resolvedDetail?.title || "Forensic Investigation";
   const rawStatus = dbCase?.status || resolvedDetail?.rawStatus || "UNDER_INVESTIGATION";
 
@@ -177,29 +177,6 @@ export function buildCaseReportData(
       reasoning: c.llmReasoning,
       createdAt: formatReportDate(new Date()),
     }));
-  } else {
-    recognitionList = [
-      {
-        id: "REC-01",
-        rank: 1,
-        candidateId: "CRIM-TN-2024-884",
-        candidateName: "Arun Prakash",
-        similarity: 94.2,
-        status: "Human Review Required",
-        reasoning: "High facial landmark and geometric profile correlation with composite sketch.",
-        createdAt: "05 Oct 2026 · 11:32 AM",
-      },
-      {
-        id: "REC-02",
-        rank: 2,
-        candidateId: "CRIM-TN-2023-412",
-        candidateName: "Karthik Selvan",
-        similarity: 78.5,
-        status: "Secondary Candidate",
-        reasoning: "Moderate cranial and jaw structure alignment with eyewitness composite.",
-        createdAt: "05 Oct 2026 · 11:32 AM",
-      },
-    ];
   }
 
   // 5. Sketches

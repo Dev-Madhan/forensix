@@ -10,7 +10,6 @@ import { EvidenceAiAnalysisCard } from "./evidence-ai-analysis-card";
 import { RelatedEvidenceCard } from "./related-evidence-card";
 import { EvidenceUploadDialog } from "./evidence-upload-dialog";
 import { EvidenceMediaModal } from "./evidence-media-modal";
-import { MOCK_EVIDENCE_ITEMS } from "./mock-evidence";
 import type {
   EvidenceItem,
   EvidenceType,
@@ -34,20 +33,23 @@ export function EvidenceTabContent({
 }: EvidenceTabContentProps) {
   // 1. Evidence dataset
   const [evidenceList, setEvidenceList] = useState<EvidenceItem[]>(() => {
-    return initialEvidence && initialEvidence.length > 0
-      ? initialEvidence
-      : MOCK_EVIDENCE_ITEMS;
+    return initialEvidence || [];
   });
 
   // Synchronize state when server-hydrated initialEvidence changes
   React.useEffect(() => {
-    if (initialEvidence && initialEvidence.length > 0) {
+    if (initialEvidence) {
       setEvidenceList(initialEvidence);
+      if (initialEvidence.length > 0 && !initialEvidence.some((e) => e.id === selectedEvidenceId)) {
+        setSelectedEvidenceId(initialEvidence[0].id);
+      }
     }
   }, [initialEvidence]);
 
   // 2. Currently active / selected evidence item for the Right Column Inspector
-  const [selectedEvidenceId, setSelectedEvidenceId] = useState<string>("01");
+  const [selectedEvidenceId, setSelectedEvidenceId] = useState<string>(() => {
+    return initialEvidence?.[0]?.id || "";
+  });
 
   // 3. Selection checkboxes
   const [selectedRowIds, setSelectedRowIds] = useState<Set<string>>(new Set());
@@ -140,7 +142,7 @@ export function EvidenceTabContent({
     return (
       evidenceList.find((e) => e.id === selectedEvidenceId) ||
       evidenceList[0] ||
-      MOCK_EVIDENCE_ITEMS[0]
+      null
     );
   }, [evidenceList, selectedEvidenceId]);
 
@@ -214,7 +216,7 @@ export function EvidenceTabContent({
     setEvidenceList((prev) => prev.filter((e) => e.id !== item.id));
 
     // 2. Call server action to delete from Tigris S3 and Neon Postgres
-    const resolvedCaseId = caseId || caseNumber || "FX-2026-184";
+    const resolvedCaseId = caseId || caseNumber || "FX-2026-001";
     try {
       const res = await deleteEvidence(item.id, resolvedCaseId);
       if (res.error) {
@@ -348,15 +350,17 @@ export function EvidenceTabContent({
           />
 
           {/* 2. AI Analysis Card */}
-          <EvidenceAiAnalysisCard
-            analysis={selectedEvidence.aiAnalysis}
-            evidenceId={selectedEvidence.id}
-            onViewFullAnalysis={() => {
-              toast.info(
-                `Full AI match confidence matrix: ${selectedEvidence.aiAnalysis.title} (${selectedEvidence.aiAnalysis.score}%)`
-              );
-            }}
-          />
+          {selectedEvidence?.aiAnalysis && (
+            <EvidenceAiAnalysisCard
+              analysis={selectedEvidence.aiAnalysis}
+              evidenceId={selectedEvidence.id}
+              onViewFullAnalysis={() => {
+                toast.info(
+                  `Full AI match confidence matrix: ${selectedEvidence.aiAnalysis.title} (${selectedEvidence.aiAnalysis.score}%)`
+                );
+              }}
+            />
+          )}
 
           {/* 3. Related Evidence Card */}
           <RelatedEvidenceCard

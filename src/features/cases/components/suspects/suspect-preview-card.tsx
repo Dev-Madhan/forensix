@@ -28,7 +28,7 @@ import { getCriminalSlug } from "@/features/criminals/slug";
 import type { SuspectItem, SuspectStatus } from "./types";
 
 interface SuspectPreviewCardProps {
-  suspect: SuspectItem;
+  suspect?: SuspectItem | null;
   onUpdateStatus?: (id: string, status: SuspectStatus) => void;
   onDeleteSuspect?: (id: string) => void;
 }
@@ -38,6 +38,14 @@ export function SuspectPreviewCard({
   onUpdateStatus,
   onDeleteSuspect,
 }: SuspectPreviewCardProps) {
+  if (!suspect) {
+    return (
+      <Card className="border-2 border-border/80 bg-card/40 backdrop-blur-xs rounded-xl shadow-xs p-6 text-center text-xs text-muted-foreground">
+        No suspect records associated with this case file.
+      </Card>
+    );
+  }
+
   const isPrimary = suspect.status === "Primary Suspect";
 
   return (

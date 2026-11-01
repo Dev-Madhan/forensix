@@ -442,7 +442,7 @@ export function AddSuspectDialog({
                               <Button
                                 size="sm"
                                 onClick={async () => {
-                                  const resolvedCaseId = caseId || caseNumber || "FX-2026-184";
+                                  const resolvedCaseId = caseId || caseNumber || "FX-2026-001";
                                   const newSuspect: SuspectItem = {
                                     id: candidate.id || `susp-${Date.now().toString().slice(-4)}`,
                                     criminalId: candidate.criminalId,

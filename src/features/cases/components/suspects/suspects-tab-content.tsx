@@ -10,7 +10,6 @@ import { SuspectKeyInfoCard } from "./suspect-key-info-card";
 import { SuspectAssociatedEvidenceCard } from "./suspect-associated-evidence-card";
 import { SuspectAiInsightsCard } from "./suspect-ai-insights-card";
 import { AddSuspectDialog } from "./add-suspect-dialog";
-import { INITIAL_SUSPECTS } from "./mock-suspects";
 
 import type { SuspectItem, SuspectStatus, SuspectRole } from "./types";
 import { toast } from "sonner";
@@ -28,27 +27,21 @@ export function SuspectsTabContent({
   caseNumber,
   initialSuspects,
 }: SuspectsTabContentProps) {
-  // 1. Suspects Dataset
+  // 1. Suspects Dataset (pure database records)
   const [suspectsList, setSuspectsList] = useState<SuspectItem[]>(() => {
-    return initialSuspects && initialSuspects.length > 0
-      ? initialSuspects
-      : INITIAL_SUSPECTS;
+    return initialSuspects || [];
   });
 
   // 2. Currently selected suspect for the Right Column Inspector
   const [selectedSuspectId, setSelectedSuspectId] = useState<string>(() => {
-    return (
-      (initialSuspects && initialSuspects[0]?.id) ||
-      INITIAL_SUSPECTS[0]?.id ||
-      "susp-01"
-    );
+    return initialSuspects?.[0]?.id || "";
   });
 
   // Synchronize suspects when server hydrated list changes
   React.useEffect(() => {
-    if (initialSuspects && initialSuspects.length > 0) {
+    if (initialSuspects) {
       setSuspectsList(initialSuspects);
-      if (!initialSuspects.some((s) => s.id === selectedSuspectId)) {
+      if (initialSuspects.length > 0 && !initialSuspects.some((s) => s.id === selectedSuspectId)) {
         setSelectedSuspectId(initialSuspects[0].id);
       }
     }
@@ -125,7 +118,7 @@ export function SuspectsTabContent({
     return (
       suspectsList.find((s) => s.id === selectedSuspectId) ||
       suspectsList[0] ||
-      INITIAL_SUSPECTS[0]
+      null
     );
   }, [suspectsList, selectedSuspectId]);
 
@@ -191,7 +184,7 @@ export function SuspectsTabContent({
       }
     }
 
-    const resolvedCaseId = caseId || caseNumber || "FX-2026-184";
+    const resolvedCaseId = caseId || caseNumber || "FX-2026-001";
     const suspectTargetId = target?.databaseId || target?.criminalId || id;
 
     unlinkCriminalFromCase(resolvedCaseId, suspectTargetId)
@@ -308,7 +301,7 @@ export function SuspectsTabContent({
 
           {/* Associated Evidence */}
           <SuspectAssociatedEvidenceCard
-            evidenceList={selectedSuspect.associatedEvidence}
+            evidenceList={selectedSuspect?.associatedEvidence || []}
           />
         </div>
       </div>

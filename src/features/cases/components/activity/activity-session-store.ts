@@ -12,10 +12,6 @@ import {
   TimelineMilestone,
 } from "./types";
 import {
-  MOCK_ACTIVITY_ITEMS,
-  INITIAL_TIMELINE_MILESTONES,
-} from "./mock-activity";
-import {
   fetchRealCaseActivityLogs,
   recordAuditLogAction,
 } from "@/features/audit/actions";
@@ -57,7 +53,7 @@ interface UseCaseActivityHistoryProps {
 
 export function useCaseActivityHistory({
   caseId,
-  caseNumber = "FX-2026-184",
+  caseNumber = "FX-2026-001",
   initialActivities,
 }: UseCaseActivityHistoryProps) {
   const { data: session } = useSession();
@@ -91,14 +87,11 @@ export function useCaseActivityHistory({
 
   // Activities dataset state
   const [activities, setActivities] = useState<ActivityItem[]>(() => {
-    const base = initialActivities || MOCK_ACTIVITY_ITEMS;
-    return base;
+    return initialActivities || [];
   });
 
   // Timeline milestones state
-  const [timelineMilestones, setTimelineMilestones] = useState<TimelineMilestone[]>(
-    INITIAL_TIMELINE_MILESTONES
-  );
+  const [timelineMilestones, setTimelineMilestones] = useState<TimelineMilestone[]>([]);
 
   // Filter state
   const [filters, setFilters] = useState<ActivityFilterState>({
@@ -148,8 +141,8 @@ export function useCaseActivityHistory({
           ];
           setActivities(merged);
         } else {
-          // Database logs empty or unavailable: use mock seed data + session items
-          const base = initialActivities || MOCK_ACTIVITY_ITEMS;
+          // Database logs empty: use session items or initial activities directly
+          const base = initialActivities || [];
           const merged = [
             ...sessionItems,
             ...base.filter((b) => !sessionItems.some((s) => s.id === b.id)),
@@ -159,7 +152,7 @@ export function useCaseActivityHistory({
       })
       .catch(() => {
         if (!isSubscribed) return;
-        const base = initialActivities || MOCK_ACTIVITY_ITEMS;
+        const base = initialActivities || [];
         setActivities([...sessionItems, ...base.filter((b) => !sessionItems.some((s) => s.id === b.id))]);
       });
 

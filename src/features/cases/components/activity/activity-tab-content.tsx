@@ -26,7 +26,7 @@ interface ActivityTabContentProps {
 
 export function ActivityTabContent({
   caseId,
-  caseNumber = "FX-2026-184",
+  caseNumber = "FX-2026-001",
 }: ActivityTabContentProps) {
   const {
     currentUser,

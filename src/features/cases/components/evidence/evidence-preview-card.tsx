@@ -31,7 +31,7 @@ import { EvidenceThumbnail } from "./evidence-thumbnail";
 import type { EvidenceItem } from "./types";
 
 interface EvidencePreviewCardProps {
-  item: EvidenceItem;
+  item?: EvidenceItem | null;
   onPrevMedia?: () => void;
   onNextMedia?: () => void;
   mediaIndex?: number;
@@ -48,6 +48,14 @@ export function EvidencePreviewCard({
   onPlayMedia,
 }: EvidencePreviewCardProps) {
   const [copiedHash, setCopiedHash] = useState(false);
+
+  if (!item) {
+    return (
+      <Card className="border-2 border-border/80 bg-card/40 backdrop-blur-xs rounded-xl shadow-xs p-8 text-center text-xs text-muted-foreground min-h-[300px] flex items-center justify-center">
+        No evidence items uploaded to this case file.
+      </Card>
+    );
+  }
 
   const handleCopyHash = () => {
     navigator.clipboard.writeText(item.hash);

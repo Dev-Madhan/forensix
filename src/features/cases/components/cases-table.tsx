@@ -42,6 +42,7 @@ import {
   Tag,
   User,
   ArrowRight,
+  Folder,
 } from "lucide-react";
 
 import { INITIAL_CASES, type CaseItem } from "@/features/cases/types";
@@ -134,14 +135,9 @@ interface CasesTableProps {
 }
 
 export function CasesTable({ initialCases = [] }: CasesTableProps) {
-  // Combine incoming cases with baseline reference dataset
+  // Use pure database cases directly (no mock fallback injection)
   const allCases = React.useMemo(() => {
-    if (!initialCases || initialCases.length === 0) {
-      return INITIAL_CASES;
-    }
-    const existingIds = new Set(initialCases.map((c) => c.caseNumber));
-    const dedupedInitial = INITIAL_CASES.filter((c) => !existingIds.has(c.caseNumber));
-    return [...initialCases, ...dedupedInitial];
+    return initialCases || [];
   }, [initialCases]);
 
   // Filter states
@@ -152,17 +148,18 @@ export function CasesTable({ initialCases = [] }: CasesTableProps) {
   const [hoveredStatus, setHoveredStatus] = React.useState<string | null>(null);
   const [hoveredType, setHoveredType] = React.useState<string | null>(null);
 
-  // Selection states (first item selected by default as in reference image)
+  // Selection states
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(
-    new Set([allCases[0]?.id || "1"])
+    () => new Set(allCases[0]?.id ? [allCases[0].id] : [])
   );
   // Active case for Case Details Preview
   const [activeCaseId, setActiveCaseId] = React.useState<string>(
-    allCases[0]?.id || "1"
+    () => allCases[0]?.id || ""
   );
   const activeCase =
     allCases.find((c) => c.id === activeCaseId) ||
-    allCases[0];
+    allCases[0] ||
+    null;
 
   // Pagination state
   const [currentPage, setCurrentPage] = React.useState(1);
@@ -684,7 +681,7 @@ export function CasesTable({ initialCases = [] }: CasesTableProps) {
 }
 
 interface CaseDetailsPreviewProps {
-  caseItem: CaseItem;
+  caseItem?: CaseItem | null;
 }
 
 function CaseDetailsPreview({ caseItem }: CaseDetailsPreviewProps) {
@@ -700,6 +697,18 @@ function CaseDetailsPreview({ caseItem }: CaseDetailsPreviewProps) {
     e.stopPropagation();
     setCctvIndex((prev) => (prev < totalCctvAngles ? prev + 1 : 1));
   };
+
+  if (!caseItem) {
+    return (
+      <div className="rounded-xl border-2 border-border bg-card/40 p-8 shadow-xs flex flex-col items-center justify-center text-center gap-3 text-muted-foreground min-h-[360px]">
+        <Folder className="size-8 text-[#665AEF]/40" />
+        <div className="space-y-1">
+          <p className="text-sm font-medium text-foreground">No Case Selected</p>
+          <p className="text-xs text-muted-foreground">Select an active investigation file from the ledger to inspect evidence and telemetry.</p>
+        </div>
+      </div>
+    );
+  }
 
   // Status text only (no badge) for the card
   const renderStatusText = (status: CaseItem["status"]) => {

@@ -12,41 +12,26 @@ interface SuspectAssociatedEvidenceCardProps {
   evidenceList?: AssociatedEvidenceRef[];
 }
 
-const DEFAULT_ASSOCIATED_EVIDENCE: AssociatedEvidenceRef[] = [
-  {
-    id: "ev-01",
-    name: "CCTV_01.mp4",
-    type: "Video",
-    thumbnail: "/images/cctv-suspect.jpg",
-    date: "Oct 4, 2026",
-  },
-  {
-    id: "ev-02",
-    name: "Suspect_Image_02.jpg",
-    type: "Image",
-    thumbnail: "/images/suspects/arun-prakash.jpg",
-    date: "Oct 4, 2026",
-  },
-  {
-    id: "ev-03",
-    name: "Vehicle_01.jpg",
-    type: "Image",
-    thumbnail: "/images/feature-image.png",
-    date: "Oct 4, 2026",
-  },
-  {
-    id: "ev-04",
-    name: "Weapon_01.jpg",
-    type: "Image",
-    thumbnail: "/images/stats-image.png",
-    date: "Oct 4, 2026",
-  },
-];
-
 export function SuspectAssociatedEvidenceCard({
-  evidenceList = DEFAULT_ASSOCIATED_EVIDENCE,
+  evidenceList = [],
 }: SuspectAssociatedEvidenceCardProps) {
-  const items = evidenceList.length > 0 ? evidenceList : DEFAULT_ASSOCIATED_EVIDENCE;
+  const items = evidenceList || [];
+
+  if (items.length === 0) {
+    return (
+      <Card className="border-2 border-border/80 bg-card/40 backdrop-blur-xs rounded-xl shadow-xs overflow-hidden">
+        <CardHeader className="p-3.5 sm:p-4 pb-2 border-b-2 border-border/40 flex flex-row items-center gap-2 space-y-0">
+          <Layers className="size-4.5 text-[#a594fd] shrink-0" />
+          <CardTitle className="text-xs sm:text-sm font-bold font-heading text-foreground">
+            Associated Evidence (0)
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="p-4 text-center text-xs text-muted-foreground">
+          No evidence items directly tagged to this suspect.
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card className="border-2 border-border/80 bg-card/40 backdrop-blur-xs rounded-xl shadow-xs overflow-hidden py-0">

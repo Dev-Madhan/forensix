@@ -63,10 +63,10 @@ export default async function CasesPage() {
   }
 
   const metrics = {
-    total: totalCount > 0 ? totalCount : 24,
-    open: totalCount > 0 ? openCount : 12,
-    underInvestigation: totalCount > 0 ? investigatingCount : 7,
-    resolved: totalCount > 0 ? resolvedCount : 9,
+    total: totalCount,
+    open: openCount,
+    underInvestigation: investigatingCount,
+    resolved: resolvedCount,
   };
 
   // Query cases from database if available

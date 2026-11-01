@@ -3579,7 +3579,7 @@ export function CriminalProfileTabs({
                                       )}
                                     >
                                       <Link
-                                        href={`/case-details/${item.caseId || "FX-2026-184"}`}
+                                        href={`/case-details/${item.caseId || "FX-2026-001"}`}
                                         onClick={() => setOpenBiometricActionRowId(null)}
                                         className="w-full text-left text-xs px-2.5 py-1.5 rounded-md text-foreground/80 hover:text-foreground hover:bg-muted/60 transition-colors flex items-center gap-2 cursor-pointer"
                                       >
@@ -3739,7 +3739,7 @@ export function CriminalProfileTabs({
                       {/* Action row: 3 Equal-Width, Perfectly Aligned Touch Buttons */}
                       <div className="pt-2.5 border-t border-border/40 grid grid-cols-3 gap-2 text-xs">
                         <Link
-                          href={`/case-details/${item.caseId || "FX-2026-184"}`}
+                          href={`/case-details/${item.caseId || "FX-2026-001"}`}
                           className="h-8.5 px-2 rounded-lg border-2 border-border/80 hover:border-[#665AEF]/50 bg-muted/20 hover:bg-muted/40 text-[11px] font-semibold text-foreground transition-all flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
                         >
                           <ExternalLink className="size-3 text-muted-foreground shrink-0" />

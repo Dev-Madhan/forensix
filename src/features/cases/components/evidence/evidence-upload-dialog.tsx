@@ -179,7 +179,7 @@ export function EvidenceUploadDialog({
     }
 
     setIsSubmitting(true);
-    const resolvedCaseIdentifier = caseId || caseNumber || "FX-2026-184";
+    const resolvedCaseIdentifier = caseId || caseNumber || "FX-2026-001";
 
     try {
       for (let i = 0; i < acceptedFiles.length; i++) {

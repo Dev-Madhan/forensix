@@ -132,12 +132,12 @@ export function CaseDetailsTabs({ caseData }: CaseDetailsTabsProps) {
 
   // 1. Dynamic Live Evidence Calculation from server relations
   const [liveEvidenceCount, setLiveEvidenceCount] = useState<number>(() => {
-    return caseData.evidences?.length ?? (caseData.evidenceCount || MOCK_EVIDENCE_ITEMS.length);
+    return caseData.evidences?.length ?? (caseData.evidenceCount || 0);
   });
 
   // 2. Dynamic Live Suspects Calculation from server relations
   const [liveSuspectsCount, setLiveSuspectsCount] = useState<number>(() => {
-    return caseData.suspects?.length ?? (caseData.suspectsCount || INITIAL_SUSPECTS.length);
+    return caseData.suspects?.length ?? (caseData.suspectsCount || 0);
   });
 
   React.useEffect(() => {

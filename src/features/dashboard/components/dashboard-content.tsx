@@ -3,9 +3,9 @@
 import * as React from "react"
 import { motion } from "motion/react"
 import { DashboardHeader } from "@/features/dashboard/components/dashboard-header"
-import { SectionCards } from "@/features/dashboard/components/section-cards"
+import { SectionCards, type DashboardMetrics } from "@/features/dashboard/components/section-cards"
 import { ChartAreaInteractive } from "@/features/dashboard/components/chart-area-interactive"
-import { RecentCasesTable } from "@/features/dashboard/components/recent-cases-table"
+import { RecentCasesTable, type CaseItem } from "@/features/dashboard/components/recent-cases-table"
 import { RecentSketches } from "@/features/dashboard/components/recent-sketches"
 
 const containerVariants = {
@@ -32,7 +32,13 @@ const itemVariants = {
   },
 }
 
-export function DashboardContent({ userName }: { userName: string }) {
+interface DashboardContentProps {
+  userName: string;
+  metrics?: DashboardMetrics;
+  recentCases?: CaseItem[];
+}
+
+export function DashboardContent({ userName, metrics, recentCases }: DashboardContentProps) {
   return (
     <motion.div
       layout
@@ -57,7 +63,7 @@ export function DashboardContent({ userName }: { userName: string }) {
         variants={itemVariants}
         transition={{ layout: { duration: 0.45, ease: [0.16, 1, 0.3, 1] } }}
       >
-        <SectionCards />
+        <SectionCards metrics={metrics} />
       </motion.div>
 
       {/* 3. Area Chart */}
@@ -82,7 +88,7 @@ export function DashboardContent({ userName }: { userName: string }) {
           transition={{ layout: { duration: 0.45, ease: [0.16, 1, 0.3, 1] } }}
           className="lg:col-span-7"
         >
-          <RecentCasesTable />
+          <RecentCasesTable cases={recentCases} />
         </motion.div>
         <motion.div
           layout

@@ -319,7 +319,7 @@ export async function getCriminalIntelligenceMetrics() {
 
     return {
       totalRecords: total,
-      identifiedViaAI: confirmedAiMatches > 0 ? confirmedAiMatches : Math.min(total, 3),
+      identifiedViaAI: confirmedAiMatches,
       activeWatchlist: active + wanted,
       highRiskSubjects: critical > 0 ? critical : wanted,
     };

@@ -192,7 +192,7 @@ function RecentCaseRowActions({
   );
 }
 
-export function RecentCasesTable({ cases = defaultCases }: RecentCasesTableProps) {
+export function RecentCasesTable({ cases = [] }: RecentCasesTableProps) {
   const [copiedId, setCopiedId] = React.useState<string | null>(null)
 
   const handleCopyId = (caseId: string) => {
@@ -243,30 +243,41 @@ export function RecentCasesTable({ cases = defaultCases }: RecentCasesTableProps
             </TableRow>
           </TableHeader>
           <TableBody>
-            {cases.map((item) => (
-              <TableRow
-                key={item.id}
-                className="border-border/40 hover:bg-muted/30 transition-colors"
-              >
-                <TableCell className="pl-5 sm:pl-6 text-xs font-mono font-medium text-foreground/90">
-                  {item.caseId}
-                </TableCell>
-                <TableCell className="text-xs font-medium text-foreground">
-                  {item.title}
-                </TableCell>
-                <TableCell className="text-xs text-muted-foreground">
-                  {item.date}
-                </TableCell>
-                <TableCell>{getStatusBadge(item.status)}</TableCell>
-                <TableCell className="pr-5 sm:pr-6 text-right">
-                  <RecentCaseRowActions
-                    item={item}
-                    copiedId={copiedId}
-                    onCopyId={handleCopyId}
-                  />
+            {cases.length === 0 ? (
+              <TableRow>
+                <TableCell
+                  colSpan={5}
+                  className="py-12 text-center text-xs text-muted-foreground"
+                >
+                  No recent cases found.
                 </TableCell>
               </TableRow>
-            ))}
+            ) : (
+              cases.map((item) => (
+                <TableRow
+                  key={item.id}
+                  className="border-border/40 hover:bg-muted/30 transition-colors"
+                >
+                  <TableCell className="pl-5 sm:pl-6 text-xs font-mono font-medium text-foreground/90">
+                    {item.caseId}
+                  </TableCell>
+                  <TableCell className="text-xs font-medium text-foreground">
+                    {item.title}
+                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground">
+                    {item.date}
+                  </TableCell>
+                  <TableCell>{getStatusBadge(item.status)}</TableCell>
+                  <TableCell className="pr-5 sm:pr-6 text-right">
+                    <RecentCaseRowActions
+                      item={item}
+                      copiedId={copiedId}
+                      onCopyId={handleCopyId}
+                    />
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
       </CardContent>

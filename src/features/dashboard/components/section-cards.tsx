@@ -59,14 +59,56 @@ function RollingNumber({ value }: { value: number }) {
   )
 }
 
-export function SectionCards() {
+export interface DashboardMetrics {
+  totalCases: number;
+  totalSuspects: number;
+  sketchesGenerated: number;
+  casesResolved: number;
+}
+
+interface SectionCardsProps {
+  metrics?: DashboardMetrics;
+}
+
+export function SectionCards({ metrics }: SectionCardsProps) {
+  const cards = [
+    {
+      title: "Total Cases",
+      value: metrics?.totalCases ?? 1,
+      change: "12%",
+      timeframe: "from last month",
+      icon: Folder,
+    },
+    {
+      title: "Suspects in Database",
+      value: metrics?.totalSuspects ?? 1,
+      change: "18%",
+      timeframe: "from last month",
+      icon: User,
+    },
+    {
+      title: "Sketches Generated",
+      value: metrics?.sketchesGenerated ?? 0,
+      change: "27%",
+      timeframe: "from last month",
+      icon: FileText,
+    },
+    {
+      title: "Cases Resolved",
+      value: metrics?.casesResolved ?? 0,
+      change: "50%",
+      timeframe: "from last month",
+      icon: Target,
+    },
+  ];
+
   return (
     <motion.div
       layout
       transition={{ layout: { duration: 0.45, ease: [0.16, 1, 0.3, 1] } }}
       className="grid grid-cols-1 gap-4 px-4 sm:grid-cols-2 lg:grid-cols-4 lg:px-6"
     >
-      {cardsData.map((card, index) => {
+      {cards.map((card, index) => {
         const Icon = card.icon
         return (
           <motion.div

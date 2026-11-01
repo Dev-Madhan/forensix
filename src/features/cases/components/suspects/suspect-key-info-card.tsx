@@ -7,10 +7,11 @@ import { toast } from "sonner";
 import type { SuspectItem } from "./types";
 
 interface SuspectKeyInfoCardProps {
-  suspect: SuspectItem;
+  suspect?: SuspectItem | null;
 }
 
 export function SuspectKeyInfoCard({ suspect }: SuspectKeyInfoCardProps) {
+  if (!suspect) return null;
   return (
     <div className="space-y-3.5">
       {/* 1. Key Information Card */}
