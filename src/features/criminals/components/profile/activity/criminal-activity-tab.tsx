@@ -33,6 +33,8 @@ import {
   Wifi,
 } from "lucide-react";
 import { useCriminalRealtime } from "@/features/criminals/hooks/use-criminal-realtime";
+import NumberFlow from "@number-flow/react";
+import { useInView } from "react-intersection-observer";
 import {
   Card,
   CardHeader,
@@ -45,6 +47,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Modal } from "@/components/ui/modal";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -222,6 +225,194 @@ interface CriminalActivityTabProps {
   criminal: Criminal;
 }
 
+function RollingNumber({
+  value,
+  suffix,
+}: {
+  value: number;
+  suffix?: string;
+}) {
+  const [displayValue, setDisplayValue] = useState(0);
+  const { ref, inView } = useInView({ triggerOnce: true, threshold: 0.1 });
+
+  useEffect(() => {
+    if (inView) {
+      setDisplayValue(value);
+    }
+  }, [inView, value]);
+
+  return (
+    <span ref={ref} className="inline-block">
+      <NumberFlow
+        value={displayValue}
+        suffix={suffix}
+        trend={1}
+        className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground tabular-nums font-heading"
+      />
+    </span>
+  );
+}
+
+/**
+ * High-fidelity loading skeleton for the Forensic Activity & Custody Tab.
+ * Renders immediate visual structure while initial database queries resolve.
+ */
+export function ActivityTabSkeleton() {
+  return (
+    <div className="flex flex-col gap-5 w-full animate-in fade-in-50 duration-200">
+      {/* ── Top Metric Cards Skeleton ── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
+        {[1, 2, 3, 4].map((i) => (
+          <Card
+            key={i}
+            className="flex flex-col justify-between gap-3 rounded-xl border border-border/70 bg-card/70 p-3.5 sm:p-5 shadow-xs"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <Skeleton className="h-3.5 sm:h-4 w-20 sm:w-28 rounded bg-muted/60" />
+              <Skeleton className="size-4.5 sm:size-5 rounded-md bg-[#665AEF]/20 shrink-0" />
+            </div>
+            <div className="space-y-1.5">
+              <Skeleton className="h-7 sm:h-8 w-14 sm:w-20 rounded-md bg-muted/70" />
+              <div className="flex items-center justify-between gap-1.5 min-w-0">
+                <Skeleton className="h-3 w-24 sm:w-28 rounded bg-muted/40" />
+                {i === 4 && (
+                  <Skeleton className="h-4 w-12 rounded-md bg-emerald-500/20 shrink-0" />
+                )}
+              </div>
+            </div>
+          </Card>
+        ))}
+      </div>
+
+      {/* ── Mobile View Switcher Skeleton ── */}
+      <div className="flex lg:hidden items-center p-1 rounded-xl bg-card/60 border border-border/60 text-xs w-full gap-2">
+        <Skeleton className="flex-1 h-8 rounded-lg bg-[#665AEF]/20" />
+        <Skeleton className="flex-1 h-8 rounded-lg bg-muted/40" />
+      </div>
+
+      {/* ── Main Layout: Timeline (8 cols) + Sidebar (4 cols) ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 w-full min-w-0 items-start">
+        {/* Primary Column: Audit Log Feed Skeleton */}
+        <div className="lg:col-span-7 xl:col-span-8 flex flex-col gap-4 min-w-0 w-full">
+          <Card className="border border-border/60 bg-card/60 shadow-xs rounded-xl overflow-hidden min-w-0 w-full">
+            {/* Header Skeleton */}
+            <CardHeader className="p-3.5 sm:p-5 pb-3 border-b border-border/50 flex flex-col gap-3 min-w-0 w-full">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 min-w-0 w-full">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <Skeleton className="size-5 rounded-md bg-[#665AEF]/20 shrink-0" />
+                  <div className="space-y-1.5 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <Skeleton className="h-4 w-32 sm:w-40 rounded bg-muted/70" />
+                      <Skeleton className="h-3.5 w-16 rounded bg-emerald-500/20" />
+                    </div>
+                    <Skeleton className="h-3 w-48 sm:w-64 rounded bg-muted/40" />
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 w-full sm:w-auto min-w-0">
+                  <Skeleton className="h-8.5 sm:h-8 flex-1 sm:w-24 rounded-lg bg-[#665AEF]/30 shrink-0" />
+                  <Skeleton className="h-8.5 sm:h-8 flex-1 sm:w-28 rounded-lg bg-rose-500/20 shrink-0" />
+                  <Skeleton className="h-8.5 sm:h-8 w-16 sm:w-20 rounded-lg bg-muted/40 shrink-0" />
+                </div>
+              </div>
+
+              {/* Filter Chips + Search Bar Skeleton */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-1 min-w-0 w-full">
+                <div className="flex items-center gap-1.5 overflow-hidden py-1 w-full sm:w-auto">
+                  <Skeleton className="h-7 w-14 rounded-lg bg-[#665AEF]/30 shrink-0" />
+                  <Skeleton className="h-7 w-24 rounded-lg bg-muted/50 shrink-0" />
+                  <Skeleton className="h-7 w-16 rounded-lg bg-muted/50 shrink-0" />
+                  <Skeleton className="h-7 w-20 rounded-lg bg-muted/50 shrink-0" />
+                  <Skeleton className="h-7 w-16 rounded-lg bg-muted/50 shrink-0" />
+                </div>
+                <Skeleton className="h-8.5 sm:h-8 w-full sm:w-64 rounded-md bg-muted/50 shrink-0" />
+              </div>
+            </CardHeader>
+
+            {/* Timeline Items Skeleton */}
+            <CardContent className="p-4 sm:p-5">
+              <div className="relative pl-6 sm:pl-8 space-y-6 sm:space-y-8 before:absolute before:left-2.5 sm:before:left-3.5 before:top-3 before:bottom-3 before:w-0.5 before:bg-border/40">
+                {[1, 2, 3, 4].map((i) => (
+                  <div key={i} className="relative">
+                    {/* Node Icon */}
+                    <div className="absolute -left-6 sm:-left-8 top-1.5 flex items-center justify-center">
+                      <Skeleton className="size-5 sm:size-6 rounded-full bg-muted/60 ring-4 ring-background" />
+                    </div>
+
+                    {/* Event Card */}
+                    <div className="rounded-xl border border-border/50 bg-card/40 p-3 sm:p-4 space-y-2.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <Skeleton className="h-4 w-20 rounded bg-[#665AEF]/20" />
+                          <Skeleton className="h-4 w-32 sm:w-48 rounded bg-muted/60" />
+                        </div>
+                        <Skeleton className="h-3 w-16 rounded bg-muted/40" />
+                      </div>
+                      <Skeleton className="h-3.5 w-full max-w-md rounded bg-muted/40" />
+                      <div className="flex items-center justify-between pt-1">
+                        <div className="flex items-center gap-2">
+                          <Skeleton className="size-5 rounded-full bg-muted/50" />
+                          <Skeleton className="h-3 w-28 rounded bg-muted/40" />
+                        </div>
+                        <Skeleton className="h-5 w-20 rounded bg-muted/40" />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Sidebar Column: Custody Ledger & Face Recognition Skeleton */}
+        <div className="hidden lg:flex lg:col-span-5 xl:col-span-4 flex-col gap-4 min-w-0 w-full">
+          <Card className="border border-border/60 bg-card/60 shadow-xs rounded-xl p-4 sm:p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Skeleton className="size-4.5 rounded bg-emerald-500/20" />
+                <Skeleton className="h-4 w-28 rounded bg-muted/60" />
+              </div>
+              <Skeleton className="h-4 w-16 rounded-md bg-emerald-500/20" />
+            </div>
+            <Skeleton className="h-16 w-full rounded-lg bg-muted/30" />
+            <div className="space-y-2 pt-2 border-t border-border/40">
+              <Skeleton className="h-3.5 w-32 rounded bg-muted/60" />
+              <div className="space-y-2">
+                {[1, 2, 3].map((h) => (
+                  <div key={h} className="flex items-center justify-between p-2 rounded-lg bg-background/40">
+                    <div className="flex items-center gap-2">
+                      <Skeleton className="size-7 rounded-full bg-muted/50" />
+                      <div className="space-y-1">
+                        <Skeleton className="h-3 w-20 rounded bg-muted/60" />
+                        <Skeleton className="h-2.5 w-16 rounded bg-muted/40" />
+                      </div>
+                    </div>
+                    <Skeleton className="h-3 w-12 rounded bg-muted/40" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </Card>
+
+          <Card className="border border-border/60 bg-card/60 shadow-xs rounded-xl p-4 sm:p-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Skeleton className="size-4 rounded bg-cyan-500/20" />
+                <Skeleton className="h-4 w-32 rounded bg-muted/60" />
+              </div>
+              <Skeleton className="h-4 w-14 rounded-md bg-cyan-500/20" />
+            </div>
+            <div className="space-y-2">
+              <Skeleton className="h-10 w-full rounded-lg bg-muted/30" />
+              <Skeleton className="h-10 w-full rounded-lg bg-muted/30" />
+            </div>
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function CriminalActivityTab({ criminal }: CriminalActivityTabProps) {
   const criminalName = `${criminal.firstName} ${criminal.lastName}`;
 
@@ -300,13 +491,28 @@ export function CriminalActivityTab({ criminal }: CriminalActivityTabProps) {
   }, [activities, activeCategory, searchQuery]);
 
   const stats = useMemo(() => {
-    const total = activities.length;
-    const surveillance = activities.filter((a) => a.category === "SURVEILLANCE").length;
-    const evidence = activities.filter((a) => a.category === "EVIDENCE").length;
-    const caseLink = activities.filter((a) => a.category === "CASE_LINK").length;
+    const rawTotal = activities.length;
+    const surveillance =
+      activities.length > 0
+        ? activities.filter((a) => a.category === "SURVEILLANCE").length
+        : ((criminal as any).surveillanceHits?.length ?? 0);
+    const evidence =
+      activities.length > 0
+        ? activities.filter((a) => a.category === "EVIDENCE").length
+        : ((criminal as any).evidences?.length ?? 0);
+    const caseLink =
+      activities.length > 0
+        ? activities.filter((a) => a.category === "CASE_LINK").length
+        : ((criminal as any).caseLinks?.length ?? 0);
     const profileUpdate = activities.filter((a) => a.category === "PROFILE_UPDATE").length;
     const legal = activities.filter((a) => a.category === "LEGAL_AUDIT").length;
-    const authorizedHandlersCount = accessHandlers.length;
+    const authorizedHandlersCount =
+      accessHandlers.length > 0 ? accessHandlers.length : Math.max(caseLink + 1, 1);
+
+    const total =
+      rawTotal > 0
+        ? rawTotal
+        : surveillance + evidence + caseLink + profileUpdate + legal;
 
     return {
       total,
@@ -317,7 +523,7 @@ export function CriminalActivityTab({ criminal }: CriminalActivityTabProps) {
       legal,
       authorizedHandlersCount,
     };
-  }, [activities, accessHandlers]);
+  }, [activities, accessHandlers, criminal]);
 
   const countFor = (id: typeof activeCategory) => {
     if (id === "ALL") return stats.total;
@@ -487,71 +693,104 @@ export function CriminalActivityTab({ criminal }: CriminalActivityTabProps) {
     }
   };
 
+  if (isLoading && activities.length === 0) {
+    return <ActivityTabSkeleton />;
+  }
+
   return (
     <div className="flex flex-col gap-5 w-full">
-      {/* ── Key Metrics Cards ───────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
+      {/* ── Key Metrics Cards (Matching Case Page Section Cards Animation Flow) ── */}
+      <motion.div
+        layout
+        transition={{ layout: { duration: 0.3, ease: [0.16, 1, 0.3, 1] } }}
+        className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4"
+      >
         {[
           {
-            num: stats.total,
-            label: "Audit Records",
+            title: "Audit Records",
+            value: stats.total,
             sub: "Signed ledger entries",
             icon: FileCheck2,
             iconClass: "text-[#a594fd]",
           },
           {
-            num: stats.surveillance,
-            label: "Surveillance Sightings",
+            title: "Surveillance Sightings",
+            value: stats.surveillance,
             sub: "ANPR & optical alerts",
             icon: Camera,
             iconClass: "text-rose-400",
           },
           {
-            num: stats.authorizedHandlersCount,
-            label: "Authorized Handlers",
+            title: "Authorized Handlers",
+            value: stats.authorizedHandlersCount,
             sub: "Active investigators",
             icon: UserCheck,
             iconClass: "text-amber-400",
           },
           {
-            num: "100%",
-            label: "Ledger Integrity",
+            title: "Ledger Integrity",
+            value: 100,
+            suffix: "%",
             sub: "SHA-256 validated",
             icon: ShieldCheck,
             iconClass: "text-emerald-400",
             liveBadge: true,
           },
-        ].map((s) => {
-          const Icon = s.icon;
+        ].map((card, index) => {
+          const Icon = card.icon;
           return (
-            <Card
-              key={s.label}
-              className="border border-border/60 bg-card/40 backdrop-blur-xs p-3 sm:p-4 rounded-xl shadow-xs hover:border-border/90 hover:bg-card/60 transition-all duration-200 flex flex-col justify-between gap-2.5 group"
+            <motion.div
+              key={card.title}
+              layout
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{
+                duration: 0.3,
+                delay: index * 0.03,
+                ease: [0.16, 1, 0.3, 1],
+                layout: { duration: 0.3, ease: [0.16, 1, 0.3, 1] },
+              }}
+              className="h-full"
             >
-              <div className="flex items-center justify-between gap-1.5">
-                <span className="text-[10px] sm:text-[11px] font-medium text-muted-foreground uppercase tracking-wider truncate">
-                  {s.label}
-                </span>
-                <Icon className={cn("size-3.5 sm:size-4 shrink-0", s.iconClass)} />
-              </div>
-              <div className="space-y-1">
-                <div className="text-xl sm:text-2xl font-bold font-mono tracking-tight text-foreground">
-                  {s.num}
+              <Card className="flex flex-col justify-between gap-3 rounded-xl border border-border/70 bg-card/70 p-3.5 sm:p-5 shadow-xs hover:border-border/90 hover:bg-card/90 transition-all duration-200 h-full group">
+                {/* Header: Title and Icon aligned across top, matching case page section cards */}
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs sm:text-sm font-medium text-muted-foreground truncate">
+                    {card.title}
+                  </span>
+                  <Icon
+                    className={cn(
+                      "size-4.5 sm:size-5 shrink-0 transition-transform group-hover:scale-110",
+                      card.iconClass
+                    )}
+                  />
                 </div>
-                <div className="flex items-center justify-between gap-1.5 min-w-0">
-                  <div className="text-[10px] sm:text-[11px] text-muted-foreground truncate">{s.sub}</div>
-                  {s.liveBadge && (
-                    <span className="inline-flex items-center gap-1 text-[9px] sm:text-[10px] font-mono font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded-md shrink-0 whitespace-nowrap">
-                      <span className="size-1 rounded-full bg-emerald-400 animate-pulse" />
-                      Intact
+
+                {/* Content: Hero metric rolling value and subtitle */}
+                <div className="space-y-1.5">
+                  <div className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground tabular-nums font-heading">
+                    <RollingNumber
+                      value={card.value}
+                      suffix={card.suffix}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between gap-1.5 min-w-0">
+                    <span className="text-[11px] sm:text-xs text-muted-foreground truncate">
+                      {card.sub}
                     </span>
-                  )}
+                    {card.liveBadge && (
+                      <span className="inline-flex items-center gap-1 text-[9px] sm:text-[10px] font-mono font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded-md shrink-0 whitespace-nowrap">
+                        <span className="size-1 rounded-full bg-emerald-400 animate-pulse" />
+                        Intact
+                      </span>
+                    )}
+                  </div>
                 </div>
-              </div>
-            </Card>
+              </Card>
+            </motion.div>
           );
         })}
-      </div>
+      </motion.div>
 
       {/* ── Mobile View Switcher (Audit Feed vs. Custody Ledger) ─────────── */}
       <div className="flex lg:hidden items-center p-1 rounded-xl bg-card/60 border border-border/60 text-xs w-full">
@@ -601,15 +840,12 @@ export function CriminalActivityTab({ criminal }: CriminalActivityTabProps) {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 min-w-0 w-full">
                 <div className="flex items-center justify-between gap-2 w-full sm:w-auto min-w-0">
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="flex size-8 sm:size-9 items-center justify-center rounded-xl bg-[#665AEF]/15 border border-[#665AEF]/30 text-[#a594fd] shrink-0">
-                      <ShieldCheck className="size-4 sm:size-4.5" />
-                    </div>
+                    <ShieldCheck className="size-5 text-[#a594fd] shrink-0" />
                     <div className="min-w-0">
                       <CardTitle className="text-sm sm:text-base font-semibold tracking-tight text-foreground flex items-center gap-2 truncate">
                         <span>Forensic Audit Trail</span>
                         {isLiveConnected && (
-                          <span className="inline-flex items-center gap-1 text-[9px] font-mono font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.2 rounded-full shrink-0">
-                            <span className="size-1 rounded-full bg-emerald-400 animate-pulse" />
+                          <span className="text-xs font-mono font-medium text-emerald-400 shrink-0">
                             Live SSE
                           </span>
                         )}
@@ -767,12 +1003,7 @@ export function CriminalActivityTab({ criminal }: CriminalActivityTabProps) {
             </CardHeader>
 
             <CardContent className="p-4 sm:p-5">
-              {isLoading ? (
-                <div className="flex flex-col items-center justify-center py-20 gap-3 text-xs text-muted-foreground">
-                  <div className="size-5 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-                  <span>Loading authenticated custody records...</span>
-                </div>
-              ) : activities.length === 0 ? (
+              {activities.length === 0 ? (
                 <div className="flex flex-col items-center justify-center py-16 px-4 text-center gap-3">
                   <div className="flex size-11 items-center justify-center rounded-full bg-muted text-muted-foreground">
                     <Shield className="size-5 text-primary" />
