@@ -1,6 +1,6 @@
 import { headers } from "next/headers";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import {
@@ -52,6 +52,12 @@ export default async function CriminalEditPage({
     criminal = await getCriminalById(criminalId);
   } catch {
     notFound();
+  }
+
+  // Canonical Slug Redirection for edit page
+  const canonicalSlug = getCriminalSlug(criminal);
+  if (criminalId !== canonicalSlug) {
+    redirect(`/dashboard/criminals/${canonicalSlug}/edit`);
   }
 
   // Resolve private Tigris S3 storage key to safe permanent streaming endpoint

@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { StudioCriminalOption } from "@/features/sketches/actions";
 import { getSafeStorageUrl } from "@/lib/storage-url";
+import { getCriminalSlug } from "@/features/criminals/slug";
 
 export interface MatchCandidate {
   criminal_id: string;
@@ -192,7 +193,11 @@ export function SuspectMatchPanel({
                       </Button>
 
                       <Link
-                        href={`/dashboard/criminals/${matchedProfile?.id || match.criminal_id}`}
+                        href={`/dashboard/criminals/${
+                          matchedProfile
+                            ? getCriminalSlug(matchedProfile)
+                            : match.criminal_id
+                        }`}
                         target="_blank"
                       >
                         <Button

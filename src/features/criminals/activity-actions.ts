@@ -5,6 +5,7 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import crypto from "crypto";
 import { SurveillanceHitStatus } from "@prisma/client";
+import { broadcastCriminalEvent } from "@/lib/criminal-events";
 
 export type CriminalActivityCategory =
   | "SURVEILLANCE"
@@ -788,6 +789,19 @@ export async function recordCriminalActivityEvent(
       },
     };
 
+    broadcastCriminalEvent({
+      type: "ACTIVITY_LOGGED",
+      criminalId: params.criminalId,
+      actorName: userName,
+      actorBadgeId: badgeId,
+      metadata: {
+        action: params.action,
+        category: params.category,
+        blockHash,
+      },
+      timestamp: Date.now(),
+    });
+
     return { success: true, item };
   } catch (error) {
     console.error("Failed to record criminal activity:", error);
@@ -870,6 +884,18 @@ export async function recordSurveillanceHitAction(params: {
       sensorId: params.sensorId,
       coordinates: [params.latitude, params.longitude],
       confidenceScore: params.confidenceScore,
+    });
+
+    broadcastCriminalEvent({
+      type: "SURVEILLANCE_HIT",
+      criminalId: params.criminalId,
+      actorName: "ANPR Vision Sensor",
+      metadata: {
+        sensorName: params.sensorName || params.sensorId,
+        location: params.location,
+        confidenceScore: params.confidenceScore,
+      },
+      timestamp: Date.now(),
     });
 
     return { success: true, hit };

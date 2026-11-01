@@ -617,15 +617,15 @@ export function CriminalProfileHeader({
           ───────────────────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-12 gap-3 sm:gap-4 lg:gap-5 w-full">
         {/* CARD 1: MUGSHOT PHOTO */}
-        <div className="sm:col-span-1 xl:col-span-2 2xl:col-span-2 flex flex-col">
-          <div className="relative h-full min-h-50 sm:min-h-65 w-full rounded-xl overflow-hidden border-2 border-border/80 bg-card/60 shadow-xs group">
+        <div className="sm:col-span-1 xl:col-span-2 2xl:col-span-2 flex flex-col w-full max-w-md mx-auto sm:max-w-none">
+          <div className="relative w-full aspect-4/5 max-h-96 sm:max-h-none sm:aspect-auto sm:h-full sm:min-h-70 rounded-xl overflow-hidden border-2 border-border/80 bg-card/60 shadow-xs group">
             {resolvedPhoto && !photoLoadError ? (
               <Image
                 src={resolvedPhoto}
                 alt={fullName}
                 fill
                 priority
-                className="object-cover transition-transform duration-500 group-hover:scale-105"
+                className="object-cover object-top sm:object-center transition-transform duration-500 group-hover:scale-105"
                 sizes="(max-width: 768px) 100vw, 240px"
                 onError={() => setPhotoLoadError(true)}
                 unoptimized={resolvedPhoto.startsWith("/api/storage")}
@@ -639,8 +639,8 @@ export function CriminalProfileHeader({
               />
             )}
 
-            {/* Gradient shadow overlay at bottom for change photo button */}
-            <div className="absolute inset-0 bg-linear-to-t from-black/85 via-black/10 to-black/30 pointer-events-none" />
+            {/* Subtle gradient vignette at bottom for change photo button */}
+            <div className="absolute inset-x-0 bottom-0 h-24 bg-linear-to-t from-black/85 via-black/30 to-transparent pointer-events-none" />
 
             {/* Top Right: Expand / Fullscreen icon */}
             <Button
@@ -661,7 +661,7 @@ export function CriminalProfileHeader({
                 variant="outline"
                 size="sm"
                 onClick={() => setIsChangePhotoOpen(true)}
-                className="w-full h-8 gap-1.5 rounded-lg bg-black/70 hover:bg-black/90 text-white border-white/20 backdrop-blur-md text-xs font-medium shadow-sm cursor-pointer"
+                className="w-full h-8.5 gap-1.5 rounded-lg bg-black/60 hover:bg-black/80 text-white border-white/20 backdrop-blur-md text-xs font-medium shadow-sm cursor-pointer transition-colors active:scale-95"
               >
                 <Camera className="size-3.5" />
                 <span>Change Photo</span>

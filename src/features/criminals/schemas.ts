@@ -91,3 +91,22 @@ export const CreateCriminalRecordSchema = z.object({
 
 export type CreateCriminalRecordInput = z.infer<typeof CreateCriminalRecordSchema>;
 
+export const UpdateCriminalRecordSchema = z.object({
+  id: z.string().min(1, "Record ID is required"),
+  courtCaseNumber: z.string().optional(),
+  offenceType: z.string().optional(),
+  description: z.string().optional(),
+  incidentDate: z
+    .union([z.string(), z.date()])
+    .optional()
+    .transform((val) => (val ? (val instanceof Date ? val : new Date(val)) : undefined)),
+  location: z.string().optional(),
+  courtName: z.string().optional().nullable(),
+  status: z.string().optional(),
+  outcome: z.string().optional().nullable(),
+  sentenceDetails: z.string().optional().nullable(),
+});
+
+export type UpdateCriminalRecordInput = z.infer<typeof UpdateCriminalRecordSchema>;
+
+

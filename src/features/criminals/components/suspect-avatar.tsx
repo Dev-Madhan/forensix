@@ -76,7 +76,7 @@ export function SuspectAvatar({
         />
         {/* Subtle holographic border overlay for high risk */}
         {isCritical && (
-          <div className="absolute inset-0 pointer-events-none ring-1 ring-inset ring-rose-500/30" />
+          <div className="absolute inset-0 pointer-events-none ring-1 ring-inset ring-[#665AEF]/40 shadow-[inset_0_0_8px_rgba(102,90,239,0.25)]" />
         )}
       </div>
     );
@@ -90,9 +90,9 @@ export function SuspectAvatar({
       className={cn(
         "relative flex flex-col items-center justify-center font-mono font-bold tracking-wider select-none shrink-0 overflow-hidden",
         isWanted
-          ? "bg-rose-950/40 text-rose-300 border-2 border-rose-500/40"
+          ? "bg-[#665AEF]/20 text-[#a594fd] border-2 border-[#665AEF]/50 shadow-[0_0_10px_rgba(102,90,239,0.3)]"
           : isCritical
-          ? "bg-amber-950/40 text-amber-300 border-2 border-amber-500/40"
+          ? "bg-[#665AEF]/15 text-[#c4b5fd] border-2 border-[#665AEF]/40 shadow-[0_0_8px_rgba(102,90,239,0.2)]"
           : "bg-neutral-900 text-neutral-300 border border-border/80",
         sizeClasses[size],
         className

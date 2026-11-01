@@ -50,9 +50,16 @@ import {
   Check,
   FolderPlus,
   ScanFace,
+  LayoutGrid,
+  List,
+  SlidersHorizontal,
+  Radio,
+  Camera,
+  AlertCircle,
 } from "lucide-react";
 import { toast } from "sonner";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
+import { useCriminalDatabaseRealtime } from "@/features/criminals/hooks/use-criminal-realtime";
 import {
   updateCriminalStatusAndRisk,
   bulkToggleCriminalWatchlist,
@@ -64,6 +71,10 @@ import { CriminalStatus, SuspectRole, SuspectCaseStatus } from "@prisma/client";
 import { Modal } from "@/components/ui/modal";
 import { CriminalSectionCards, type CriminalMetrics } from "./criminal-section-cards";
 import { OpticalFaceSearchModal } from "./optical-face-search-modal";
+import { CriminalMobileCard } from "./criminal-mobile-card";
+import { CriminalProfileDrawer } from "./criminal-profile-drawer";
+import { CriminalsFilterDrawer } from "./criminals-filter-drawer";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 import { type CriminalItem } from "@/features/criminals/types";
 import { getSafeStorageUrl } from "@/lib/storage-url";
@@ -301,6 +312,19 @@ export function CriminalsTable({
   const allCriminals = criminalsList;
 
   const searchParams = useSearchParams();
+  const router = useRouter();
+
+  const { isGlobalConnected, activeSurveillanceHit, clearSurveillanceHit } = useCriminalDatabaseRealtime({
+    onGlobalEvent: (payload) => {
+      if (
+        payload.type === "STATUS_UPDATED" ||
+        payload.type === "CRIMINAL_CREATED" ||
+        payload.type === "WATCHLIST_TOGGLED"
+      ) {
+        router.refresh();
+      }
+    },
+  });
 
   // Metric card active filter
   const [activeCardFilter, setActiveCardFilter] = React.useState<string | null>(null);
@@ -395,12 +419,29 @@ export function CriminalsTable({
   const [isBulkUpdating, setIsBulkUpdating] = React.useState(false);
   const [isOpticalSearchOpen, setIsOpticalSearchOpen] = React.useState(false);
 
+  // Mobile responsiveness & layout mode
+  const isMobile = useIsMobile();
+  const [viewMode, setViewMode] = React.useState<"cards" | "table">("cards");
+  const [isFilterDrawerOpen, setIsFilterDrawerOpen] = React.useState(false);
+  const [isMobileDrawerOpen, setIsMobileDrawerOpen] = React.useState(false);
+  const [mobileDrawerCriminalId, setMobileDrawerCriminalId] = React.useState<string | null>(null);
+
+  // Synchronize initial viewMode with screen size
+  React.useEffect(() => {
+    if (isMobile !== undefined) {
+      setViewMode(isMobile ? "cards" : "table");
+    }
+  }, [isMobile]);
+
   // Active criminal for Profile Preview
   const [activeCriminalId, setActiveCriminalId] = React.useState<string>(
     allCriminals[0]?.id || "1"
   );
   const activeCriminal =
     allCriminals.find((c) => c.id === activeCriminalId) || allCriminals[0];
+
+  const mobileDrawerCriminal =
+    allCriminals.find((c) => c.id === (mobileDrawerCriminalId || activeCriminalId)) || activeCriminal;
 
   // Profile preview visibility state with GSAP animation control
   const [showPreview, setShowPreview] = React.useState(true);
@@ -453,17 +494,22 @@ export function CriminalsTable({
     });
   }, [isClosing]);
 
-  // Smooth GSAP Open handler
+  // Smooth GSAP Open handler with mobile drawer fallback
   const handleOpenPreview = React.useCallback((criminalId?: string) => {
     if (criminalId) {
       setActiveCriminalId(criminalId);
+      setMobileDrawerCriminalId(criminalId);
+    }
+    if (isMobile) {
+      setIsMobileDrawerOpen(true);
+      return;
     }
     if (previewContainerRef.current) {
       gsap.killTweensOf(previewContainerRef.current);
     }
     setIsClosing(false);
     setShowPreview(true);
-  }, []);
+  }, [isMobile]);
 
   // Pagination state
   const [currentPage, setCurrentPage] = React.useState(1);
@@ -668,6 +714,69 @@ export function CriminalsTable({
           onSelectFilter={handleSelectMetricCard}
         />
       )}
+
+      {/* Real-time ANPR Surveillance Hit Alert Radar Banner */}
+      <AnimatePresence>
+        {activeSurveillanceHit && (
+          <motion.div
+            initial={{ opacity: 0, y: -10, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.98 }}
+            className="rounded-xl border-2 border-rose-500/50 bg-rose-500/10 backdrop-blur-xl p-3.5 sm:p-4 shadow-xl shadow-rose-950/20 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs"
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="relative flex size-9 items-center justify-center rounded-lg bg-rose-500/20 text-rose-400 border border-rose-500/40 shrink-0">
+                <Camera className="size-4.5 animate-pulse" />
+                <span className="absolute -top-1 -right-1 flex size-2.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full size-2.5 bg-rose-500"></span>
+                </span>
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-sm font-semibold text-foreground">
+                    Live Surveillance Detection
+                  </span>
+                  <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-rose-500/20 border border-rose-500/40 text-rose-300">
+                    ANPR RADAR HIT
+                  </span>
+                  {Boolean(activeSurveillanceHit.metadata?.confidence) && (
+                    <span className="text-[11px] font-mono font-semibold text-emerald-400">
+                      {String(activeSurveillanceHit.metadata?.confidence)}% Match
+                    </span>
+                  )}
+                </div>
+                <p className="text-[11px] text-muted-foreground mt-0.5 truncate">
+                  Sensor: <span className="text-foreground font-medium">{String(activeSurveillanceHit.metadata?.sensorName || "ANPR Traffic Cam")}</span> • Location: <span className="text-foreground font-medium">{String(activeSurveillanceHit.metadata?.location || "Monitored Sector")}</span>
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+              {activeSurveillanceHit.criminalId && (
+                <Button
+                  size="sm"
+                  render={<Link href={`/dashboard/criminals/${activeSurveillanceHit.criminalId}`} />}
+                  className="h-8 px-3 text-xs font-semibold bg-rose-600 hover:bg-rose-500 text-white cursor-pointer shadow-xs gap-1.5"
+                  nativeButton={false}
+                >
+                  <span>Inspect Subject</span>
+                  <ArrowRight className="size-3" />
+                </Button>
+              )}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={clearSurveillanceHit}
+                className="h-8 px-2.5 text-xs font-semibold rounded-lg border-rose-500/30 text-rose-300 hover:bg-rose-500/20 cursor-pointer"
+              >
+                Dismiss
+              </Button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       <div
         className={cn(
           "grid grid-cols-1 gap-6 items-start w-full transition-all duration-300",
@@ -680,18 +789,18 @@ export function CriminalsTable({
       <div className="space-y-4 min-w-0 w-full">
         {/* 1. Filter & Command Bar: 2-tier responsive layout preventing search input collapse */}
         <div className="flex flex-col gap-3">
-          {/* Row 1: Full-width Search Bar with Clear Button & Real-time Live Radar Telemetry */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+          {/* Row 1: Search Bar + Scan Face + Desktop Preview Trigger */}
+          <div className="flex items-center justify-between gap-2 sm:gap-3">
             <div className="relative flex-1 min-w-0">
               <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
               <Input
-                placeholder="Search by name, alias, ID, or other details..."
+                placeholder="Search by name, alias, ID, location..."
                 value={searchTerm}
                 onChange={(e) => {
                   setSearchTerm(e.target.value);
                   setCurrentPage(1);
                 }}
-                className="h-10 pl-9.5 pr-8 rounded-lg border-2 border-border bg-card/60 text-sm placeholder:text-muted-foreground/70 focus-visible:border-[#665AEF] focus-visible:ring-1 focus-visible:ring-[#665AEF] w-full"
+                className="h-10 pl-9.5 pr-8 rounded-lg border-2 border-border bg-card/60 text-xs sm:text-sm placeholder:text-muted-foreground/70 focus-visible:border-[#665AEF] focus-visible:ring-1 focus-visible:ring-[#665AEF] w-full"
               />
               {searchTerm && (
                 <button
@@ -713,19 +822,19 @@ export function CriminalsTable({
               type="button"
               variant="outline"
               onClick={() => setIsOpticalSearchOpen(true)}
-              className="h-10 px-3.5 rounded-lg border-2 border-[#665AEF]/40 bg-[#665AEF]/10 text-xs font-semibold text-[#a594fd] hover:bg-[#665AEF]/20 hover:text-white cursor-pointer gap-2 transition-colors shrink-0 shadow-xs"
+              className="h-10 px-3 sm:px-3.5 rounded-lg border-2 border-[#665AEF]/40 bg-[#665AEF]/10 text-xs font-semibold text-[#a594fd] hover:bg-[#665AEF]/20 hover:text-white cursor-pointer gap-1.5 sm:gap-2 transition-colors shrink-0 shadow-xs"
               title="Reverse Face Search across all enrolled criminals"
             >
               <ScanFace className="size-4 text-[#665AEF]" />
-              <span>Scan Face</span>
+              <span className="hidden xs:inline">Scan Face</span>
             </Button>
 
-            {/* Toggle button to reopen preview when closed */}
+            {/* Toggle button to reopen preview when closed (Desktop only) */}
             {!showPreview && (
               <Button
                 variant="outline"
                 onClick={() => handleOpenPreview()}
-                className="h-10 px-3 rounded-lg border-2 border-border bg-card/60 text-xs font-medium hover:bg-muted/60 hover:text-foreground cursor-pointer gap-1.5 transition-colors shrink-0"
+                className="hidden xl:flex h-10 px-3 rounded-lg border-2 border-border bg-card/60 text-xs font-medium hover:bg-muted/60 hover:text-foreground cursor-pointer gap-1.5 transition-colors shrink-0"
               >
                 <User className="size-3.5 text-muted-foreground" />
                 <span>Show Profile</span>
@@ -733,8 +842,133 @@ export function CriminalsTable({
             )}
           </div>
 
-          {/* Row 2: Filter Dropdowns, Active Filter Reset & Export Action */}
-          <div className="flex flex-wrap items-end justify-between gap-2.5 sm:gap-3">
+          {/* Mobile Quick-Chips & View Mode Strip (< md) */}
+          <div className="flex md:hidden items-center justify-between gap-2 overflow-x-auto no-scrollbar py-0.5 select-none">
+            <div className="flex items-center gap-1.5 shrink-0">
+              {/* Filter Sheet Trigger */}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setIsFilterDrawerOpen(true)}
+                className={cn(
+                  "h-8 px-2.5 rounded-lg border-2 text-xs font-medium cursor-pointer gap-1.5 transition-colors",
+                  categoryFilter || riskFilter || statusFilter || sortKey
+                    ? "border-[#665AEF] bg-[#665AEF]/15 text-[#a594fd]"
+                    : "border-border bg-card/60 hover:bg-muted/60 text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <SlidersHorizontal className="size-3 text-[#665AEF]" />
+                <span>Filters</span>
+                {(categoryFilter || riskFilter || statusFilter || sortKey) && (
+                  <span className="size-3.5 rounded-full bg-[#665AEF] text-white text-[9px] font-bold flex items-center justify-center">
+                    {(categoryFilter ? 1 : 0) +
+                      (riskFilter ? 1 : 0) +
+                      (statusFilter ? 1 : 0) +
+                      (sortKey ? 1 : 0)}
+                  </span>
+                )}
+              </Button>
+
+              {/* Quick Preset: High Risk */}
+              <button
+                type="button"
+                onClick={() => {
+                  setRiskFilter(riskFilter === "High" ? null : "High");
+                  setCurrentPage(1);
+                }}
+                className={cn(
+                  "h-8 px-2.5 rounded-lg border text-xs font-medium cursor-pointer transition-colors whitespace-nowrap",
+                  riskFilter === "High"
+                    ? "border-rose-500/60 bg-rose-500/20 text-rose-300 font-semibold"
+                    : "border-border/70 bg-card/50 text-muted-foreground hover:text-foreground"
+                )}
+              >
+                High Risk
+              </button>
+
+              {/* Quick Preset: Wanted */}
+              <button
+                type="button"
+                onClick={() => {
+                  setStatusFilter(statusFilter === "Wanted" ? null : "Wanted");
+                  setCurrentPage(1);
+                }}
+                className={cn(
+                  "h-8 px-2.5 rounded-lg border text-xs font-medium cursor-pointer transition-colors whitespace-nowrap",
+                  statusFilter === "Wanted"
+                    ? "border-rose-500/60 bg-rose-500/20 text-rose-300 font-semibold"
+                    : "border-border/70 bg-card/50 text-muted-foreground hover:text-foreground"
+                )}
+              >
+                Wanted
+              </button>
+
+              {/* Quick Preset: Surveillance */}
+              <button
+                type="button"
+                onClick={() => {
+                  setStatusFilter(
+                    statusFilter === "Under Surveillance" ? null : "Under Surveillance"
+                  );
+                  setCurrentPage(1);
+                }}
+                className={cn(
+                  "h-8 px-2.5 rounded-lg border text-xs font-medium cursor-pointer transition-colors whitespace-nowrap",
+                  statusFilter === "Under Surveillance"
+                    ? "border-amber-500/60 bg-amber-500/20 text-amber-300 font-semibold"
+                    : "border-border/70 bg-card/50 text-muted-foreground hover:text-foreground"
+                )}
+              >
+                Surveillance
+              </button>
+            </div>
+
+            {/* Right: View Mode & Export */}
+            <div className="flex items-center gap-1.5 shrink-0 ml-auto">
+              <div className="flex items-center rounded-lg border border-border/80 bg-background/50 p-0.5">
+                <button
+                  type="button"
+                  onClick={() => setViewMode("cards")}
+                  title="Card View"
+                  className={cn(
+                    "p-1 rounded-md text-xs transition-colors cursor-pointer",
+                    viewMode === "cards"
+                      ? "bg-[#665AEF] text-white shadow-xs"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <LayoutGrid className="size-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode("table")}
+                  title="Table View"
+                  className={cn(
+                    "p-1 rounded-md text-xs transition-colors cursor-pointer",
+                    viewMode === "table"
+                      ? "bg-[#665AEF] text-white shadow-xs"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <List className="size-3.5" />
+                </button>
+              </div>
+
+              <Button
+                variant="outline"
+                size="icon-xs"
+                onClick={() => exportCriminalsToCSV(filteredCriminals)}
+                className="size-8 rounded-lg border-2 border-border bg-card/60 cursor-pointer text-muted-foreground hover:text-foreground"
+                title="Export CSV"
+              >
+                <Download className="size-3.5" />
+              </Button>
+            </div>
+          </div>
+
+          {/* Row 2: Desktop Filter Dropdowns, Active Filter Reset & Export Action */}
+          <div className="hidden md:flex flex-wrap items-end justify-between gap-2.5 sm:gap-3">
             <div className="flex flex-wrap items-end gap-2.5 sm:gap-3">
               {/* Category Dropdown */}
               <div className="space-y-1 shrink-0">
@@ -966,298 +1200,481 @@ export function CriminalsTable({
               )}
             </div>
 
-            {/* Export Filtered CSV Button */}
-            <Button
-              variant="outline"
-              onClick={() => exportCriminalsToCSV(filteredCriminals)}
-              className="h-10 px-3 rounded-lg border-2 border-border bg-card/60 text-xs sm:text-sm font-medium hover:bg-muted/60 hover:text-foreground cursor-pointer gap-2 transition-colors shrink-0 self-end ml-auto sm:ml-0"
-              title={`Export ${filteredCriminals.length} matching suspects to CSV`}
-            >
-              <Download className="size-3.5 text-muted-foreground" />
-              <span className="hidden sm:inline">Export CSV</span>
-              <span className="sm:hidden">CSV</span>
-            </Button>
+            {/* Desktop View Mode Switcher + Export CSV */}
+            <div className="flex items-center gap-2 self-end ml-auto sm:ml-0">
+              <div className="flex items-center rounded-lg border-2 border-border/80 bg-background/50 p-0.5">
+                <button
+                  type="button"
+                  onClick={() => setViewMode("cards")}
+                  title="Card View"
+                  className={cn(
+                    "px-2.5 py-1 rounded-md text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer",
+                    viewMode === "cards"
+                      ? "bg-[#665AEF] text-white shadow-xs"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <LayoutGrid className="size-3.5" />
+                  <span className="hidden lg:inline">Cards</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode("table")}
+                  title="Table View"
+                  className={cn(
+                    "px-2.5 py-1 rounded-md text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer",
+                    viewMode === "table"
+                      ? "bg-[#665AEF] text-white shadow-xs"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <List className="size-3.5" />
+                  <span className="hidden lg:inline">Table</span>
+                </button>
+              </div>
+
+              {/* Export Filtered CSV Button */}
+              <Button
+                variant="outline"
+                onClick={() => exportCriminalsToCSV(filteredCriminals)}
+                className="h-10 px-3 rounded-lg border-2 border-border bg-card/60 text-xs sm:text-sm font-medium hover:bg-muted/60 hover:text-foreground cursor-pointer gap-2 transition-colors shrink-0"
+                title={`Export ${filteredCriminals.length} matching suspects to CSV`}
+              >
+                <Download className="size-3.5 text-muted-foreground" />
+                <span className="hidden sm:inline">Export CSV</span>
+                <span className="sm:hidden">CSV</span>
+              </Button>
+            </div>
           </div>
         </div>
 
-        {/* 2. Table Container with border-2 */}
-        <div className="rounded-xl border-2 border-border bg-card/40 overflow-hidden shadow-xs [&>div]:overflow-x-auto [&>div]:scrollbar-none [&>div::-webkit-scrollbar]:hidden">
-          <Table>
-            <TableHeader className="bg-card/70 border-b-2 border-border/60">
-              <TableRow className="hover:bg-transparent">
-                <TableHead className="w-9 px-2.5 py-3">
-                  <Checkbox
-                    checked={isAllSelected}
-                    onCheckedChange={toggleSelectAll}
-                    aria-label="Select all criminals"
-                  />
-                </TableHead>
-                <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase px-2.5 py-3 whitespace-nowrap">
-                  Photo
-                </TableHead>
-                <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase px-2.5 py-3 whitespace-nowrap">
-                  <button
-                    type="button"
-                    onClick={() => handleToggleSort("name")}
-                    className="flex items-center gap-1.5 hover:text-foreground transition-colors cursor-pointer group"
-                  >
-                    <span>Name</span>
-                    {sortKey === "name" ? (
-                      sortOrder === "asc" ? <ArrowUp className="size-3 text-[#665AEF]" /> : <ArrowDown className="size-3 text-[#665AEF]" />
-                    ) : (
-                      <ArrowUpDown className="size-3 opacity-40 group-hover:opacity-100 transition-opacity" />
-                    )}
-                  </button>
-                </TableHead>
-                <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase px-2.5 py-3 whitespace-nowrap">
-                  Aliases
-                </TableHead>
-                <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase px-2.5 py-3 whitespace-nowrap">
-                  <button
-                    type="button"
-                    onClick={() => handleToggleSort("dob")}
-                    className="flex items-center gap-1.5 hover:text-foreground transition-colors cursor-pointer group"
-                  >
-                    <span>Date of Birth</span>
-                    {sortKey === "dob" ? (
-                      sortOrder === "asc" ? <ArrowUp className="size-3 text-[#665AEF]" /> : <ArrowDown className="size-3 text-[#665AEF]" />
-                    ) : (
-                      <ArrowUpDown className="size-3 opacity-40 group-hover:opacity-100 transition-opacity" />
-                    )}
-                  </button>
-                </TableHead>
-                <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase px-2.5 py-3 whitespace-nowrap">
-                  Crime Categories
-                </TableHead>
-                <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase px-2.5 py-3 whitespace-nowrap">
-                  <button
-                    type="button"
-                    onClick={() => handleToggleSort("risk")}
-                    className="flex items-center gap-1.5 hover:text-foreground transition-colors cursor-pointer group"
-                  >
-                    <span>Risk Level</span>
-                    {sortKey === "risk" ? (
-                      sortOrder === "asc" ? <ArrowUp className="size-3 text-[#665AEF]" /> : <ArrowDown className="size-3 text-[#665AEF]" />
-                    ) : (
-                      <ArrowUpDown className="size-3 opacity-40 group-hover:opacity-100 transition-opacity" />
-                    )}
-                  </button>
-                </TableHead>
-                <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase px-2.5 py-3 whitespace-nowrap">
-                  <button
-                    type="button"
-                    onClick={() => handleToggleSort("status")}
-                    className="flex items-center gap-1.5 hover:text-foreground transition-colors cursor-pointer group"
-                  >
-                    <span>Status</span>
-                    {sortKey === "status" ? (
-                      sortOrder === "asc" ? <ArrowUp className="size-3 text-[#665AEF]" /> : <ArrowDown className="size-3 text-[#665AEF]" />
-                    ) : (
-                      <ArrowUpDown className="size-3 opacity-40 group-hover:opacity-100 transition-opacity" />
-                    )}
-                  </button>
-                </TableHead>
-                <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase text-right pr-3 py-3 whitespace-nowrap w-12">
-                  Actions
-                </TableHead>
-              </TableRow>
-            </TableHeader>
+        {/* 2. Suspects Presentation: Cards Mode vs Table Mode */}
+        {viewMode === "cards" ? (
+          <div className="space-y-4 min-w-0 w-full">
             <AnimatePresence mode="wait" initial={false}>
-              <MotionTableBody
-                key={`${categoryFilter || "all"}-${riskFilter || "all"}-${statusFilter || "all"}-${currentPage}-${searchTerm}`}
+              <motion.div
+                key={`cards-${categoryFilter || "all"}-${riskFilter || "all"}-${statusFilter || "all"}-${currentPage}-${searchTerm}`}
                 initial={{ opacity: 0, y: 4 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0 }}
                 transition={{ duration: 0.18, ease: "easeOut" }}
-                className="divide-y divide-border/40"
+                className="grid grid-cols-1 sm:grid-cols-2 gap-3"
               >
                 {currentCriminals.map((c) => {
                   const isSelected = selectedIds.has(c.id);
                   const isActive = activeCriminalId === c.id;
                   return (
-                    <TableRow
+                    <CriminalMobileCard
                       key={c.id}
-                      data-state={isSelected ? "selected" : undefined}
-                      className={cn(
-                        "transition-colors hover:bg-muted/30 cursor-pointer",
-                        isSelected && "bg-[#665AEF]/15 hover:bg-[#665AEF]/20",
-                        !isSelected && isActive && "bg-muted/40"
-                      )}
-                      onClick={() => {
-                        handleOpenPreview(c.id);
-                      }}
-                    >
-                      <TableCell
-                        className="w-9 px-2.5 py-3"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <Checkbox
-                          checked={isSelected}
-                          onCheckedChange={() => {
-                            toggleSelect(c.id);
-                          }}
-                          aria-label={`Select ${c.criminalId}`}
-                        />
-                      </TableCell>
-                      {/* Photo column */}
-                      <TableCell className="px-2.5 py-3">
-                        <SuspectAvatar
-                          mugshotUrl={c.mugshotUrl}
-                          firstName={c.firstName}
-                          lastName={c.lastName}
-                          status={c.status as any}
-                          riskLevel={c.riskLevel as any}
-                          size="sm"
-                          className="size-9 rounded-full border border-border/60"
-                        />
-                      </TableCell>
-                      {/* Name + ID */}
-                      <TableCell className="px-2.5 py-3 whitespace-nowrap">
-                        <div className="flex flex-col gap-0.5">
-                          <Link
-                            href={`/dashboard/criminals/${getCriminalSlug(c)}`}
-                            className="font-medium text-sm text-foreground hover:text-[#a594fd] transition-colors"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            {c.firstName} {c.lastName}
-                          </Link>
-                          <span className="font-heading text-[11px] font-medium text-muted-foreground">
-                            {c.criminalId}
-                          </span>
-                        </div>
-                      </TableCell>
-                      {/* Aliases */}
-                      <TableCell className="text-xs text-muted-foreground px-2.5 py-3 whitespace-nowrap max-w-28 truncate">
-                        {c.alias || "N/A"}
-                      </TableCell>
-                      {/* DOB + Age */}
-                      <TableCell className="px-2.5 py-3 whitespace-nowrap">
-                        <div className="flex flex-col gap-0.5">
-                          <span className="text-xs text-foreground/90">
-                            {c.dateOfBirth}
-                          </span>
-                          <span className="text-[11px] text-muted-foreground">
-                            ({c.age} years)
-                          </span>
-                        </div>
-                      </TableCell>
-                      {/* Crime Categories */}
-                      <TableCell className="px-2.5 py-3 whitespace-nowrap">
-                        <div className="flex items-center gap-1.5">
-                          <span className="inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-medium bg-muted/60 text-muted-foreground border-2 border-border/50 whitespace-nowrap">
-                            {c.crimeCategories[0]}
-                          </span>
-                          {c.crimeCategories.length > 1 && (
-                            <span className="inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-medium bg-[#665AEF]/15 text-[#a594fd] border border-[#665AEF]/30 whitespace-nowrap">
-                              +{c.crimeCategories.length - 1}
-                            </span>
-                          )}
-                        </div>
-                      </TableCell>
-                      {/* Risk Level */}
-                      <TableCell className="px-2.5 py-3 whitespace-nowrap">
-                        {renderRiskBadge(c.riskLevel)}
-                      </TableCell>
-                      {/* Status */}
-                      <TableCell className="px-2.5 py-3 whitespace-nowrap">
-                        {renderStatusBadge(c.status)}
-                      </TableCell>
-                      {/* Actions */}
-                      <TableCell
-                        className="text-right pr-3 py-3 whitespace-nowrap w-12"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <CriminalRowActions
-                          criminal={c}
-                          isSelected={isSelected}
-                          onToggleSelect={() => toggleSelect(c.id)}
-                        />
-                      </TableCell>
-                    </TableRow>
+                      criminal={c}
+                      isSelected={isSelected}
+                      isActive={isActive}
+                      onSelect={() => toggleSelect(c.id)}
+                      onOpenPreview={(id) => handleOpenPreview(id)}
+                    />
                   );
                 })}
-
-                {currentCriminals.length === 0 && (
-                  <TableRow>
-                    <TableCell
-                      colSpan={9}
-                      className="py-12 text-center text-sm text-muted-foreground"
-                    >
-                      No criminals match your filters.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </MotionTableBody>
+              </motion.div>
             </AnimatePresence>
-          </Table>
 
-          {/* 3. Table Pagination Footer with border-t-2 */}
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 border-t-2 border-border/40 text-xs text-muted-foreground bg-card/20">
-            <div>
-              Showing {totalItems === 0 ? 0 : startIndex + 1} to{" "}
-              {Math.min(startIndex + pageSize, totalItems)} of {totalItems} records
-            </div>
+            {currentCriminals.length === 0 && (
+              <div className="rounded-xl border-2 border-border bg-card/40 p-12 text-center text-sm text-muted-foreground">
+                No criminals match your filters.
+              </div>
+            )}
 
-            <div className="flex items-center gap-1">
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                disabled={currentPage === 1}
-                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                className="size-8 rounded-md text-muted-foreground hover:text-foreground disabled:opacity-30 cursor-pointer"
-              >
-                <ChevronLeft className="size-4" />
-              </Button>
+            {/* Pagination for Cards View */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3.5 sm:p-4 rounded-xl border-2 border-border bg-card/40 text-xs text-muted-foreground shadow-xs">
+              <div>
+                Showing {totalItems === 0 ? 0 : startIndex + 1} to{" "}
+                {Math.min(startIndex + pageSize, totalItems)} of {totalItems} records
+              </div>
 
-              {getPageNumbers().map((pageNum, idx) =>
-                typeof pageNum === "string" ? (
-                  <span
-                    key={`ellipsis-${idx}`}
-                    className="size-8 flex items-center justify-center text-xs text-muted-foreground"
-                  >
-                    …
-                  </span>
-                ) : (
-                  <Button
-                    key={pageNum}
-                    variant={currentPage === pageNum ? "default" : "ghost"}
-                    size="xs"
-                    onClick={() => setCurrentPage(pageNum)}
-                    style={{
-                      fontFamily:
-                        'var(--font-inter), "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-                    }}
-                    className={cn(
-                      "size-8 rounded-md text-xs font-medium font-inter tabular-nums transition-colors cursor-pointer",
-                      currentPage === pageNum
-                        ? "bg-[#665AEF] hover:bg-[#5749DF] text-white shadow-xs shadow-[#665AEF]/25"
-                        : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
-                    )}
-                  >
-                    {pageNum}
-                  </Button>
-                )
-              )}
+              {/* Mobile Prev / Next Buttons */}
+              <div className="flex sm:hidden items-center justify-between w-full gap-2 pt-2 border-t border-border/40">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  className="h-8 px-3 rounded-lg text-xs font-medium cursor-pointer"
+                >
+                  <ChevronLeft className="size-3.5 mr-1" />
+                  Prev
+                </Button>
+                <span className="text-xs text-foreground font-medium">
+                  Page {currentPage} of {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  className="h-8 px-3 rounded-lg text-xs font-medium cursor-pointer"
+                >
+                  Next
+                  <ChevronRight className="size-3.5 ml-1" />
+                </Button>
+              </div>
 
-              <Button
-                variant="ghost"
-                size="icon-xs"
-                disabled={currentPage === totalPages}
-                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                className="size-8 rounded-md text-muted-foreground hover:text-foreground disabled:opacity-30 cursor-pointer"
-              >
-                <ChevronRight className="size-4" />
-              </Button>
+              {/* Desktop Number Buttons */}
+              <div className="hidden sm:flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  className="size-8 rounded-md text-muted-foreground hover:text-foreground disabled:opacity-30 cursor-pointer"
+                >
+                  <ChevronLeft className="size-4" />
+                </Button>
+
+                {getPageNumbers().map((pageNum, idx) =>
+                  typeof pageNum === "string" ? (
+                    <span
+                      key={`ellipsis-cards-${idx}`}
+                      className="size-8 flex items-center justify-center text-xs text-muted-foreground"
+                    >
+                      …
+                    </span>
+                  ) : (
+                    <Button
+                      key={`page-cards-${pageNum}`}
+                      variant={currentPage === pageNum ? "default" : "ghost"}
+                      size="xs"
+                      onClick={() => setCurrentPage(pageNum)}
+                      className={cn(
+                        "size-8 rounded-md text-xs font-medium font-inter tabular-nums transition-colors cursor-pointer",
+                        currentPage === pageNum
+                          ? "bg-[#665AEF] hover:bg-[#5749DF] text-white shadow-xs shadow-[#665AEF]/25"
+                          : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                      )}
+                    >
+                      {pageNum}
+                    </Button>
+                  )
+                )}
+
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  className="size-8 rounded-md text-muted-foreground hover:text-foreground disabled:opacity-30 cursor-pointer"
+                >
+                  <ChevronRight className="size-4" />
+                </Button>
+              </div>
             </div>
           </div>
-        </div>
+        ) : (
+          /* Table Container with border-2 */
+          <div className="rounded-xl border-2 border-border bg-card/40 overflow-hidden shadow-xs [&>div]:overflow-x-auto [&>div]:scrollbar-none [&>div::-webkit-scrollbar]:hidden">
+            <Table>
+              <TableHeader className="bg-card/70 border-b-2 border-border/60">
+                <TableRow className="hover:bg-transparent">
+                  <TableHead className="w-9 px-2.5 py-3">
+                    <Checkbox
+                      checked={isAllSelected}
+                      onCheckedChange={toggleSelectAll}
+                      aria-label="Select all criminals"
+                    />
+                  </TableHead>
+                  <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase px-2.5 py-3 whitespace-nowrap">
+                    Photo
+                  </TableHead>
+                  <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase px-2.5 py-3 whitespace-nowrap">
+                    <button
+                      type="button"
+                      onClick={() => handleToggleSort("name")}
+                      className="flex items-center gap-1.5 hover:text-foreground transition-colors cursor-pointer group"
+                    >
+                      <span>Name</span>
+                      {sortKey === "name" ? (
+                        sortOrder === "asc" ? <ArrowUp className="size-3 text-[#665AEF]" /> : <ArrowDown className="size-3 text-[#665AEF]" />
+                      ) : (
+                        <ArrowUpDown className="size-3 opacity-40 group-hover:opacity-100 transition-opacity" />
+                      )}
+                    </button>
+                  </TableHead>
+                  <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase px-2.5 py-3 whitespace-nowrap">
+                    Aliases
+                  </TableHead>
+                  <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase px-2.5 py-3 whitespace-nowrap">
+                    <button
+                      type="button"
+                      onClick={() => handleToggleSort("dob")}
+                      className="flex items-center gap-1.5 hover:text-foreground transition-colors cursor-pointer group"
+                    >
+                      <span>Date of Birth</span>
+                      {sortKey === "dob" ? (
+                        sortOrder === "asc" ? <ArrowUp className="size-3 text-[#665AEF]" /> : <ArrowDown className="size-3 text-[#665AEF]" />
+                      ) : (
+                        <ArrowUpDown className="size-3 opacity-40 group-hover:opacity-100 transition-opacity" />
+                      )}
+                    </button>
+                  </TableHead>
+                  <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase px-2.5 py-3 whitespace-nowrap">
+                    Crime Categories
+                  </TableHead>
+                  <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase px-2.5 py-3 whitespace-nowrap">
+                    <button
+                      type="button"
+                      onClick={() => handleToggleSort("risk")}
+                      className="flex items-center gap-1.5 hover:text-foreground transition-colors cursor-pointer group"
+                    >
+                      <span>Risk Level</span>
+                      {sortKey === "risk" ? (
+                        sortOrder === "asc" ? <ArrowUp className="size-3 text-[#665AEF]" /> : <ArrowDown className="size-3 text-[#665AEF]" />
+                      ) : (
+                        <ArrowUpDown className="size-3 opacity-40 group-hover:opacity-100 transition-opacity" />
+                      )}
+                    </button>
+                  </TableHead>
+                  <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase px-2.5 py-3 whitespace-nowrap">
+                    <button
+                      type="button"
+                      onClick={() => handleToggleSort("status")}
+                      className="flex items-center gap-1.5 hover:text-foreground transition-colors cursor-pointer group"
+                    >
+                      <span>Status</span>
+                      {sortKey === "status" ? (
+                        sortOrder === "asc" ? <ArrowUp className="size-3 text-[#665AEF]" /> : <ArrowDown className="size-3 text-[#665AEF]" />
+                      ) : (
+                        <ArrowUpDown className="size-3 opacity-40 group-hover:opacity-100 transition-opacity" />
+                      )}
+                    </button>
+                  </TableHead>
+                  <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase text-right pr-3 py-3 whitespace-nowrap w-12">
+                    Actions
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <AnimatePresence mode="wait" initial={false}>
+                <MotionTableBody
+                  key={`${categoryFilter || "all"}-${riskFilter || "all"}-${statusFilter || "all"}-${currentPage}-${searchTerm}`}
+                  initial={{ opacity: 0, y: 4 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.18, ease: "easeOut" }}
+                  className="divide-y divide-border/40"
+                >
+                  {currentCriminals.map((c) => {
+                    const isSelected = selectedIds.has(c.id);
+                    const isActive = activeCriminalId === c.id;
+                    return (
+                      <TableRow
+                        key={c.id}
+                        data-state={isSelected ? "selected" : undefined}
+                        className={cn(
+                          "transition-colors hover:bg-muted/30 cursor-pointer",
+                          isSelected && "bg-[#665AEF]/15 hover:bg-[#665AEF]/20",
+                          !isSelected && isActive && "bg-muted/40"
+                        )}
+                        onClick={() => {
+                          handleOpenPreview(c.id);
+                        }}
+                      >
+                        <TableCell
+                          className="w-9 px-2.5 py-3"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <Checkbox
+                            checked={isSelected}
+                            onCheckedChange={() => {
+                              toggleSelect(c.id);
+                            }}
+                            aria-label={`Select ${c.criminalId}`}
+                          />
+                        </TableCell>
+                        {/* Photo column */}
+                        <TableCell className="px-2.5 py-3">
+                          <SuspectAvatar
+                            mugshotUrl={c.mugshotUrl}
+                            firstName={c.firstName}
+                            lastName={c.lastName}
+                            status={c.status as any}
+                            riskLevel={c.riskLevel as any}
+                            size="sm"
+                            className="size-9 rounded-full border border-border/60"
+                          />
+                        </TableCell>
+                        {/* Name + ID */}
+                        <TableCell className="px-2.5 py-3 whitespace-nowrap">
+                          <div className="flex flex-col gap-0.5">
+                            <Link
+                              href={`/dashboard/criminals/${getCriminalSlug(c)}`}
+                              className="font-medium text-sm text-foreground hover:text-[#a594fd] transition-colors"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              {c.firstName} {c.lastName}
+                            </Link>
+                            <span className="font-heading text-[11px] font-medium text-muted-foreground">
+                              {c.criminalId}
+                            </span>
+                          </div>
+                        </TableCell>
+                        {/* Aliases */}
+                        <TableCell className="text-xs text-muted-foreground px-2.5 py-3 whitespace-nowrap max-w-28 truncate">
+                          {c.alias || "N/A"}
+                        </TableCell>
+                        {/* DOB + Age */}
+                        <TableCell className="px-2.5 py-3 whitespace-nowrap">
+                          <div className="flex flex-col gap-0.5">
+                            <span className="text-xs text-foreground/90">
+                              {c.dateOfBirth}
+                            </span>
+                            <span className="text-[11px] text-muted-foreground">
+                              ({c.age} years)
+                            </span>
+                          </div>
+                        </TableCell>
+                        {/* Crime Categories */}
+                        <TableCell className="px-2.5 py-3 whitespace-nowrap">
+                          <div className="flex items-center gap-1.5">
+                            <span className="inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-medium bg-muted/60 text-muted-foreground border-2 border-border/50 whitespace-nowrap">
+                              {c.crimeCategories[0]}
+                            </span>
+                            {c.crimeCategories.length > 1 && (
+                              <span className="inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-medium bg-[#665AEF]/15 text-[#a594fd] border border-[#665AEF]/30 whitespace-nowrap">
+                                +{c.crimeCategories.length - 1}
+                              </span>
+                            )}
+                          </div>
+                        </TableCell>
+                        {/* Risk Level */}
+                        <TableCell className="px-2.5 py-3 whitespace-nowrap">
+                          {renderRiskBadge(c.riskLevel)}
+                        </TableCell>
+                        {/* Status */}
+                        <TableCell className="px-2.5 py-3 whitespace-nowrap">
+                          {renderStatusBadge(c.status)}
+                        </TableCell>
+                        {/* Actions */}
+                        <TableCell
+                          className="text-right pr-3 py-3 whitespace-nowrap w-12"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <CriminalRowActions
+                            criminal={c}
+                            isSelected={isSelected}
+                            onToggleSelect={() => toggleSelect(c.id)}
+                          />
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+
+                  {currentCriminals.length === 0 && (
+                    <TableRow>
+                      <TableCell
+                        colSpan={9}
+                        className="py-12 text-center text-sm text-muted-foreground"
+                      >
+                        No criminals match your filters.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </MotionTableBody>
+              </AnimatePresence>
+            </Table>
+
+            {/* 3. Table Pagination Footer with border-t-2 */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 border-t-2 border-border/40 text-xs text-muted-foreground bg-card/20">
+              <div>
+                Showing {totalItems === 0 ? 0 : startIndex + 1} to{" "}
+                {Math.min(startIndex + pageSize, totalItems)} of {totalItems} records
+              </div>
+
+              {/* Mobile Prev / Next Buttons */}
+              <div className="flex sm:hidden items-center justify-between w-full gap-2 pt-2 border-t border-border/40">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  className="h-8 px-3 rounded-lg text-xs font-medium cursor-pointer"
+                >
+                  <ChevronLeft className="size-3.5 mr-1" />
+                  Prev
+                </Button>
+                <span className="text-xs text-foreground font-medium">
+                  Page {currentPage} of {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  className="h-8 px-3 rounded-lg text-xs font-medium cursor-pointer"
+                >
+                  Next
+                  <ChevronRight className="size-3.5 ml-1" />
+                </Button>
+              </div>
+
+              {/* Desktop Number Buttons */}
+              <div className="hidden sm:flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  disabled={currentPage === 1}
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  className="size-8 rounded-md text-muted-foreground hover:text-foreground disabled:opacity-30 cursor-pointer"
+                >
+                  <ChevronLeft className="size-4" />
+                </Button>
+
+                {getPageNumbers().map((pageNum, idx) =>
+                  typeof pageNum === "string" ? (
+                    <span
+                      key={`ellipsis-${idx}`}
+                      className="size-8 flex items-center justify-center text-xs text-muted-foreground"
+                    >
+                      …
+                    </span>
+                  ) : (
+                    <Button
+                      key={pageNum}
+                      variant={currentPage === pageNum ? "default" : "ghost"}
+                      size="xs"
+                      onClick={() => setCurrentPage(pageNum)}
+                      style={{
+                        fontFamily:
+                          'var(--font-inter), "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                      }}
+                      className={cn(
+                        "size-8 rounded-md text-xs font-medium font-inter tabular-nums transition-colors cursor-pointer",
+                        currentPage === pageNum
+                          ? "bg-[#665AEF] hover:bg-[#5749DF] text-white shadow-xs shadow-[#665AEF]/25"
+                          : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                      )}
+                    >
+                      {pageNum}
+                    </Button>
+                  )
+                )}
+
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  disabled={currentPage === totalPages}
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  className="size-8 rounded-md text-muted-foreground hover:text-foreground disabled:opacity-30 cursor-pointer"
+                >
+                  <ChevronRight className="size-4" />
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Right Column: Criminal Profile Preview (fixed optimal width) with GSAP transition */}
+      {/* Right Column: Criminal Profile Preview (fixed optimal width) with GSAP transition (Desktop Only) */}
       {showPreview && activeCriminal && (
         <div
           ref={previewContainerRef}
-          className="w-full xl:w-95 2xl:w-100 xl:sticky xl:top-6 min-w-0 will-change-[transform,opacity]"
+          className="hidden xl:block w-full xl:w-95 2xl:w-100 xl:sticky xl:top-6 min-w-0 will-change-[transform,opacity]"
         >
           <CriminalProfilePreview
             criminal={activeCriminal}
@@ -1274,16 +1691,142 @@ export function CriminalsTable({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 40, scale: 0.95 }}
             transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-            className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex flex-wrap items-center gap-2.5 sm:gap-3 px-4 py-2.5 rounded-2xl bg-card/95 backdrop-blur-2xl border-2 border-[#665AEF]/40 shadow-2xl shadow-black/60 text-foreground"
+            className="fixed bottom-4 inset-x-3 sm:bottom-6 sm:inset-x-auto sm:left-1/2 sm:-translate-x-1/2 z-50 flex items-center justify-between sm:justify-start gap-2 sm:gap-3 px-3 py-2 sm:px-4 sm:py-2.5 rounded-2xl bg-card/95 backdrop-blur-2xl border-2 border-[#665AEF]/40 shadow-2xl shadow-black/60 text-foreground max-w-full sm:max-w-fit"
           >
-            <div className="flex items-center gap-2 pr-2.5 sm:pr-3 border-r-2 border-border/60">
+            <div className="flex items-center gap-1.5 sm:gap-2 pr-2 sm:pr-3 border-r-2 border-border/60 shrink-0">
               <span className="flex size-2 rounded-full bg-[#665AEF] animate-pulse" />
-              <span className="text-xs font-semibold font-mono tracking-wider text-foreground whitespace-nowrap">
+              <span className="text-[11px] sm:text-xs font-semibold font-mono tracking-wider text-foreground whitespace-nowrap">
                 {selectedIds.size} SELECTED
               </span>
             </div>
 
-            <div className="flex items-center gap-2">
+            {/* Mobile View of Bulk Bar */}
+            <div className="flex sm:hidden items-center gap-1.5 shrink-0">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={isBulkUpdating}
+                onClick={async () => {
+                  setIsBulkUpdating(true);
+                  const ids = Array.from(selectedIds);
+                  toast.promise(
+                    bulkToggleCriminalWatchlist(ids, true).finally(() => setIsBulkUpdating(false)),
+                    {
+                      loading: `Adding ${ids.length} suspects to priority watchlist...`,
+                      success: (res) => {
+                        if (res.error) throw new Error(res.error);
+                        return `Placed ${ids.length} suspects on Priority Watchlist`;
+                      },
+                      error: "Failed to update watchlist",
+                    }
+                  );
+                }}
+                className="h-8 px-2 rounded-lg border-2 border-amber-500/40 bg-amber-500/10 text-amber-300 text-xs font-medium cursor-pointer"
+              >
+                <Shield className="size-3.5 text-amber-400" />
+                <span>Watchlist</span>
+              </Button>
+
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  render={
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-8 px-2 rounded-lg border-2 border-border bg-card/80 text-xs font-medium cursor-pointer gap-1"
+                    />
+                  }
+                >
+                  <span>Actions</span>
+                  <ChevronDown className="size-3 opacity-60" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  align="end"
+                  side="top"
+                  sideOffset={8}
+                  className="w-48 p-1.5 rounded-xl shadow-2xl bg-card/95 backdrop-blur-xl border-2 border-border z-50"
+                >
+                  <DropdownMenuItem
+                    onClick={() => {
+                      const selectedItems = allCriminals.filter((c) => selectedIds.has(c.id));
+                      exportCriminalsToCSV(
+                        selectedItems,
+                        `selected-suspects-${new Date().toISOString().slice(0, 10)}.csv`
+                      );
+                    }}
+                    className="cursor-pointer text-xs font-medium px-2.5 py-1.5 rounded-md hover:bg-accent/80 flex items-center gap-2"
+                  >
+                    <FileSpreadsheet className="size-3.5 text-emerald-400" />
+                    <span>Export CSV</span>
+                  </DropdownMenuItem>
+
+                  <DropdownMenuItem
+                    onClick={() => {
+                      const selectedItems = allCriminals.filter((c) => selectedIds.has(c.id));
+                      exportCriminalsToJSON(
+                        selectedItems,
+                        `selected-suspects-${new Date().toISOString().slice(0, 10)}.json`
+                      );
+                    }}
+                    className="cursor-pointer text-xs font-medium px-2.5 py-1.5 rounded-md hover:bg-accent/80 flex items-center gap-2"
+                  >
+                    <Download className="size-3.5 text-cyan-400" />
+                    <span>Export JSON</span>
+                  </DropdownMenuItem>
+
+                  <DropdownMenuItem
+                    onClick={() => setIsBulkLinkOpen(true)}
+                    className="cursor-pointer text-xs font-medium px-2.5 py-1.5 rounded-md hover:bg-accent/80 flex items-center gap-2"
+                  >
+                    <FolderPlus className="size-3.5 text-[#665AEF]" />
+                    <span>Link to Case</span>
+                  </DropdownMenuItem>
+
+                  <div className="h-px bg-border/60 my-1" />
+
+                  {[
+                    { label: "Mark Active", value: "ACTIVE" },
+                    { label: "Mark Wanted", value: "WANTED" },
+                    { label: "Mark In Custody", value: "IN_CUSTODY" },
+                    { label: "Mark Inactive", value: "INACTIVE" },
+                  ].map((st) => (
+                    <DropdownMenuItem
+                      key={st.value}
+                      onClick={async () => {
+                        setIsBulkUpdating(true);
+                        const ids = Array.from(selectedIds);
+                        toast.promise(
+                          bulkUpdateCriminalStatus(ids, st.value as CriminalStatus).finally(() =>
+                            setIsBulkUpdating(false)
+                          ),
+                          {
+                            loading: `Setting status to ${st.label}...`,
+                            success: () => `Updated ${ids.length} suspects to ${st.label}`,
+                            error: "Failed to update status",
+                          }
+                        );
+                      }}
+                      className="cursor-pointer text-xs font-medium px-2.5 py-1.5 rounded-md hover:bg-accent/80"
+                    >
+                      {st.label}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              <Button
+                size="icon-xs"
+                variant="ghost"
+                onClick={() => setSelectedIds(new Set())}
+                title="Clear Selection"
+                className="size-7 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted/60 cursor-pointer"
+              >
+                <X className="size-4" />
+              </Button>
+            </div>
+
+            {/* Desktop View of Bulk Bar */}
+            <div className="hidden sm:flex items-center gap-2">
               {/* Export Selected Suspects CSV */}
               <Button
                 size="sm"
@@ -1590,6 +2133,46 @@ export function CriminalsTable({
       <OpticalFaceSearchModal
         isOpen={isOpticalSearchOpen}
         onClose={() => setIsOpticalSearchOpen(false)}
+      />
+
+      {/* Mobile Profile Slide-Up Drawer */}
+      <CriminalProfileDrawer
+        criminal={mobileDrawerCriminal}
+        isOpen={isMobileDrawerOpen}
+        onOpenChange={setIsMobileDrawerOpen}
+      />
+
+      {/* Mobile Filter & Sort Drawer */}
+      <CriminalsFilterDrawer
+        isOpen={isFilterDrawerOpen}
+        onOpenChange={setIsFilterDrawerOpen}
+        categoryFilter={categoryFilter}
+        onSelectCategory={(cat) => {
+          setCategoryFilter(cat);
+          setCurrentPage(1);
+        }}
+        riskFilter={riskFilter}
+        onSelectRisk={(risk) => {
+          setRiskFilter(risk);
+          setCurrentPage(1);
+        }}
+        statusFilter={statusFilter}
+        onSelectStatus={(st) => {
+          setStatusFilter(st);
+          setCurrentPage(1);
+        }}
+        sortKey={sortKey}
+        sortOrder={sortOrder}
+        onToggleSort={handleToggleSort}
+        onResetFilters={() => {
+          setCategoryFilter(null);
+          setRiskFilter(null);
+          setStatusFilter(null);
+          setSearchTerm("");
+          setSortKey(null);
+          setCurrentPage(1);
+        }}
+        totalMatches={totalItems}
       />
     </div>
   );

@@ -1,6 +1,7 @@
 import { getCriminalById } from "@/features/criminals/queries";
+import { getCriminalSlug } from "@/features/criminals/slug";
 import { getSafeStorageUrl } from "@/lib/storage-url";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { AppSidebar } from "@/components/layout/app-sidebar";
@@ -58,6 +59,23 @@ export default async function CriminalProfilePage({
     criminal = await getCriminalById(resolvedParams.criminalId);
   } catch {
     notFound();
+  }
+
+  // Canonical Slug Redirection: enforce clean human-readable URLs in browser address bar
+  const canonicalSlug = getCriminalSlug(criminal);
+  if (resolvedParams.criminalId !== canonicalSlug) {
+    const searchString = resolvedSearchParams
+      ? new URLSearchParams(
+          Object.entries(resolvedSearchParams).filter(
+            ([_, v]) => typeof v === "string"
+          ) as [string, string][]
+        ).toString()
+      : "";
+    redirect(
+      `/dashboard/criminals/${canonicalSlug}${
+        searchString ? `?${searchString}` : ""
+      }`
+    );
   }
 
   // Resolve private Tigris S3 storage key or URL to safe permanent streaming endpoint

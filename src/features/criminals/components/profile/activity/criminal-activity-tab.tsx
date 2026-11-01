@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   AlertTriangle,
@@ -30,7 +30,9 @@ import {
   EyeOff,
   UserPlus,
   Sparkles,
+  Wifi,
 } from "lucide-react";
+import { useCriminalRealtime } from "@/features/criminals/hooks/use-criminal-realtime";
 import {
   Card,
   CardHeader,
@@ -239,6 +241,19 @@ export function CriminalActivityTab({ criminal }: CriminalActivityTabProps) {
   const [verificationResult, setVerificationResult] = useState<{
     valid: boolean; totalBlocks: number; merkleRootHash: string; verifiedAt: string;
   } | null>(null);
+  const [mobileTab, setMobileTab] = useState<"feed" | "ledger">("feed");
+
+  // ── Native Real-Time Server-Sent Events (SSE) Stream ────────────
+  const { isConnected: isLiveConnected } = useCriminalRealtime({
+    criminalId: criminal.id,
+    criminalName,
+    onActivityLogged: () => {
+      loadLogs(true);
+    },
+    onSurveillanceHit: () => {
+      loadLogs(true);
+    },
+  });
 
   // Fetch real data from database endpoints
   const loadLogs = useCallback(async (refresh = false) => {
@@ -312,6 +327,38 @@ export function CriminalActivityTab({ criminal }: CriminalActivityTabProps) {
     if (id === "PROFILE_UPDATE") return stats.profileUpdate;
     if (id === "LEGAL_AUDIT") return stats.legal;
     return 0;
+  };
+
+  // ── Drag & Touch Horizontal Scroll for Category Filters ──
+  const filterScrollRef = useRef<HTMLDivElement>(null);
+  const isPointerDownRef = useRef(false);
+  const dragStartXRef = useRef(0);
+  const dragStartScrollLeftRef = useRef(0);
+  const hasDraggedRef = useRef(false);
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!filterScrollRef.current) return;
+    isPointerDownRef.current = true;
+    hasDraggedRef.current = false;
+    dragStartXRef.current = e.clientX;
+    dragStartScrollLeftRef.current = filterScrollRef.current.scrollLeft;
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isPointerDownRef.current || !filterScrollRef.current) return;
+    const dx = e.clientX - dragStartXRef.current;
+    if (Math.abs(dx) > 4) {
+      hasDraggedRef.current = true;
+      filterScrollRef.current.scrollLeft = dragStartScrollLeftRef.current - dx;
+    }
+  };
+
+  const handlePointerUp = () => {
+    isPointerDownRef.current = false;
+  };
+
+  const handlePointerCancel = () => {
+    isPointerDownRef.current = false;
   };
 
   const handleCopy = (text: string) => {
@@ -443,7 +490,7 @@ export function CriminalActivityTab({ criminal }: CriminalActivityTabProps) {
   return (
     <div className="flex flex-col gap-5 w-full">
       {/* ── Key Metrics Cards ───────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
         {[
           {
             num: stats.total,
@@ -479,56 +526,101 @@ export function CriminalActivityTab({ criminal }: CriminalActivityTabProps) {
           return (
             <Card
               key={s.label}
-              className="border border-border/60 bg-card/40 backdrop-blur-xs p-4 sm:p-4.5 rounded-xl shadow-xs hover:border-border/90 hover:bg-card/60 transition-all duration-200 flex flex-col justify-between gap-3 group"
+              className="border border-border/60 bg-card/40 backdrop-blur-xs p-3 sm:p-4 rounded-xl shadow-xs hover:border-border/90 hover:bg-card/60 transition-all duration-200 flex flex-col justify-between gap-2.5 group"
             >
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider truncate">
+              <div className="flex items-center justify-between gap-1.5">
+                <span className="text-[10px] sm:text-[11px] font-medium text-muted-foreground uppercase tracking-wider truncate">
                   {s.label}
                 </span>
-                <Icon className={cn("size-4 shrink-0", s.iconClass)} />
+                <Icon className={cn("size-3.5 sm:size-4 shrink-0", s.iconClass)} />
               </div>
-              <div className="flex items-baseline justify-between gap-2">
-                <div>
-                  <div className="text-2xl sm:text-3xl font-bold font-mono tracking-tight text-foreground">
-                    {s.num}
-                  </div>
-                  <div className="text-[11px] text-muted-foreground truncate mt-0.5">{s.sub}</div>
+              <div className="space-y-1">
+                <div className="text-xl sm:text-2xl font-bold font-mono tracking-tight text-foreground">
+                  {s.num}
                 </div>
-                {s.liveBadge && (
-                  <span className="inline-flex items-center gap-1 text-[10px] font-mono font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded-md shrink-0">
-                    <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                    Intact
-                  </span>
-                )}
+                <div className="flex items-center justify-between gap-1.5 min-w-0">
+                  <div className="text-[10px] sm:text-[11px] text-muted-foreground truncate">{s.sub}</div>
+                  {s.liveBadge && (
+                    <span className="inline-flex items-center gap-1 text-[9px] sm:text-[10px] font-mono font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.5 rounded-md shrink-0 whitespace-nowrap">
+                      <span className="size-1 rounded-full bg-emerald-400 animate-pulse" />
+                      Intact
+                    </span>
+                  )}
+                </div>
               </div>
             </Card>
           );
         })}
       </div>
 
-      {/* ── Main Layout: Timeline (8 cols) + Sidebar (4 cols) ──────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 w-full items-start">
-        {/* ── Primary Column: Audit Log Feed ──────────────────────────── */}
-        <div className="lg:col-span-7 xl:col-span-8 flex flex-col gap-4">
-          <Card className="border border-border/60 bg-card/40 backdrop-blur-xs shadow-xs rounded-xl overflow-hidden">
-            <CardHeader className="p-4 sm:p-5 pb-3 border-b border-border/50 flex flex-col gap-3.5">
-              {/* Row 1: Title and Actions */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="flex items-center gap-2.5">
-                  <div className="flex size-9 items-center justify-center rounded-xl bg-primary/10 border border-primary/20 text-primary shrink-0">
-                    <ShieldCheck className="size-4.5" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-base font-semibold tracking-tight text-foreground">
-                      Forensic Audit Trail & Chain of Custody
-                    </CardTitle>
-                    <CardDescription className="text-xs text-muted-foreground">
-                      Cryptographically signed sequential custody ledger
-                    </CardDescription>
-                  </div>
-                </div>
+      {/* ── Mobile View Switcher (Audit Feed vs. Custody Ledger) ─────────── */}
+      <div className="flex lg:hidden items-center p-1 rounded-xl bg-card/60 border border-border/60 text-xs w-full">
+        <button
+          type="button"
+          onClick={() => setMobileTab("feed")}
+          className={cn(
+            "flex-1 py-1.5 px-3 rounded-lg font-medium transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer",
+            mobileTab === "feed"
+              ? "bg-[#665AEF] text-white shadow-xs"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          <Activity className="size-3.5" />
+          <span>Audit Feed</span>
+          <span
+            className={cn(
+              "text-[10px] font-mono px-1 rounded",
+              mobileTab === "feed" ? "bg-white/20 text-white" : "bg-muted text-muted-foreground"
+            )}
+          >
+            {filtered.length}
+          </span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setMobileTab("ledger")}
+          className={cn(
+            "flex-1 py-1.5 px-3 rounded-lg font-medium transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer",
+            mobileTab === "ledger"
+              ? "bg-[#665AEF] text-white shadow-xs"
+              : "text-muted-foreground hover:text-foreground"
+          )}
+        >
+          <ShieldCheck className="size-3.5" />
+          <span>Custody Ledger</span>
+        </button>
+      </div>
 
-                <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
+      {/* ── Main Layout: Timeline (8 cols) + Sidebar (4 cols) ──────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 w-full min-w-0 items-start">
+        {/* ── Primary Column: Audit Log Feed ──────────────────────────── */}
+        <div className={cn("lg:col-span-7 xl:col-span-8 flex flex-col gap-4 min-w-0 w-full", mobileTab !== "feed" && "hidden lg:flex")}>
+          <Card className="border border-border/60 bg-card/60 shadow-xs rounded-xl overflow-hidden min-w-0 w-full max-w-full">
+            <CardHeader className="p-3.5 sm:p-5 pb-3 border-b border-border/50 flex flex-col gap-3 min-w-0 w-full">
+              {/* Row 1: Title + Mobile Refresh + Desktop Actions */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 min-w-0 w-full">
+                <div className="flex items-center justify-between gap-2 w-full sm:w-auto min-w-0">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="flex size-8 sm:size-9 items-center justify-center rounded-xl bg-[#665AEF]/15 border border-[#665AEF]/30 text-[#a594fd] shrink-0">
+                      <ShieldCheck className="size-4 sm:size-4.5" />
+                    </div>
+                    <div className="min-w-0">
+                      <CardTitle className="text-sm sm:text-base font-semibold tracking-tight text-foreground flex items-center gap-2 truncate">
+                        <span>Forensic Audit Trail</span>
+                        {isLiveConnected && (
+                          <span className="inline-flex items-center gap-1 text-[9px] font-mono font-medium text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-1.5 py-0.2 rounded-full shrink-0">
+                            <span className="size-1 rounded-full bg-emerald-400 animate-pulse" />
+                            Live SSE
+                          </span>
+                        )}
+                      </CardTitle>
+                      <CardDescription className="text-[11px] sm:text-xs text-muted-foreground truncate">
+                        Cryptographically signed sequential custody ledger
+                      </CardDescription>
+                    </div>
+                  </div>
+
+                  {/* Quick Refresh Icon Button on Mobile */}
                   <Button
                     type="button"
                     variant="outline"
@@ -536,7 +628,7 @@ export function CriminalActivityTab({ criminal }: CriminalActivityTabProps) {
                     onClick={() => loadLogs(true)}
                     disabled={isRefreshing}
                     title="Refresh records from database"
-                    className="size-8 p-0 cursor-pointer text-muted-foreground hover:text-foreground"
+                    className="sm:hidden size-8 p-0 cursor-pointer text-muted-foreground hover:text-foreground shrink-0 rounded-lg"
                   >
                     <RefreshCw
                       className={cn(
@@ -545,13 +637,37 @@ export function CriminalActivityTab({ criminal }: CriminalActivityTabProps) {
                       )}
                     />
                   </Button>
+                </div>
+
+                {/* Action Buttons: Unified responsive row (stacked on mobile, inline on desktop) */}
+                <div className="flex items-center gap-2 w-full sm:w-auto min-w-0">
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => setIsLogModalOpen(true)}
+                    className="h-8.5 sm:h-8 flex-1 sm:flex-none px-3 text-xs font-semibold gap-1.5 cursor-pointer bg-[#665AEF] hover:bg-[#5749DF] text-white shadow-xs shrink-0 sm:order-last"
+                  >
+                    <Plus className="size-3.5" />
+                    <span>Log Event</span>
+                  </Button>
+
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsSurveillanceModalOpen(true)}
+                    className="h-8.5 sm:h-8 flex-1 sm:flex-none px-2.5 text-xs text-rose-400 border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 hover:text-rose-300 gap-1.5 cursor-pointer shrink-0"
+                  >
+                    <Camera className="size-3.5 text-rose-400" />
+                    <span>ANPR<span className="hidden xs:inline"> Sighting</span></span>
+                  </Button>
 
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
                     onClick={() => setIsExportOpen(true)}
-                    className="h-8 px-2.5 text-xs text-muted-foreground hover:text-foreground gap-1.5 cursor-pointer"
+                    className="h-8.5 sm:h-8 px-2.5 text-xs text-muted-foreground hover:text-foreground gap-1.5 cursor-pointer shrink-0"
                   >
                     <Download className="size-3.5" />
                     <span>Export</span>
@@ -561,55 +677,71 @@ export function CriminalActivityTab({ criminal }: CriminalActivityTabProps) {
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => setIsSurveillanceModalOpen(true)}
-                    className="h-8 px-2.5 text-xs text-rose-400 border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 hover:text-rose-300 gap-1.5 cursor-pointer"
+                    onClick={() => loadLogs(true)}
+                    disabled={isRefreshing}
+                    title="Refresh records from database"
+                    className="hidden sm:flex size-8.5 sm:size-8 p-0 cursor-pointer text-muted-foreground hover:text-foreground shrink-0 rounded-lg"
                   >
-                    <Camera className="size-3.5 text-rose-400" />
-                    <span>ANPR Sighting</span>
-                  </Button>
-
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={() => setIsLogModalOpen(true)}
-                    className="h-8 px-3 text-xs font-medium gap-1.5 cursor-pointer"
-                  >
-                    <Plus className="size-3.5" />
-                    <span>Log Event</span>
+                    <RefreshCw
+                      className={cn(
+                        "size-3.5",
+                        isRefreshing && "animate-spin text-primary"
+                      )}
+                    />
                   </Button>
                 </div>
               </div>
 
               {/* Row 2: Category Filter Tabs + Search Input */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-1">
-                {/* Horizontal Category Badges */}
-                <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar scroll-smooth py-0.5">
-                  {CATEGORIES.map((cat) => {
-                    const isActive = activeCategory === cat.id;
-                    return (
-                      <button
-                        key={cat.id}
-                        type="button"
-                        onClick={() => setActiveCategory(cat.id)}
-                        className={cn(
-                          "flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors cursor-pointer shrink-0 select-none",
-                          isActive
-                            ? "bg-primary text-primary-foreground"
-                            : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
-                        )}
-                      >
-                        <span>{cat.label}</span>
-                        <span
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-1 min-w-0 w-full">
+                {/* Horizontal Swipeable & Draggable Category Chips (Crisp & Clean) */}
+                <div className="w-full sm:w-auto min-w-0 max-w-full flex-1">
+                  {/* Scrollable Container */}
+                  <div
+                    ref={filterScrollRef}
+                    onPointerDown={handlePointerDown}
+                    onPointerMove={handlePointerMove}
+                    onPointerUp={handlePointerUp}
+                    onPointerCancel={handlePointerCancel}
+                    className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1 px-0.5 w-full min-w-0 max-w-full touch-pan-x overscroll-x-contain [scrollbar-width:none] [-webkit-overflow-scrolling:touch] cursor-grab active:cursor-grabbing select-none"
+                  >
+                    {CATEGORIES.map((cat) => {
+                      const isActive = activeCategory === cat.id;
+                      return (
+                        <button
+                          key={cat.id}
+                          type="button"
+                          onClick={(e) => {
+                            if (hasDraggedRef.current) return;
+                            setActiveCategory(cat.id);
+                            e.currentTarget.scrollIntoView({
+                              behavior: "smooth",
+                              inline: "nearest",
+                              block: "nearest",
+                            });
+                          }}
                           className={cn(
-                            "text-[10px] font-mono px-1 rounded",
-                            isActive ? "bg-primary-foreground/20 text-primary-foreground" : "text-muted-foreground/80"
+                            "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer shrink-0 select-none touch-pan-x active:scale-95",
+                            isActive
+                              ? "bg-[#665AEF] text-white shadow-xs font-semibold ring-1 ring-[#665AEF]/50"
+                              : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground border border-border/40"
                           )}
                         >
-                          {countFor(cat.id)}
-                        </span>
-                      </button>
-                    );
-                  })}
+                          <span>{cat.label}</span>
+                          <span
+                            className={cn(
+                              "text-[10px] font-mono px-1.5 py-0.2 rounded-md",
+                              isActive
+                                ? "bg-white/20 text-white font-bold"
+                                : "bg-background/50 text-muted-foreground/80"
+                            )}
+                          >
+                            {countFor(cat.id)}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
 
                 {/* Search Bar */}
@@ -619,7 +751,7 @@ export function CriminalActivityTab({ criminal }: CriminalActivityTabProps) {
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Filter audit records..."
-                    className="h-8 pl-8 pr-7 text-xs bg-background/50 border-border/80 rounded-md placeholder:text-muted-foreground"
+                    className="h-8.5 sm:h-8 pl-8 pr-7 text-xs bg-background/50 border-border/80 rounded-md placeholder:text-muted-foreground"
                   />
                   {searchQuery && (
                     <button
@@ -703,10 +835,10 @@ export function CriminalActivityTab({ criminal }: CriminalActivityTabProps) {
                             duration: 0.18,
                             delay: Math.min(index * 0.02, 0.2),
                           }}
-                          className="relative flex gap-3.5 sm:gap-4 group"
+                          className="relative flex gap-2.5 sm:gap-4 group"
                         >
                           {/* ── Bulletproof Vertical Spine ──────────────── */}
-                          <div className="flex flex-col items-center shrink-0 w-8">
+                          <div className="flex flex-col items-center shrink-0 w-6 sm:w-8">
                             {/* Upper segment */}
                             <div
                               className={cn(
@@ -718,11 +850,11 @@ export function CriminalActivityTab({ criminal }: CriminalActivityTabProps) {
                             {/* Node Icon */}
                             <div
                               className={cn(
-                                "relative z-10 flex size-8 items-center justify-center rounded-full border shadow-xs my-1 transition-all duration-200 group-hover:scale-105",
+                                "relative z-10 flex size-6 sm:size-8 items-center justify-center rounded-full border shadow-xs my-0.5 sm:my-1 transition-all duration-200 group-hover:scale-105",
                                 config.nodeClass
                               )}
                             >
-                              <Icon className="size-3.5" />
+                              <Icon className="size-3 sm:size-3.5" />
                             </div>
 
                             {/* Lower segment */}
@@ -735,30 +867,30 @@ export function CriminalActivityTab({ criminal }: CriminalActivityTabProps) {
                           </div>
 
                           {/* ── Event Content Card ─────────────────────── */}
-                          <div className="flex-1 pb-4 min-w-0">
-                            <div className="rounded-xl border border-border/50 bg-card/60 hover:bg-card/90 hover:border-border/80 transition-all duration-200 p-3.5 sm:p-4 shadow-xs flex flex-col gap-2.5">
+                          <div className="flex-1 pb-3 sm:pb-4 min-w-0">
+                            <div className="rounded-xl border border-border/60 bg-card/60 hover:bg-card/90 hover:border-border/80 transition-all duration-200 p-3 sm:p-4 shadow-xs flex flex-col gap-2 sm:gap-2.5">
                               {/* Header: Title + Category badge + Relative time */}
-                              <div className="flex items-start justify-between gap-3">
-                                <div className="flex items-center gap-2 flex-wrap min-w-0">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex items-center gap-1.5 flex-wrap min-w-0">
                                   <h4 className="text-xs sm:text-sm font-semibold text-foreground tracking-tight leading-snug">
                                     {item.action}
                                   </h4>
                                   <Badge
                                     variant="outline"
-                                    className={cn("text-[10px] font-mono px-2 py-0 h-4.5", config.badgeClass)}
+                                    className={cn("text-[9px] sm:text-[10px] font-mono px-1.5 py-0 h-4 sm:h-4.5 shrink-0", config.badgeClass)}
                                   >
                                     {config.label}
                                   </Badge>
                                   {item.severity === "critical" && (
                                     <Badge
                                       variant="destructive"
-                                      className="text-[9px] uppercase tracking-wider font-semibold px-1.5 py-0 h-4"
+                                      className="text-[8px] sm:text-[9px] uppercase tracking-wider font-semibold px-1.5 py-0 h-3.5 sm:h-4 shrink-0"
                                     >
                                       Critical
                                     </Badge>
                                   )}
                                 </div>
-                                <span className="text-[11px] text-muted-foreground font-mono whitespace-nowrap shrink-0">
+                                <span className="text-[10px] sm:text-[11px] text-muted-foreground font-mono whitespace-nowrap shrink-0 mt-0.5">
                                   {item.relativeTime}
                                 </span>
                               </div>
@@ -769,44 +901,44 @@ export function CriminalActivityTab({ criminal }: CriminalActivityTabProps) {
                               </p>
 
                               {/* Metadata & Officer Strip */}
-                              <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-border/30 text-xs">
-                                <div className="flex flex-wrap items-center gap-2">
+                              <div className="flex flex-wrap items-center justify-between gap-1.5 pt-2 border-t border-border/30 text-xs">
+                                <div className="flex flex-wrap items-center gap-1.5 min-w-0">
                                   {/* Officer Avatar Chip */}
-                                  <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-muted/40 border border-border/40 text-foreground/80">
-                                    <Avatar className="size-4 shrink-0">
+                                  <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-muted/40 border border-border/40 text-foreground/80 max-w-[170px] sm:max-w-none">
+                                    <Avatar className="size-3.5 sm:size-4 shrink-0">
                                       <AvatarImage src={item.officer.avatarUrl} alt={item.officer.name} />
-                                      <AvatarFallback className="text-[8px] font-medium bg-primary/20 text-primary">
+                                      <AvatarFallback className="text-[7px] sm:text-[8px] font-medium bg-primary/20 text-primary">
                                         {getInitials(item.officer.name)}
                                       </AvatarFallback>
                                     </Avatar>
-                                    <span className="text-xs font-medium text-foreground truncate max-w-35">
+                                    <span className="text-[11px] sm:text-xs font-medium text-foreground truncate">
                                       {item.officer.name}
                                     </span>
-                                    <span className="text-[10px] font-mono text-muted-foreground">
+                                    <span className="text-[9px] sm:text-[10px] font-mono text-muted-foreground truncate hidden sm:inline">
                                       · {item.officer.badgeId}
                                     </span>
                                   </div>
 
                                   {/* Location Tag */}
                                   {item.metadata.location && (
-                                    <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground px-2 py-0.5 rounded-md bg-muted/30 border border-border/40 truncate max-w-50">
-                                      <MapPin className="size-3 text-rose-400 shrink-0" />
+                                    <span className="inline-flex items-center gap-1 text-[10px] sm:text-[11px] text-muted-foreground px-1.5 sm:px-2 py-0.5 rounded-md bg-muted/30 border border-border/40 truncate max-w-[140px] sm:max-w-50">
+                                      <MapPin className="size-2.5 sm:size-3 text-rose-400 shrink-0" />
                                       <span className="truncate">{item.metadata.location}</span>
                                     </span>
                                   )}
 
                                   {/* Confidence Match Tag */}
                                   {item.metadata.confidenceScore !== undefined && (
-                                    <span className="inline-flex items-center gap-1 font-mono text-[11px] text-cyan-400 px-2 py-0.5 rounded-md bg-cyan-500/10 border border-cyan-500/20 shrink-0">
-                                      <ScanFace className="size-3" />
+                                    <span className="inline-flex items-center gap-1 font-mono text-[10px] sm:text-[11px] text-[#a594fd] px-1.5 sm:px-2 py-0.5 rounded-md bg-[#665AEF]/10 border border-[#665AEF]/20 shrink-0">
+                                      <ScanFace className="size-2.5 sm:size-3" />
                                       {(item.metadata.confidenceScore * 100).toFixed(1)}% match
                                     </span>
                                   )}
 
                                   {/* Case Link Tag */}
                                   {item.metadata.caseNumber && (
-                                    <span className="inline-flex items-center gap-1 font-mono text-[11px] text-[#a594fd] px-2 py-0.5 rounded-md bg-[#665AEF]/10 border border-[#665AEF]/20 shrink-0">
-                                      <FolderKanban className="size-3" />
+                                    <span className="inline-flex items-center gap-1 font-mono text-[10px] sm:text-[11px] text-[#a594fd] px-1.5 sm:px-2 py-0.5 rounded-md bg-[#665AEF]/10 border border-[#665AEF]/20 shrink-0">
+                                      <FolderKanban className="size-2.5 sm:size-3" />
                                       {item.metadata.caseNumber}
                                     </span>
                                   )}
@@ -836,12 +968,12 @@ export function CriminalActivityTab({ criminal }: CriminalActivityTabProps) {
                                           toast.error("Failed to acknowledge sighting");
                                         }
                                       }}
-                                      className="h-6 px-2 text-[10px] font-medium border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 cursor-pointer disabled:opacity-50"
+                                      className="h-5.5 sm:h-6 px-1.5 sm:px-2 text-[9px] sm:text-[10px] font-medium border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 cursor-pointer disabled:opacity-50"
                                     >
-                                      <CheckCircle2 className="size-3 mr-1 text-rose-400" />
+                                      <CheckCircle2 className="size-2.5 sm:size-3 mr-1 text-rose-400" />
                                       <span>
                                         {item.metadata.hitStatus === "UNACKNOWLEDGED"
-                                          ? "Acknowledge Hit"
+                                          ? "Acknowledge"
                                           : "Acknowledged"}
                                       </span>
                                     </Button>
@@ -849,8 +981,8 @@ export function CriminalActivityTab({ criminal }: CriminalActivityTabProps) {
                                 </div>
 
                                 {/* Date & Hash Trigger */}
-                                <div className="flex items-center gap-2.5 ml-auto text-muted-foreground">
-                                  <span className="text-[11px] font-mono hidden sm:inline-block">
+                                <div className="flex items-center gap-1.5 ml-auto text-muted-foreground shrink-0">
+                                  <span className="text-[10px] sm:text-[11px] font-mono hidden md:inline-block">
                                     {item.formattedDate} · {item.formattedTime}
                                   </span>
                                   <Button
@@ -858,14 +990,14 @@ export function CriminalActivityTab({ criminal }: CriminalActivityTabProps) {
                                     variant="ghost"
                                     size="sm"
                                     onClick={() => setExpandedId(isExpanded ? null : item.id)}
-                                    className="h-6 px-2 text-[11px] font-mono gap-1 text-muted-foreground hover:text-foreground cursor-pointer"
+                                    className="h-5.5 sm:h-6 px-1.5 sm:px-2 text-[10px] sm:text-[11px] font-mono gap-1 text-muted-foreground hover:text-foreground cursor-pointer"
                                   >
-                                    <Hash className="size-3 text-primary" />
-                                    <span>{isExpanded ? "Hide Hash" : "Verify Block"}</span>
+                                    <Hash className="size-2.5 sm:size-3 text-primary" />
+                                    <span>{isExpanded ? "Hide" : "Verify Block"}</span>
                                     {isExpanded ? (
-                                      <ChevronUp className="size-3" />
+                                      <ChevronUp className="size-2.5 sm:size-3" />
                                     ) : (
-                                      <ChevronDown className="size-3" />
+                                      <ChevronDown className="size-2.5 sm:size-3" />
                                     )}
                                   </Button>
                                 </div>
@@ -930,7 +1062,7 @@ export function CriminalActivityTab({ criminal }: CriminalActivityTabProps) {
         </div>
 
         {/* ── Secondary Column: Sidebar Cards ─────────────────────────── */}
-        <div className="lg:col-span-5 xl:col-span-4 flex flex-col gap-4 lg:sticky lg:top-4 self-start">
+        <div className={cn("lg:col-span-5 xl:col-span-4 flex flex-col gap-4 lg:sticky lg:top-4 self-start min-w-0 w-full", mobileTab !== "ledger" && "hidden lg:flex")}>
           {/* Card 1: Chain Integrity & Cryptographic Ledger */}
           <Card className="border border-border/60 bg-card/40 backdrop-blur-xs p-4 sm:p-5 shadow-xs flex flex-col gap-3.5">
             <div className="flex items-center justify-between pb-3 border-b border-border/50">

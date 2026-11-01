@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { getCriminalSlug } from "@/features/criminals/slug";
 import type { SuspectItem, SuspectStatus } from "./types";
 
 interface SuspectPreviewCardProps {
@@ -190,7 +191,11 @@ export function SuspectPreviewCard({
         {/* 1-Click Link to Central Criminal Database */}
         <div className="pt-2">
           <Link
-            href={`/dashboard/criminals/${suspect.criminalId || suspect.databaseId || suspect.id}`}
+            href={`/dashboard/criminals/${getCriminalSlug({
+              firstName: suspect.name,
+              criminalId: suspect.criminalId,
+              id: suspect.databaseId || suspect.id,
+            })}`}
             className="w-full h-8.5 rounded-lg border-2 border-[#665AEF]/40 bg-[#665AEF]/10 hover:bg-[#665AEF]/20 text-[#a594fd] hover:text-white text-xs font-medium flex items-center justify-center gap-1.5 transition-all"
           >
             <span>View Criminal Dossier</span>

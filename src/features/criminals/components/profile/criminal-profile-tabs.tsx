@@ -15,6 +15,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Modal } from "@/components/ui/modal";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -42,6 +50,7 @@ import {
   XCircle,
   Clock,
   Fingerprint,
+  Cpu,
   Scan,
   Activity,
   Shield,
@@ -83,6 +92,9 @@ import {
   Users,
   Network,
   LayoutGrid,
+  Edit3,
+  UserCheck,
+  Unlink,
 } from "lucide-react";
 import { SuspectRole, SuspectCaseStatus, type Criminal } from "@prisma/client";
 import { toast } from "sonner";
@@ -90,14 +102,20 @@ import { SuspectAvatar } from "@/features/criminals/components/suspect-avatar";
 import { CriminalActivityTab } from "./activity/criminal-activity-tab";
 import {
   linkCriminalToCase,
+  unlinkCriminalFromCase,
+  updateSuspectCaseRole,
   createCriminalRecord,
+  updateCriminalRecord,
   deleteCriminalRecord,
   runCriminalFacialBiometricSearch,
+  updateRecognitionMatchStatus,
+  updateCriminal,
   addCriminalAlias,
   removeCriminalAlias,
   updateCriminalFingerprint,
   updateCriminalDnaProfile,
 } from "@/features/criminals/actions";
+import { useCriminalRealtime } from "@/features/criminals/hooks/use-criminal-realtime";
 import { uploadEvidence } from "@/features/evidence/actions";
 import { getCaseSlug, getRecordSlug, getCriminalSlug } from "@/features/criminals/slug";
 import { useRouter } from "next/navigation";
@@ -198,10 +216,13 @@ interface EvidenceItem {
 }
 
 interface RelatedCase {
+  id?: string;
   caseNumber: string;
   title: string;
   status: "Under Investigation" | "Solved" | "In Court" | "Closed";
   statusColor: string;
+  role?: SuspectRole;
+  suspectStatus?: SuspectCaseStatus;
 }
 
 // Criminal History Record Interface matching the reference layout
@@ -455,8 +476,11 @@ export function CriminalProfileTabs({
     const rawLinks = (criminal as any).caseLinks || [];
     if (rawLinks.length > 0) {
       return rawLinks.map((cl: any) => ({
+        id: cl.caseId || cl.case?.id || cl.case?.caseNumber,
         caseNumber: cl.case?.caseNumber || "FX-UNKNOWN",
         title: cl.case?.title || "Case Record",
+        role: cl.role,
+        suspectStatus: cl.status,
         status:
           cl.case?.status === "CLOSED"
             ? ("Closed" as const)
@@ -770,27 +794,93 @@ export function CriminalProfileTabs({
   // Evidence filter state in the Evidence tab
   const [evidenceFilter, setEvidenceFilter] = useState<string>("all");
 
-  // Derived Demographics (Real subject values, never fabricated)
-  const height = (demographics.height as string) || "Not Documented";
-  const weight = (demographics.weight as string) || "Not Documented";
-  const build = (demographics.build as string) || "Not Documented";
-  const eyeColor = (demographics.eyeColor as string) || "Not Documented";
-  const hairColor = (demographics.hairColor as string) || "Not Documented";
-  const complexion = (demographics.complexion as string) || "Not Documented";
-  const distinctiveMarks =
-    (demographics.distinctiveMarks as string) || "None documented";
-  const tattoos = (demographics.tattoos as string) || "None documented";
+  const fullName = `${criminal.firstName ?? ""} ${criminal.lastName ?? ""}`.trim() || "Subject";
 
-  const primaryCategory = (demographics.primaryCategory as string) || "General Offence";
-  const secondaryCategories =
-    (demographics.secondaryCategories as string) || "—";
-  const modusOperandi =
-    (demographics.modusOperandi as string) || "Modus operandi under active investigation.";
-  const knownAreas =
-    (demographics.knownAreas as string) || (criminal.lastKnownLocation || "Location Not Disclosed");
-  const crimeSummary =
+  // ── Physical Demographics Inline Editing State ──
+  const [isEditPhysicalOpen, setIsEditPhysicalOpen] = useState(false);
+  const [currentDemographics, setCurrentDemographics] = useState<Record<string, any>>(demographics);
+  const [physicalForm, setPhysicalForm] = useState({
+    height: (demographics.height as string) || "",
+    weight: (demographics.weight as string) || "",
+    build: (demographics.build as string) || "Medium",
+    eyeColor: (demographics.eyeColor as string) || "Brown",
+    hairColor: (demographics.hairColor as string) || "Black",
+    complexion: (demographics.complexion as string) || "Medium",
+    distinctiveMarks: (demographics.distinctiveMarks as string) || "",
+    tattoos: (demographics.tattoos as string) || "",
+  });
+  const [isSavingPhysical, setIsSavingPhysical] = useState(false);
+
+  // ── Crime Info Inline Editing State ──
+  const [isEditCrimeOpen, setIsEditCrimeOpen] = useState(false);
+  const [crimeForm, setCrimeForm] = useState({
+    primaryCategory: (demographics.primaryCategory as string) || "General Offence",
+    secondaryCategories: (demographics.secondaryCategories as string) || "",
+    modusOperandi: (demographics.modusOperandi as string) || "",
+    knownAreas: (demographics.knownAreas as string) || (criminal.lastKnownLocation || ""),
+    crimeSummary: criminal.description || "",
+  });
+  const [crimeSummary, setCrimeSummary] = useState(
     criminal.description ||
-    "No specific criminal summary or modus operandi documented for this subject in the central registry.";
+    "No specific criminal summary or modus operandi documented for this subject in the central registry."
+  );
+  const [isSavingCrime, setIsSavingCrime] = useState(false);
+
+  // ── Judicial Record Edit & Delete State ──
+  const [isEditRecordOpen, setIsEditRecordOpen] = useState(false);
+  const [recordToEdit, setRecordToEdit] = useState<CriminalHistoryItem | null>(null);
+  const [editRecordForm, setEditRecordForm] = useState({
+    courtCaseNumber: "",
+    offenceType: "",
+    description: "",
+    incidentDate: "",
+    location: "",
+    courtName: "",
+    status: "Under Investigation",
+    outcome: "Pending",
+    sentenceDetails: "",
+  });
+  const [isSavingEditRecord, setIsSavingEditRecord] = useState(false);
+
+  const [recordToDelete, setRecordToDelete] = useState<CriminalHistoryItem | null>(null);
+  const [isDeletingRecord, setIsDeletingRecord] = useState(false);
+
+  // ── Unlink Case State ──
+  const [caseToUnlink, setCaseToUnlink] = useState<RelatedCase | null>(null);
+  const [isUnlinkingCase, setIsUnlinkingCase] = useState(false);
+
+  // ── Update Suspect Case Role State ──
+  const [caseRoleToEdit, setCaseRoleToEdit] = useState<RelatedCase | null>(null);
+  const [editCaseRole, setEditCaseRole] = useState<SuspectRole>(SuspectRole.UNDER_INVESTIGATION);
+  const [editCaseStatus, setEditCaseStatus] = useState<SuspectCaseStatus>(SuspectCaseStatus.PERSON_OF_INTEREST);
+  const [isSavingCaseRole, setIsSavingCaseRole] = useState(false);
+
+  // ── Real-Time Event Sync ──
+  useCriminalRealtime({
+    criminalId: criminal.id,
+    criminalName: fullName,
+    onStatusUpdated: () => router.refresh(),
+    onRecordChanged: () => router.refresh(),
+  });
+
+  // Derived Demographics (Real subject values, never fabricated)
+  const height = (currentDemographics.height as string) || "Not Documented";
+  const weight = (currentDemographics.weight as string) || "Not Documented";
+  const build = (currentDemographics.build as string) || "Not Documented";
+  const eyeColor = (currentDemographics.eyeColor as string) || "Not Documented";
+  const hairColor = (currentDemographics.hairColor as string) || "Not Documented";
+  const complexion = (currentDemographics.complexion as string) || "Not Documented";
+  const distinctiveMarks =
+    (currentDemographics.distinctiveMarks as string) || "None documented";
+  const tattoos = (currentDemographics.tattoos as string) || "None documented";
+
+  const primaryCategory = (currentDemographics.primaryCategory as string) || "General Offence";
+  const secondaryCategories =
+    (currentDemographics.secondaryCategories as string) || "—";
+  const modusOperandi =
+    (currentDemographics.modusOperandi as string) || "Modus operandi under active investigation.";
+  const knownAreas =
+    (currentDemographics.knownAreas as string) || (criminal.lastKnownLocation || "Location Not Disclosed");
 
   // Attach Evidence State
   const [isAttachEvidenceOpen, setIsAttachEvidenceOpen] = useState(false);
@@ -1020,6 +1110,277 @@ export function CriminalProfileTabs({
     }
   };
 
+  const handleSavePhysicalInfo = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setIsSavingPhysical(true);
+    try {
+      const updatedDemographics = {
+        ...currentDemographics,
+        ...physicalForm,
+      };
+      const res = await updateCriminal({
+        id: criminal.id,
+        demographics: updatedDemographics,
+      });
+      if (res.error) {
+        toast.error(res.error);
+      } else {
+        setCurrentDemographics(updatedDemographics);
+        setIsEditPhysicalOpen(false);
+        toast.success("Physical demographics updated and persisted.");
+      }
+    } catch {
+      toast.error("Failed to update physical description.");
+    } finally {
+      setIsSavingPhysical(false);
+    }
+  };
+
+  const handleSaveCrimeInfo = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setIsSavingCrime(true);
+    try {
+      const updatedDemographics = {
+        ...currentDemographics,
+        primaryCategory: crimeForm.primaryCategory,
+        secondaryCategories: crimeForm.secondaryCategories,
+        modusOperandi: crimeForm.modusOperandi,
+        knownAreas: crimeForm.knownAreas,
+      };
+      const res = await updateCriminal({
+        id: criminal.id,
+        description: crimeForm.crimeSummary,
+        lastKnownLocation: crimeForm.knownAreas,
+        demographics: updatedDemographics,
+      });
+      if (res.error) {
+        toast.error(res.error);
+      } else {
+        setCurrentDemographics(updatedDemographics);
+        setCrimeSummary(crimeForm.crimeSummary);
+        setIsEditCrimeOpen(false);
+        toast.success("Crime information and MO updated.");
+      }
+    } catch {
+      toast.error("Failed to update crime information.");
+    } finally {
+      setIsSavingCrime(false);
+    }
+  };
+
+  const handleOpenEditRecord = (rec: CriminalHistoryItem) => {
+    setRecordToEdit(rec);
+    setEditRecordForm({
+      courtCaseNumber: rec.caseId,
+      offenceType: rec.offenceType,
+      description: rec.description,
+      incidentDate: rec.date || "",
+      location: rec.location,
+      courtName: rec.courtName || "",
+      status: rec.status,
+      outcome: rec.outcome || "Pending",
+      sentenceDetails: rec.sentenceDetails || "",
+    });
+    setIsEditRecordOpen(true);
+  };
+
+  const handleSaveEditRecord = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!recordToEdit) return;
+    setIsSavingEditRecord(true);
+    try {
+      const res = await updateCriminalRecord({
+        id: recordToEdit.id,
+        courtCaseNumber: editRecordForm.courtCaseNumber,
+        offenceType: editRecordForm.offenceType,
+        description: editRecordForm.description,
+        incidentDate: editRecordForm.incidentDate ? new Date(editRecordForm.incidentDate) : undefined,
+        location: editRecordForm.location,
+        courtName: editRecordForm.courtName || undefined,
+        status: editRecordForm.status,
+        outcome: editRecordForm.outcome || undefined,
+        sentenceDetails: editRecordForm.sentenceDetails || undefined,
+      });
+      if (res.error) {
+        toast.error(res.error);
+      } else {
+        setHistoryRecords((prev) =>
+          prev.map((r) =>
+            r.id === recordToEdit.id
+              ? {
+                  ...r,
+                  caseId: editRecordForm.courtCaseNumber,
+                  offenceType: editRecordForm.offenceType,
+                  description: editRecordForm.description,
+                  date: editRecordForm.incidentDate || r.date,
+                  location: editRecordForm.location,
+                  courtName: editRecordForm.courtName,
+                  status: editRecordForm.status,
+                  outcome: editRecordForm.outcome,
+                  sentenceDetails: editRecordForm.sentenceDetails,
+                }
+              : r
+          )
+        );
+        setIsEditRecordOpen(false);
+        setRecordToEdit(null);
+        toast.success("Judicial court record updated successfully.");
+      }
+    } catch {
+      toast.error("Failed to update judicial record.");
+    } finally {
+      setIsSavingEditRecord(false);
+    }
+  };
+
+  const handleConfirmDeleteRecord = async () => {
+    if (!recordToDelete) return;
+    setIsDeletingRecord(true);
+    try {
+      await deleteCriminalRecord(recordToDelete.id, criminal.id);
+      setHistoryRecords((prev) => prev.filter((r) => r.id !== recordToDelete.id));
+      toast.success(`Record ${recordToDelete.caseId} permanently purged from court ledger.`);
+      setRecordToDelete(null);
+    } catch {
+      toast.error("Failed to delete record.");
+    } finally {
+      setIsDeletingRecord(false);
+    }
+  };
+
+  const handleConfirmUnlinkCase = async () => {
+    if (!caseToUnlink?.id) return;
+    setIsUnlinkingCase(true);
+    try {
+      const res = await unlinkCriminalFromCase(caseToUnlink.id, criminal.id);
+      if (res.error) {
+        toast.error(res.error);
+      } else {
+        setCaseList((prev) => prev.filter((c) => c.id !== caseToUnlink.id));
+        toast.success(`Unlinked ${fullName} from Case ${caseToUnlink.caseNumber}`);
+        setCaseToUnlink(null);
+      }
+    } catch {
+      toast.error("Failed to unlink case.");
+    } finally {
+      setIsUnlinkingCase(false);
+    }
+  };
+
+  const handleSaveCaseRole = async () => {
+    if (!caseRoleToEdit?.id) return;
+    setIsSavingCaseRole(true);
+    try {
+      const res = await updateSuspectCaseRole({
+        caseId: caseRoleToEdit.id,
+        criminalId: criminal.id,
+        role: editCaseRole,
+        status: editCaseStatus,
+      });
+      if (res.error) {
+        toast.error(res.error);
+      } else {
+        setCaseList((prev) =>
+          prev.map((c) =>
+            c.id === caseRoleToEdit.id
+              ? {
+                  ...c,
+                  role: editCaseRole,
+                  suspectStatus: editCaseStatus,
+                }
+              : c
+          )
+        );
+        toast.success("Suspect role & FIR classification updated.");
+        setCaseRoleToEdit(null);
+      }
+    } catch {
+      toast.error("Failed to update role in case.");
+    } finally {
+      setIsSavingCaseRole(false);
+    }
+  };
+
+  const handleConfirmFaceMatch = async (candidateId: string, candidateCode: string) => {
+    try {
+      const res = await updateRecognitionMatchStatus({
+        resultId: candidateId,
+        status: "CONFIRMED",
+        notes: `Confirmed by investigator as positive biometric facial match for subject ${criminal.criminalId}`,
+      });
+      if (res.error) {
+        toast.error(res.error);
+      } else {
+        setMatchCandidates((prev) =>
+          prev.map((c) => (c.id === candidateId ? { ...c, status: "Match Found" } : c))
+        );
+        toast.success(`Biometric Match Confirmed for ${candidateCode}`, {
+          description: "Positive identification signed and logged to forensic audit ledger.",
+        });
+      }
+    } catch {
+      toast.error("Failed to confirm match.");
+    }
+  };
+
+  const handleRejectFaceMatch = async (candidateId: string, candidateCode: string) => {
+    try {
+      const res = await updateRecognitionMatchStatus({
+        resultId: candidateId,
+        status: "REJECTED",
+        notes: `Dismissed by investigator as non-matching vector candidate.`,
+      });
+      if (res.error) {
+        toast.error(res.error);
+      } else {
+        setMatchCandidates((prev) =>
+          prev.map((c) => (c.id === candidateId ? { ...c, status: "Inconclusive" } : c))
+        );
+        toast.info(`Candidate ${candidateCode} dismissed as non-match.`);
+      }
+    } catch {
+      toast.error("Failed to dismiss match.");
+    }
+  };
+
+  const handleExportRapSheet = () => {
+    const lines = [
+      `========================================================================`,
+      `TAMIL NADU POLICE • CRIME RECORDS BUREAU • OFFICIAL RAP SHEET`,
+      `========================================================================`,
+      `SUBJECT: ${fullName.toUpperCase()}`,
+      `CRIMINAL ID: ${criminal.criminalId}`,
+      `DATE OF BIRTH: ${criminal.dateOfBirth ? new Date(criminal.dateOfBirth).toLocaleDateString() : "N/A"}`,
+      `GENDER: ${criminal.gender || "N/A"} | NATIONALITY: ${criminal.nationality || "INDIAN"}`,
+      `CLASSIFICATION: ${criminal.status} | RISK LEVEL: ${criminal.riskLevel}`,
+      `TOTAL RECORDED CHARGES: ${historyRecords.length}`,
+      `------------------------------------------------------------------------`,
+      `CHRONOLOGICAL JUDICIAL OFFENCE LEDGER:`,
+      ...historyRecords.map((r, idx) =>
+        `[${idx + 1}] CASE NO: ${r.caseId} | INCIDENT DATE: ${r.date} | STATUS: ${r.status}\n` +
+        `    COURT: ${r.courtName || "Magistrate Court"} | OFFENCE: ${r.offenceType}\n` +
+        `    DISPOSITION: ${r.outcome || "Pending"} | SENTENCE: ${r.sentenceDetails || "None"}\n` +
+        `    LOCATION: ${r.location}\n` +
+        `    DETAILS: ${r.description}\n`
+      ),
+      `------------------------------------------------------------------------`,
+      `GENERATED ON: ${new Date().toISOString()} BY INVESTIGATOR`,
+      `CRYPTOGRAPHIC AUTHENTICATION STAMP: SHA-256 VALIDATED`,
+      `========================================================================`,
+    ].join("\n");
+
+    const blob = new Blob([lines], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `RAP-SHEET-${fullName.replace(/\s+/g, "_")}-${criminal.criminalId}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    toast.success("Official Judicial Rap Sheet exported successfully.");
+  };
+
   return (
     <div className="w-full space-y-4 sm:space-y-6">
       {/* ─────────────────────────────────────────────────────────────
@@ -1102,6 +1463,28 @@ export function CriminalProfileTabs({
                             Physical Description
                           </h3>
                         </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setPhysicalForm({
+                              height: (currentDemographics.height as string) || "",
+                              weight: (currentDemographics.weight as string) || "",
+                              build: (currentDemographics.build as string) || "Medium",
+                              eyeColor: (currentDemographics.eyeColor as string) || "Brown",
+                              hairColor: (currentDemographics.hairColor as string) || "Black",
+                              complexion: (currentDemographics.complexion as string) || "Medium",
+                              distinctiveMarks: (currentDemographics.distinctiveMarks as string) || "",
+                              tattoos: (currentDemographics.tattoos as string) || "",
+                            });
+                            setIsEditPhysicalOpen(true);
+                          }}
+                          className="h-7 px-2.5 gap-1.5 rounded-lg border-2 border-border/80 bg-background/50 hover:bg-[#665AEF]/15 hover:border-[#665AEF]/50 text-foreground text-xs font-semibold cursor-pointer shadow-2xs"
+                        >
+                          <Edit3 className="size-3 text-[#a594fd]" />
+                          <span>Edit</span>
+                        </Button>
                       </div>
 
                       {/* 2-Column Grid (Locked Baseline Alignment across Columns) */}
@@ -1392,6 +1775,25 @@ export function CriminalProfileTabs({
                             Crime Information
                           </h3>
                         </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setCrimeForm({
+                              primaryCategory: (currentDemographics.primaryCategory as string) || "General Offence",
+                              secondaryCategories: (currentDemographics.secondaryCategories as string) || "",
+                              modusOperandi: (currentDemographics.modusOperandi as string) || "",
+                              knownAreas: (currentDemographics.knownAreas as string) || (criminal.lastKnownLocation || ""),
+                              crimeSummary: crimeSummary || criminal.description || "",
+                            });
+                            setIsEditCrimeOpen(true);
+                          }}
+                          className="h-7 px-2.5 gap-1.5 rounded-lg border-2 border-border/80 bg-background/50 hover:bg-[#665AEF]/15 hover:border-[#665AEF]/50 text-foreground text-xs font-semibold cursor-pointer shadow-2xs"
+                        >
+                          <Edit3 className="size-3 text-[#a594fd]" />
+                          <span>Edit</span>
+                        </Button>
                       </div>
 
                       {/* Content Alignment: Structured, Clean, and Perfectly Proportioned */}
@@ -1643,28 +2045,77 @@ export function CriminalProfileTabs({
                       {caseList.length > 0 ? (
                         <div className="space-y-1.5 pt-3">
                           {caseList.map((c) => (
-                            <Link
+                            <div
                               key={c.caseNumber}
-                              href={`/case-details/${c.caseNumber}`}
                               className="flex items-center justify-between py-2 px-2.5 rounded-md border-2 border-border/40 bg-background/30 hover:bg-muted/50 hover:border-[#665AEF]/40 transition-all text-xs group"
                             >
-                              <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                              <Link
+                                href={`/case-details/${c.caseNumber}`}
+                                className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1 mr-2"
+                              >
                                 <span className="font-mono text-[10px] sm:text-[11px] font-semibold text-[#a594fd] group-hover:underline shrink-0 w-20 sm:w-24">
                                   {c.caseNumber}
                                 </span>
-                                <span className="text-foreground font-medium truncate group-hover:text-foreground transition-colors text-xs">
+                                <span className="text-foreground font-medium truncate group-hover:text-[#a594fd] transition-colors text-xs">
                                   {c.title}
                                 </span>
+                              </Link>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <span
+                                  className={cn(
+                                    "inline-flex items-center justify-center rounded-md border-2 px-1.5 sm:px-2 py-0.5 text-[9px] sm:text-[10px] font-semibold min-w-15.5 sm:min-w-17.5 text-center",
+                                    c.statusColor
+                                  )}
+                                >
+                                  {c.status}
+                                </span>
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger
+                                    render={
+                                      <Button
+                                        variant="ghost"
+                                        size="icon-xs"
+                                        className="size-6.5 rounded-md text-muted-foreground hover:text-foreground cursor-pointer"
+                                      />
+                                    }
+                                  >
+                                    <MoreHorizontal className="size-3.5" />
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent
+                                    align="end"
+                                    side="bottom"
+                                    sideOffset={4}
+                                    className="w-44 p-1 rounded-xl shadow-xl bg-card/95 backdrop-blur-xl border-2 border-border overflow-hidden"
+                                  >
+                                    <DropdownMenuItem
+                                      render={<Link href={`/case-details/${c.caseNumber}`} />}
+                                      className="relative z-0 group flex items-center gap-2 cursor-pointer px-2.5 py-1.5 rounded-md transition-colors hover:bg-muted/60 text-xs font-medium text-foreground/80 hover:text-foreground"
+                                    >
+                                      <ExternalLink className="size-3.5 text-muted-foreground" />
+                                      <span>View Case Dossier</span>
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      onClick={() => {
+                                        setCaseRoleToEdit(c);
+                                        setEditCaseRole(c.role || SuspectRole.UNDER_INVESTIGATION);
+                                        setEditCaseStatus(c.suspectStatus || SuspectCaseStatus.PERSON_OF_INTEREST);
+                                      }}
+                                      className="relative z-0 group flex items-center gap-2 cursor-pointer px-2.5 py-1.5 rounded-md transition-colors hover:bg-muted/60 text-xs font-medium text-foreground/80 hover:text-foreground"
+                                    >
+                                      <UserCheck className="size-3.5 text-[#a594fd]" />
+                                      <span>Update Suspect Role</span>
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      onClick={() => setCaseToUnlink(c)}
+                                      className="relative z-0 group flex items-center gap-2 cursor-pointer px-2.5 py-1.5 rounded-md transition-colors hover:bg-rose-500/10 text-xs font-medium text-rose-400 hover:text-rose-300"
+                                    >
+                                      <Unlink className="size-3.5 text-rose-400" />
+                                      <span>Unlink from Case</span>
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
                               </div>
-                              <span
-                                className={cn(
-                                  "inline-flex items-center justify-center rounded-md border-2 px-1.5 sm:px-2 py-0.5 text-[9px] sm:text-[10px] font-semibold shrink-0 ml-1.5 sm:ml-2 min-w-15.5 sm:min-w-17.5 text-center",
-                                  c.statusColor
-                                )}
-                              >
-                                {c.status}
-                              </span>
-                            </Link>
+                            </div>
                           ))}
                         </div>
                       ) : (
@@ -1948,6 +2399,17 @@ export function CriminalProfileTabs({
                       </DropdownMenuContent>
                     </DropdownMenu>
 
+                    {/* Export Rap Sheet Button */}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleExportRapSheet}
+                      className="h-9 px-3 text-xs font-medium rounded-lg border-2 border-border/80 bg-background/50 hover:bg-[#665AEF]/15 hover:border-[#665AEF]/50 text-foreground flex items-center gap-1.5 cursor-pointer shrink-0"
+                    >
+                      <Download className="size-3.5 text-[#a594fd]" />
+                      <span>Export Rap Sheet</span>
+                    </Button>
+
                     {/* Add Record Button */}
                     <Button
                       type="button"
@@ -2088,6 +2550,13 @@ export function CriminalProfileTabs({
                                     <span>Inspect Record</span>
                                   </DropdownMenuItem>
                                   <DropdownMenuItem
+                                    onClick={() => handleOpenEditRecord(item)}
+                                    className="relative z-0 group flex items-center gap-2 cursor-pointer px-2.5 py-1.5 rounded-md transition-colors hover:bg-muted/60 text-xs font-medium text-foreground/80 hover:text-foreground"
+                                  >
+                                    <Edit3 className="size-3.5 text-[#a594fd]" />
+                                    <span>Edit Record</span>
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
                                     onClick={() => {
                                       navigator.clipboard.writeText(item.caseId);
                                       toast.success(`Copied ${item.caseId}`);
@@ -2105,7 +2574,7 @@ export function CriminalProfileTabs({
                                     <span>View Case Dossier</span>
                                   </DropdownMenuItem>
                                   <DropdownMenuItem
-                                    onClick={() => handleDeleteCriminalRecord(item.id)}
+                                    onClick={() => setRecordToDelete(item)}
                                     className="relative z-0 group flex items-center gap-2 cursor-pointer px-2.5 py-1.5 rounded-md transition-colors hover:bg-rose-500/10 text-xs font-medium text-rose-400 hover:text-rose-300"
                                   >
                                     <Trash2 className="size-3.5 text-rose-400" />
@@ -2225,6 +2694,13 @@ export function CriminalProfileTabs({
                                   <span>Inspect Record</span>
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
+                                  onClick={() => handleOpenEditRecord(item)}
+                                  className="relative z-0 group flex items-center gap-2 cursor-pointer px-2.5 py-1.5 rounded-md transition-colors hover:bg-muted/60 text-xs font-medium text-foreground/80 hover:text-foreground"
+                                >
+                                  <Edit3 className="size-3.5 text-[#a594fd]" />
+                                  <span>Edit Record</span>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
                                   onClick={() => {
                                     navigator.clipboard.writeText(item.caseId);
                                     toast.success(`Copied ${item.caseId}`);
@@ -2242,7 +2718,7 @@ export function CriminalProfileTabs({
                                   <span>View Case Dossier</span>
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
-                                  onClick={() => handleDeleteCriminalRecord(item.id)}
+                                  onClick={() => setRecordToDelete(item)}
                                   className="relative z-0 group flex items-center gap-2 cursor-pointer px-2.5 py-1.5 rounded-md transition-colors hover:bg-rose-500/10 text-xs font-medium text-rose-400 hover:text-rose-300"
                                 >
                                   <Trash2 className="size-3.5 text-rose-400" />
@@ -2521,7 +2997,7 @@ export function CriminalProfileTabs({
                           <div className="min-w-0">
                             <div className="text-xs sm:text-sm font-semibold text-foreground truncate">Facial Recognition</div>
                             <div className="text-[10px] sm:text-[11px] font-normal text-muted-foreground truncate">
-                              Reference image for AI face matching.
+                              Reference mugshot enrolled for biometric vector matching.
                             </div>
                           </div>
                         </div>
@@ -2541,14 +3017,15 @@ export function CriminalProfileTabs({
                       {/* Content: Image with Cyber HUD + Metadata table */}
                       <div className="pt-3.5 sm:pt-5 flex flex-col sm:flex-row gap-3.5 sm:gap-5 items-start">
                         {/* Reference Face Image with AI HUD corner brackets */}
-                        <div className="relative w-full sm:w-44 h-48 sm:h-44 rounded-md overflow-hidden border-2 border-border/80 bg-black/80 shrink-0 group">
+                        <div className="relative w-full aspect-4/5 max-h-96 sm:max-h-none sm:aspect-auto sm:w-48 sm:h-52 rounded-xl overflow-hidden border-2 border-border/80 bg-black/80 shrink-0 group shadow-sm">
                           {mugshotDisplayUrl && !mugshotDisplayUrl.includes("fly.storage.tigris.dev//") ? (
                             <Image
                               src={mugshotDisplayUrl}
                               alt={criminal.firstName}
                               fill
-                              className="object-cover"
-                              sizes="200px"
+                              className="object-cover object-top sm:object-center transition-transform duration-500 group-hover:scale-105"
+                              sizes="(max-width: 640px) 100vw, 200px"
+                              unoptimized={mugshotDisplayUrl.startsWith("/api/storage")}
                             />
                           ) : (
                             <SuspectAvatar
@@ -2560,19 +3037,23 @@ export function CriminalProfileTabs({
                             />
                           )}
 
-                          {/* Cybernetic Face Detection HUD corner brackets */}
-                          <div className="absolute inset-2.5 pointer-events-none">
-                            <div className="absolute top-0 left-0 w-3.5 h-3.5 border-t-2 border-l-2 border-cyan-400" />
-                            <div className="absolute top-0 right-0 w-3.5 h-3.5 border-t-2 border-r-2 border-cyan-400" />
-                            <div className="absolute bottom-0 left-0 w-3.5 h-3.5 border-b-2 border-l-2 border-cyan-400" />
-                            <div className="absolute bottom-0 right-0 w-3.5 h-3.5 border-b-2 border-r-2 border-cyan-400" />
-                          </div>
+                          {/* Subtle bottom gradient vignette */}
+                          <div className="absolute inset-x-0 bottom-0 h-16 bg-linear-to-t from-black/80 via-black/20 to-transparent pointer-events-none" />
 
-                          {/* Live Enrolled Tag */}
-                          <span className="absolute bottom-2 left-2 text-[9px] font-mono font-semibold px-1.5 py-0.5 rounded bg-black/85 text-cyan-400 border border-cyan-400/50 flex items-center gap-1">
-                            <span className="size-1 rounded-full bg-cyan-400 animate-pulse" />
-                            <span>AI-INDEXED</span>
-                          </span>
+                          {/* Clean Status Badge */}
+                          <div className="absolute bottom-2.5 left-2.5 inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-black/80 backdrop-blur-md border border-border/80 shadow-xs">
+                            <span
+                              className={cn(
+                                "size-1.5 rounded-full",
+                                criminal.biometricEnrolledAt || mugshotDisplayUrl
+                                  ? "bg-emerald-400"
+                                  : "bg-amber-400"
+                              )}
+                            />
+                            <span className="text-[10px] font-medium text-foreground">
+                              {criminal.biometricEnrolledAt || mugshotDisplayUrl ? "Biometric Reference" : "Pending Mugshot"}
+                            </span>
+                          </div>
                         </div>
 
                         {/* Metadata Rows */}
@@ -2706,7 +3187,7 @@ export function CriminalProfileTabs({
                                     src={cand.imageSrc}
                                     alt={cand.name}
                                     fill
-                                    className="object-cover transition-transform duration-300 group-hover:scale-105"
+                                    className="object-cover object-top transition-transform duration-300 group-hover:scale-105"
                                     sizes="160px"
                                   />
                                 ) : (
@@ -2722,9 +3203,9 @@ export function CriminalProfileTabs({
                                   className={cn(
                                     "absolute bottom-1.5 right-1.5 px-1.5 py-0.5 rounded-md text-[10px] font-mono font-bold border-2 shadow-xs",
                                     cand.confidence >= 90
-                                      ? "bg-cyan-950/90 border-cyan-400 text-cyan-300"
+                                      ? "bg-[#665AEF]/20 border-[#665AEF]/70 text-[#c0b3ff]"
                                       : cand.confidence > 0
-                                      ? "bg-blue-950/90 border-blue-500 text-blue-300"
+                                      ? "bg-[#665AEF]/10 border-[#665AEF]/40 text-[#a594fd]"
                                       : "bg-slate-900/90 border-border text-muted-foreground"
                                   )}
                                 >
@@ -3135,6 +3616,30 @@ export function CriminalProfileTabs({
                                       >
                                         <Copy className="size-3 text-muted-foreground" />
                                         <span>Copy Match ID</span>
+                                       </button>
+
+                                       <button
+                                         type="button"
+                                         onClick={() => {
+                                           handleConfirmFaceMatch(item.id, item.matchCode);
+                                           setOpenBiometricActionRowId(null);
+                                         }}
+                                         className="w-full text-left text-xs px-2.5 py-1.5 rounded-md text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 transition-colors flex items-center gap-2 cursor-pointer"
+                                       >
+                                         <Check className="size-3 text-emerald-400" />
+                                         <span>Confirm Match</span>
+                                       </button>
+
+                                       <button
+                                         type="button"
+                                         onClick={() => {
+                                           handleRejectFaceMatch(item.id, item.matchCode);
+                                           setOpenBiometricActionRowId(null);
+                                         }}
+                                         className="w-full text-left text-xs px-2.5 py-1.5 rounded-md text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 transition-colors flex items-center gap-2 cursor-pointer"
+                                       >
+                                         <X className="size-3 text-rose-400" />
+                                         <span>Dismiss Candidate</span>
                                       </button>
                                     </div>
                                   )}
@@ -4012,103 +4517,96 @@ export function CriminalProfileTabs({
       </Modal>
 
       {/* ─────────────────────────────────────────────────────────────
-          MODAL 2: BIOMETRIC FULL-IMAGE INSPECTOR LIGHTBOX
+          BIOMETRIC REFERENCE PHOTO DIALOG (CLEAN SHADCN COMPONENT)
           ───────────────────────────────────────────────────────────── */}
-      <Modal
-        isOpen={isBiometricLightboxOpen}
-        onClose={() => setIsBiometricLightboxOpen(false)}
-        maxWidth="max-w-xl"
-        className="border-2 border-border/90 bg-[#0B0F17]/95 backdrop-blur-xl shadow-2xl rounded-lg"
-        title={
-          <div className="flex items-center gap-3">
-            <div className="flex size-9 items-center justify-center rounded-md bg-[#665AEF]/20 text-[#a594fd] border-2 border-[#665AEF]/40 shadow-xs shadow-[#665AEF]/20 shrink-0">
-              <Scan className="size-5" />
+      <Dialog open={isBiometricLightboxOpen} onOpenChange={setIsBiometricLightboxOpen}>
+        <DialogContent className="sm:max-w-xl bg-card border border-border text-foreground p-0 overflow-hidden shadow-2xl rounded-2xl gap-0">
+          {/* Header */}
+          <DialogHeader className="p-4 sm:p-5 border-b border-border/70 flex flex-row items-center justify-between space-y-0">
+            <div className="flex items-center gap-2.5 min-w-0 pr-6">
+              <div className="flex size-9 items-center justify-center rounded-lg bg-[#665AEF]/15 text-[#a594fd] border border-[#665AEF]/30 shrink-0">
+                <Scan className="size-4.5" />
+              </div>
+              <div className="min-w-0">
+                <DialogTitle className="text-sm sm:text-base font-semibold text-foreground truncate">
+                  Biometric Reference Photo
+                </DialogTitle>
+                <DialogDescription className="text-xs text-muted-foreground mt-0.5 truncate">
+                  {criminal.firstName} {criminal.lastName} • {criminal.criminalId}
+                </DialogDescription>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-base font-semibold text-foreground">Biometric Reference Crop</span>
-              <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-md bg-[#665AEF]/15 text-[#a594fd] border-2 border-[#665AEF]/30 uppercase tracking-wider">
-                FACE-{(criminal.criminalId || criminal.id).slice(-4).toUpperCase()}
-              </span>
+          </DialogHeader>
+
+          {/* Clean Photo Viewport */}
+          <div className="p-4 sm:p-5 space-y-3.5">
+            <div className="relative w-full rounded-xl overflow-hidden border border-border bg-black/40 flex items-center justify-center">
+              {mugshotDisplayUrl && !mugshotDisplayUrl.includes("fly.storage.tigris.dev//") ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={mugshotDisplayUrl}
+                  alt={`${criminal.firstName} ${criminal.lastName}`}
+                  className="w-full h-auto max-h-[52vh] object-contain rounded-xl block mx-auto"
+                />
+              ) : (
+                <div className="aspect-square w-full flex items-center justify-center bg-black/40">
+                  <SuspectAvatar
+                    name={`${criminal.firstName} ${criminal.lastName}`}
+                    status={criminal.status}
+                    riskLevel={criminal.riskLevel}
+                    size="fill"
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Clean Metadata Information Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+              <div className="rounded-lg border border-border/70 bg-muted/30 p-2.5">
+                <span className="text-[11px] text-muted-foreground block">Subject</span>
+                <span className="font-semibold text-foreground text-xs mt-0.5 block truncate">
+                  {criminal.firstName} {criminal.lastName}
+                </span>
+              </div>
+              <div className="rounded-lg border border-border/70 bg-muted/30 p-2.5">
+                <span className="text-[11px] text-muted-foreground block">Criminal ID</span>
+                <span className="font-semibold text-foreground text-xs mt-0.5 block font-mono truncate">
+                  {criminal.criminalId}
+                </span>
+              </div>
+              <div className="rounded-lg border border-border/70 bg-muted/30 p-2.5">
+                <span className="text-[11px] text-muted-foreground block">Resolution</span>
+                <span className="font-semibold text-foreground text-xs mt-0.5 block font-mono">
+                  {mugshotDisplayUrl ? "512 × 512 px" : "N/A"}
+                </span>
+              </div>
+              <div className="rounded-lg border border-border/70 bg-muted/30 p-2.5">
+                <span className="text-[11px] text-muted-foreground block">Status</span>
+                <span className="font-semibold text-emerald-400 text-xs mt-0.5 inline-flex items-center gap-1.5">
+                  <span className="size-1.5 rounded-full bg-emerald-400" />
+                  {criminal.biometricEnrolledAt || mugshotDisplayUrl ? "Enrolled" : "Pending"}
+                </span>
+              </div>
             </div>
           </div>
-        }
-        description="High-resolution enrolled mugshot frame with active 512D biometric vector signature."
-        footer={
-          <div className="flex items-center justify-between w-full">
-            <span className="text-[11px] text-muted-foreground/80 font-mono">
-              ArcFace • 68 Facial Landmarks Extracted
+
+          {/* Footer */}
+          <DialogFooter className="px-4 py-3 sm:px-5 border-t border-border/70 bg-muted/20 flex flex-row items-center justify-between sm:justify-between m-0 rounded-none">
+            <span className="text-xs text-muted-foreground font-mono">
+              ID: {criminal.criminalId}
             </span>
             <Button
               type="button"
               variant="outline"
               size="sm"
               onClick={() => setIsBiometricLightboxOpen(false)}
-              className="h-8 px-4 text-xs font-semibold rounded-md border-2 border-border/80 bg-background/50 hover:bg-muted cursor-pointer"
+              className="cursor-pointer"
             >
               Close
             </Button>
-          </div>
-        }
-      >
-        <div className="space-y-4 pt-1">
-          <div className="relative aspect-square w-full rounded-md overflow-hidden border-2 border-border/80 bg-black">
-            {mugshotDisplayUrl && !mugshotDisplayUrl.includes("fly.storage.tigris.dev//") ? (
-              <Image
-                src={mugshotDisplayUrl}
-                alt="High-resolution reference face"
-                fill
-                className="object-cover"
-                sizes="500px"
-              />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center bg-black/40">
-                <SuspectAvatar
-                  name={`${criminal.firstName} ${criminal.lastName}`}
-                  status={criminal.status}
-                  riskLevel={criminal.riskLevel}
-                  size="fill"
-                />
-              </div>
-            )}
-            {/* Cyber HUD targeting reticle */}
-            <div className="absolute inset-4 pointer-events-none">
-              <div className="absolute top-0 left-0 w-6 h-6 border-t-2 border-l-2 border-cyan-400" />
-              <div className="absolute top-0 right-0 w-6 h-6 border-t-2 border-r-2 border-cyan-400" />
-              <div className="absolute bottom-0 left-0 w-6 h-6 border-b-2 border-l-2 border-cyan-400" />
-              <div className="absolute bottom-0 right-0 w-6 h-6 border-b-2 border-r-2 border-cyan-400" />
-              <div className="absolute inset-x-0 top-1/2 h-px bg-cyan-400/20" />
-              <div className="absolute inset-y-0 left-1/2 w-px bg-cyan-400/20" />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3 text-xs">
-            <div className="p-2.5 rounded-md border-2 border-border/70 bg-muted/20">
-              <span className="text-[10px] text-muted-foreground uppercase font-medium block">Resolution</span>
-              <span className="font-mono font-semibold text-foreground">
-                {mugshotDisplayUrl ? "512 × 512 px (ArcFace)" : "N/A (Avatar Reference)"}
-              </span>
-            </div>
-            <div className="p-2.5 rounded-md border-2 border-border/70 bg-muted/20">
-              <span className="text-[10px] text-muted-foreground uppercase font-medium block">Enrollment Date</span>
-              <span className="font-mono font-semibold text-foreground">
-                {(criminal as any).biometricEnrolledAt
-                  ? new Date((criminal as any).biometricEnrolledAt).toLocaleDateString("en-US", {
-                      month: "short",
-                      day: "numeric",
-                      year: "numeric",
-                    })
-                  : criminal.createdAt
-                  ? new Date(criminal.createdAt).toLocaleDateString("en-US", {
-                      month: "short",
-                      day: "numeric",
-                      year: "numeric",
-                    })
-                  : "Not Enrolled"}
-              </span>
-            </div>
-          </div>
-        </div>
-      </Modal>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* ─────────────────────────────────────────────────────────────
           MODAL 3: CANDIDATE VECTOR COMPARISON MODAL
@@ -4133,24 +4631,53 @@ export function CriminalProfileTabs({
         }
         description="Side-by-side vector landmark similarity comparison against reference mugshot."
         footer={
-          <div className="flex items-center justify-between w-full">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 w-full">
             <Link
               href={`/dashboard/criminals/${selectedCandidate?.code}`}
               onClick={() => setSelectedCandidate(null)}
-              className="text-xs font-semibold text-[#a594fd] hover:underline flex items-center gap-1"
+              className="text-xs font-semibold text-[#a594fd] hover:underline flex items-center gap-1 self-start sm:self-auto"
             >
               <span>Open Suspect Profile</span>
               <ExternalLink className="size-3" />
             </Link>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setSelectedCandidate(null)}
-              className="h-8 px-4 text-xs font-semibold rounded-md border-2 border-border/80 bg-background/50 hover:bg-muted cursor-pointer"
-            >
-              Close
-            </Button>
+            <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  if (selectedCandidate) {
+                    handleRejectFaceMatch(selectedCandidate.id, selectedCandidate.code);
+                    setSelectedCandidate(null);
+                  }
+                }}
+                className="h-8 px-3 text-xs font-semibold rounded-md border-rose-500/30 text-rose-400 hover:bg-rose-500/10 cursor-pointer"
+              >
+                Dismiss Match
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => {
+                  if (selectedCandidate) {
+                    handleConfirmFaceMatch(selectedCandidate.id, selectedCandidate.code);
+                    setSelectedCandidate(null);
+                  }
+                }}
+                className="h-8 px-3 text-xs font-semibold rounded-md bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer"
+              >
+                Confirm Match
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setSelectedCandidate(null)}
+                className="h-8 px-3 text-xs font-semibold rounded-md border-2 border-border/80 bg-background/50 hover:bg-muted cursor-pointer"
+              >
+                Close
+              </Button>
+            </div>
           </div>
         }
       >
@@ -4168,8 +4695,9 @@ export function CriminalProfileTabs({
                       src={mugshotDisplayUrl}
                       alt="Reference"
                       fill
-                      className="object-cover"
+                      className="object-cover object-top"
                       sizes="200px"
+                      unoptimized={mugshotDisplayUrl.startsWith("/api/storage")}
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center bg-black/40">
@@ -4198,7 +4726,7 @@ export function CriminalProfileTabs({
                       src={selectedCandidate.imageSrc}
                       alt={selectedCandidate.name}
                       fill
-                      className="object-cover"
+                      className="object-cover object-top"
                       sizes="200px"
                     />
                   ) : (
@@ -4208,7 +4736,7 @@ export function CriminalProfileTabs({
                       size="fill"
                     />
                   )}
-                  <span className="absolute bottom-1.5 left-1.5 text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-black/85 text-cyan-300 border border-cyan-400/60">
+                  <span className="absolute bottom-1.5 left-1.5 text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-black/85 text-[#a594fd] border border-[#665AEF]/50">
                     {selectedCandidate.name}
                   </span>
                 </div>
@@ -4465,6 +4993,562 @@ export function CriminalProfileTabs({
           router.refresh();
         }}
       />
+
+      {/* ─────────────────────────────────────────────────────────────
+          MODAL 6: QUICK EDIT PHYSICAL DESCRIPTION
+          ───────────────────────────────────────────────────────────── */}
+      <Modal
+        isOpen={isEditPhysicalOpen}
+        onClose={() => setIsEditPhysicalOpen(false)}
+        maxWidth="max-w-xl"
+        className="border-2 border-border/90 bg-[#0B0F17]/95 backdrop-blur-xl shadow-2xl rounded-xl"
+        title={
+          <div className="flex items-center gap-2.5">
+            <div className="flex size-8.5 items-center justify-center rounded-lg bg-[#665AEF]/20 text-[#a594fd] border border-[#665AEF]/30 shrink-0">
+              <Ruler className="size-4" />
+            </div>
+            <div>
+              <span className="text-sm sm:text-base font-semibold text-foreground">
+                Edit Physical Demographics
+              </span>
+              <p className="text-[11px] text-muted-foreground">
+                Update forensic biometric attributes for {fullName}
+              </p>
+            </div>
+          </div>
+        }
+        footer={
+          <div className="flex items-center justify-end gap-2 w-full">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setIsEditPhysicalOpen(false)}
+              className="h-8.5 px-3 text-xs"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              onClick={handleSavePhysicalInfo}
+              disabled={isSavingPhysical}
+              className="h-8.5 px-4 text-xs bg-[#665AEF] hover:bg-[#5749DF] text-white font-semibold cursor-pointer"
+            >
+              {isSavingPhysical ? "Saving..." : "Save Demographics"}
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-3.5 text-xs">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="text-[11px] font-medium text-muted-foreground">Height</label>
+              <Input
+                value={physicalForm.height}
+                onChange={(e) => setPhysicalForm({ ...physicalForm, height: e.target.value })}
+                placeholder={'e.g. 5\'11" (180 cm)'}
+                className="h-8.5 text-xs bg-background/50 border-border/80"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[11px] font-medium text-muted-foreground">Weight</label>
+              <Input
+                value={physicalForm.weight}
+                onChange={(e) => setPhysicalForm({ ...physicalForm, weight: e.target.value })}
+                placeholder="e.g. 78 kg"
+                className="h-8.5 text-xs bg-background/50 border-border/80"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            <div className="space-y-1">
+              <label className="text-[11px] font-medium text-muted-foreground">Build</label>
+              <Input
+                value={physicalForm.build}
+                onChange={(e) => setPhysicalForm({ ...physicalForm, build: e.target.value })}
+                placeholder="Slim / Medium / Heavy"
+                className="h-8.5 text-xs bg-background/50 border-border/80"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[11px] font-medium text-muted-foreground">Eye Color</label>
+              <Input
+                value={physicalForm.eyeColor}
+                onChange={(e) => setPhysicalForm({ ...physicalForm, eyeColor: e.target.value })}
+                placeholder="Brown / Black / Hazel"
+                className="h-8.5 text-xs bg-background/50 border-border/80"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[11px] font-medium text-muted-foreground">Hair Color</label>
+              <Input
+                value={physicalForm.hairColor}
+                onChange={(e) => setPhysicalForm({ ...physicalForm, hairColor: e.target.value })}
+                placeholder="Black / Brown / Bald"
+                className="h-8.5 text-xs bg-background/50 border-border/80"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[11px] font-medium text-muted-foreground">Complexion</label>
+            <Input
+              value={physicalForm.complexion}
+              onChange={(e) => setPhysicalForm({ ...physicalForm, complexion: e.target.value })}
+              placeholder="Fair / Medium / Wheatish / Dark"
+              className="h-8.5 text-xs bg-background/50 border-border/80"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[11px] font-medium text-muted-foreground">Distinctive Scars & Marks</label>
+            <Input
+              value={physicalForm.distinctiveMarks}
+              onChange={(e) => setPhysicalForm({ ...physicalForm, distinctiveMarks: e.target.value })}
+              placeholder="e.g. 2-inch surgical scar on left forearm"
+              className="h-8.5 text-xs bg-background/50 border-border/80"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[11px] font-medium text-muted-foreground">Tattoos</label>
+            <Input
+              value={physicalForm.tattoos}
+              onChange={(e) => setPhysicalForm({ ...physicalForm, tattoos: e.target.value })}
+              placeholder="e.g. Scorpion tattoo on right neck"
+              className="h-8.5 text-xs bg-background/50 border-border/80"
+            />
+          </div>
+        </div>
+      </Modal>
+
+      {/* ─────────────────────────────────────────────────────────────
+          MODAL 7: QUICK EDIT CRIME INFO & MODUS OPERANDI
+          ───────────────────────────────────────────────────────────── */}
+      <Modal
+        isOpen={isEditCrimeOpen}
+        onClose={() => setIsEditCrimeOpen(false)}
+        maxWidth="max-w-xl"
+        className="border-2 border-border/90 bg-[#0B0F17]/95 backdrop-blur-xl shadow-2xl rounded-xl"
+        title={
+          <div className="flex items-center gap-2.5">
+            <div className="flex size-8.5 items-center justify-center rounded-lg bg-[#665AEF]/20 text-[#a594fd] border border-[#665AEF]/30 shrink-0">
+              <BookOpen className="size-4" />
+            </div>
+            <div>
+              <span className="text-sm sm:text-base font-semibold text-foreground">
+                Edit Crime Information & MO
+              </span>
+              <p className="text-[11px] text-muted-foreground">
+                Operational patterns, weapons, and jurisdiction
+              </p>
+            </div>
+          </div>
+        }
+        footer={
+          <div className="flex items-center justify-end gap-2 w-full">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setIsEditCrimeOpen(false)}
+              className="h-8.5 px-3 text-xs"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              onClick={handleSaveCrimeInfo}
+              disabled={isSavingCrime}
+              className="h-8.5 px-4 text-xs bg-[#665AEF] hover:bg-[#5749DF] text-white font-semibold cursor-pointer"
+            >
+              {isSavingCrime ? "Saving..." : "Save Crime Details"}
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-3.5 text-xs">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="text-[11px] font-medium text-muted-foreground">Primary Category</label>
+              <Input
+                value={crimeForm.primaryCategory}
+                onChange={(e) => setCrimeForm({ ...crimeForm, primaryCategory: e.target.value })}
+                placeholder="e.g. Armed Robbery / Cyber Fraud"
+                className="h-8.5 text-xs bg-background/50 border-border/80"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[11px] font-medium text-muted-foreground">Secondary Categories</label>
+              <Input
+                value={crimeForm.secondaryCategories}
+                onChange={(e) => setCrimeForm({ ...crimeForm, secondaryCategories: e.target.value })}
+                placeholder="e.g. Narcotics, Extortion"
+                className="h-8.5 text-xs bg-background/50 border-border/80"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[11px] font-medium text-muted-foreground">Typical Modus Operandi (MO)</label>
+            <textarea
+              rows={2}
+              value={crimeForm.modusOperandi}
+              onChange={(e) => setCrimeForm({ ...crimeForm, modusOperandi: e.target.value })}
+              placeholder="Describe operating techniques, entry methods, escape tactics..."
+              className="w-full px-3 py-2 rounded-lg bg-background/50 border border-border/80 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-[#665AEF]"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[11px] font-medium text-muted-foreground">Known Operating Areas / Jurisdiction</label>
+            <Input
+              value={crimeForm.knownAreas}
+              onChange={(e) => setCrimeForm({ ...crimeForm, knownAreas: e.target.value })}
+              placeholder="e.g. Chennai Central, Madurai South"
+              className="h-8.5 text-xs bg-background/50 border-border/80"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[11px] font-medium text-muted-foreground">Executive Intelligence Summary</label>
+            <textarea
+              rows={3}
+              value={crimeForm.crimeSummary}
+              onChange={(e) => setCrimeForm({ ...crimeForm, crimeSummary: e.target.value })}
+              placeholder="High-level background summary for briefing documents..."
+              className="w-full px-3 py-2 rounded-lg bg-background/50 border border-border/80 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-[#665AEF]"
+            />
+          </div>
+        </div>
+      </Modal>
+
+      {/* ─────────────────────────────────────────────────────────────
+          MODAL 8: EDIT JUDICIAL RECORD
+          ───────────────────────────────────────────────────────────── */}
+      <Modal
+        isOpen={isEditRecordOpen}
+        onClose={() => setIsEditRecordOpen(false)}
+        maxWidth="max-w-2xl"
+        className="border-2 border-border/90 bg-[#0B0F17]/95 backdrop-blur-xl shadow-2xl rounded-xl"
+        title={
+          <div className="flex items-center gap-2.5">
+            <div className="flex size-8.5 items-center justify-center rounded-lg bg-[#665AEF]/20 text-[#a594fd] border border-[#665AEF]/30 shrink-0">
+              <FolderClock className="size-4" />
+            </div>
+            <div>
+              <span className="text-sm sm:text-base font-semibold text-foreground">
+                Edit Judicial Docket {recordToEdit?.caseId}
+              </span>
+              <p className="text-[11px] text-muted-foreground">
+                Update charges, court dispositions, or sentences
+              </p>
+            </div>
+          </div>
+        }
+        footer={
+          <div className="flex items-center justify-end gap-2 w-full">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setIsEditRecordOpen(false)}
+              className="h-8.5 px-3 text-xs"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              onClick={handleSaveEditRecord}
+              disabled={isSavingEditRecord}
+              className="h-8.5 px-4 text-xs bg-[#665AEF] hover:bg-[#5749DF] text-white font-semibold cursor-pointer"
+            >
+              {isSavingEditRecord ? "Saving..." : "Save Changes"}
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-3.5 text-xs">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="text-[11px] font-medium text-muted-foreground">Court Case / FIR Number</label>
+              <Input
+                value={editRecordForm.courtCaseNumber}
+                onChange={(e) => setEditRecordForm({ ...editRecordForm, courtCaseNumber: e.target.value })}
+                className="h-8.5 text-xs font-mono bg-background/50 border-border/80"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[11px] font-medium text-muted-foreground">Offence / Penal Section</label>
+              <Input
+                value={editRecordForm.offenceType}
+                onChange={(e) => setEditRecordForm({ ...editRecordForm, offenceType: e.target.value })}
+                className="h-8.5 text-xs bg-background/50 border-border/80"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-3">
+            <div className="space-y-1">
+              <label className="text-[11px] font-medium text-muted-foreground">Incident Date</label>
+              <Input
+                type="date"
+                value={editRecordForm.incidentDate}
+                onChange={(e) => setEditRecordForm({ ...editRecordForm, incidentDate: e.target.value })}
+                className="h-8.5 text-xs bg-background/50 border-border/80"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[11px] font-medium text-muted-foreground">Status</label>
+              <Input
+                value={editRecordForm.status}
+                onChange={(e) => setEditRecordForm({ ...editRecordForm, status: e.target.value })}
+                className="h-8.5 text-xs bg-background/50 border-border/80"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[11px] font-medium text-muted-foreground">Outcome</label>
+              <Input
+                value={editRecordForm.outcome}
+                onChange={(e) => setEditRecordForm({ ...editRecordForm, outcome: e.target.value })}
+                placeholder="Convicted / Trial / Acquitted"
+                className="h-8.5 text-xs bg-background/50 border-border/80"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="text-[11px] font-medium text-muted-foreground">Location</label>
+              <Input
+                value={editRecordForm.location}
+                onChange={(e) => setEditRecordForm({ ...editRecordForm, location: e.target.value })}
+                className="h-8.5 text-xs bg-background/50 border-border/80"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[11px] font-medium text-muted-foreground">Presiding Court</label>
+              <Input
+                value={editRecordForm.courtName}
+                onChange={(e) => setEditRecordForm({ ...editRecordForm, courtName: e.target.value })}
+                className="h-8.5 text-xs bg-background/50 border-border/80"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[11px] font-medium text-muted-foreground">Sentence Details / Order</label>
+            <Input
+              value={editRecordForm.sentenceDetails}
+              onChange={(e) => setEditRecordForm({ ...editRecordForm, sentenceDetails: e.target.value })}
+              placeholder="e.g. 5 Years Rigorous Imprisonment + ₹50,000 fine"
+              className="h-8.5 text-xs bg-background/50 border-border/80"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[11px] font-medium text-muted-foreground">Detailed Offence Description</label>
+            <textarea
+              rows={3}
+              value={editRecordForm.description}
+              onChange={(e) => setEditRecordForm({ ...editRecordForm, description: e.target.value })}
+              className="w-full px-3 py-2 rounded-lg bg-background/50 border border-border/80 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-[#665AEF]"
+            />
+          </div>
+        </div>
+      </Modal>
+
+      {/* ─────────────────────────────────────────────────────────────
+          MODAL 9: DELETE JUDICIAL RECORD CONFIRMATION
+          ───────────────────────────────────────────────────────────── */}
+      <Modal
+        isOpen={recordToDelete !== null}
+        onClose={() => setRecordToDelete(null)}
+        maxWidth="max-w-md"
+        className="border-2 border-border/90 bg-[#0B0F17]/95 backdrop-blur-xl shadow-2xl rounded-xl"
+        title={
+          <div className="flex items-center gap-2.5 text-rose-400">
+            <div className="flex size-8.5 items-center justify-center rounded-lg bg-rose-500/20 text-rose-400 border border-rose-500/30 shrink-0">
+              <Trash2 className="size-4" />
+            </div>
+            <div>
+              <span className="text-sm sm:text-base font-semibold text-foreground">
+                Delete Judicial Record?
+              </span>
+              <p className="text-[11px] text-muted-foreground">
+                This action is audited and permanently purges docket {recordToDelete?.caseId}
+              </p>
+            </div>
+          </div>
+        }
+        footer={
+          <div className="flex items-center justify-end gap-2 w-full">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setRecordToDelete(null)}
+              className="h-8.5 px-3 text-xs"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="destructive"
+              onClick={handleConfirmDeleteRecord}
+              disabled={isDeletingRecord}
+              className="h-8.5 px-4 text-xs font-semibold cursor-pointer"
+            >
+              {isDeletingRecord ? "Purging..." : "Confirm Purge"}
+            </Button>
+          </div>
+        }
+      >
+        <p className="text-xs text-muted-foreground leading-relaxed">
+          Are you sure you want to delete the judicial court record for{" "}
+          <strong className="text-foreground">{recordToDelete?.caseId}</strong> ({recordToDelete?.offenceType})?
+          This entry will be permanently removed from the central state crime repository.
+        </p>
+      </Modal>
+
+      {/* ─────────────────────────────────────────────────────────────
+          MODAL 10: UNLINK FROM CASE CONFIRMATION
+          ───────────────────────────────────────────────────────────── */}
+      <Modal
+        isOpen={caseToUnlink !== null}
+        onClose={() => setCaseToUnlink(null)}
+        maxWidth="max-w-md"
+        className="border-2 border-border/90 bg-[#0B0F17]/95 backdrop-blur-xl shadow-2xl rounded-xl"
+        title={
+          <div className="flex items-center gap-2.5 text-amber-400">
+            <div className="flex size-8.5 items-center justify-center rounded-lg bg-amber-500/20 text-amber-400 border border-amber-500/30 shrink-0">
+              <FolderKanban className="size-4" />
+            </div>
+            <div>
+              <span className="text-sm sm:text-base font-semibold text-foreground">
+                Unlink from FIR Case?
+              </span>
+              <p className="text-[11px] text-muted-foreground">
+                Remove suspect binding from Case {caseToUnlink?.caseNumber}
+              </p>
+            </div>
+          </div>
+        }
+        footer={
+          <div className="flex items-center justify-end gap-2 w-full">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setCaseToUnlink(null)}
+              className="h-8.5 px-3 text-xs"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="destructive"
+              onClick={handleConfirmUnlinkCase}
+              disabled={isUnlinkingCase}
+              className="h-8.5 px-4 text-xs font-semibold cursor-pointer"
+            >
+              {isUnlinkingCase ? "Unlinking..." : "Unlink Suspect"}
+            </Button>
+          </div>
+        }
+      >
+        <p className="text-xs text-muted-foreground leading-relaxed">
+          Are you sure you want to unlink <strong className="text-foreground">{fullName}</strong> from{" "}
+          <strong className="text-foreground">Case {caseToUnlink?.caseNumber}</strong>? The suspect will no longer appear
+          under this FIR's active investigation docket.
+        </p>
+      </Modal>
+
+      {/* ─────────────────────────────────────────────────────────────
+          MODAL 11: UPDATE SUSPECT CASE ROLE & STATUS
+          ───────────────────────────────────────────────────────────── */}
+      <Modal
+        isOpen={caseRoleToEdit !== null}
+        onClose={() => setCaseRoleToEdit(null)}
+        maxWidth="max-w-md"
+        className="border-2 border-border/90 bg-[#0B0F17]/95 backdrop-blur-xl shadow-2xl rounded-xl"
+        title={
+          <div className="flex items-center gap-2.5">
+            <div className="flex size-8.5 items-center justify-center rounded-lg bg-[#665AEF]/20 text-[#a594fd] border border-[#665AEF]/30 shrink-0">
+              <UserCheck className="size-4" />
+            </div>
+            <div>
+              <span className="text-sm sm:text-base font-semibold text-foreground">
+                Update FIR Classification
+              </span>
+              <p className="text-[11px] text-muted-foreground">
+                Case {caseRoleToEdit?.caseNumber} suspect status
+              </p>
+            </div>
+          </div>
+        }
+        footer={
+          <div className="flex items-center justify-end gap-2 w-full">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setCaseRoleToEdit(null)}
+              className="h-8.5 px-3 text-xs"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              onClick={handleSaveCaseRole}
+              disabled={isSavingCaseRole}
+              className="h-8.5 px-4 text-xs bg-[#665AEF] hover:bg-[#5749DF] text-white font-semibold cursor-pointer"
+            >
+              {isSavingCaseRole ? "Saving..." : "Update Role"}
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-3.5 text-xs">
+          <div className="space-y-1">
+            <label className="text-[11px] font-medium text-muted-foreground">Investigative Role</label>
+            <select
+              value={editCaseRole}
+              onChange={(e) => setEditCaseRole(e.target.value as SuspectRole)}
+              className="w-full px-3 py-2 rounded-lg bg-background/50 border border-border/80 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-[#665AEF]"
+            >
+              <option value="DIRECT_INVOLVEMENT">Direct Involvement</option>
+              <option value="POSSIBLE_ASSOCIATE">Possible Associate</option>
+              <option value="ACCOMPLICE">Accomplice / Co-Conspirator</option>
+              <option value="INFORMANT">Informant / Source</option>
+              <option value="WITNESS">Witness</option>
+              <option value="UNDER_INVESTIGATION">Under Active Investigation</option>
+            </select>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[11px] font-medium text-muted-foreground">Case Status Disposition</label>
+            <select
+              value={editCaseStatus}
+              onChange={(e) => setEditCaseStatus(e.target.value as SuspectCaseStatus)}
+              className="w-full px-3 py-2 rounded-lg bg-background/50 border border-border/80 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-[#665AEF]"
+            >
+              <option value="PRIMARY_SUSPECT">Primary Suspect</option>
+              <option value="PERSON_OF_INTEREST">Person of Interest</option>
+              <option value="ACCOMPLICE">Accomplice</option>
+              <option value="CLEARED">Cleared / Exonerated</option>
+              <option value="CONVICTED">Convicted by Court</option>
+            </select>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

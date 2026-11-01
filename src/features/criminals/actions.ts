@@ -8,7 +8,9 @@ import {
   UpdateCriminalSchema,
   LinkCriminalToCaseSchema,
   CreateCriminalRecordSchema,
+  UpdateCriminalRecordSchema,
 } from "@/features/criminals/schemas";
+import { broadcastCriminalEvent } from "@/lib/criminal-events";
 import { revalidatePath } from "next/cache";
 import { tigris, TIGRIS_BUCKET } from "@/lib/tigris";
 import { PutObjectCommand } from "@aws-sdk/client-s3";
@@ -607,6 +609,19 @@ export async function updateCriminalStatusAndRisk(params: {
 
     revalidatePath("/dashboard/criminals");
     revalidatePath(`/dashboard/criminals/${criminal.id}`);
+
+    broadcastCriminalEvent({
+      type: "STATUS_UPDATED",
+      criminalId: criminal.id,
+      criminalName: `${criminal.firstName} ${criminal.lastName}`,
+      actorName: session.user.name || "Investigator",
+      metadata: {
+        status: criminal.status,
+        riskLevel: criminal.riskLevel,
+      },
+      timestamp: Date.now(),
+    });
+
     return { success: true, data: criminal };
   } catch (error) {
     console.error("Failed to update status and risk:", error);
@@ -673,10 +688,104 @@ export async function createCriminalRecord(data: unknown) {
       revalidatePath(`/dashboard/criminals/${record.criminal.criminalId}`);
     }
 
+    broadcastCriminalEvent({
+      type: "RECORD_ADDED",
+      criminalId: record.criminalId,
+      criminalName: `${record.criminal.firstName} ${record.criminal.lastName}`,
+      actorName: session.user.name || "Investigator",
+      metadata: {
+        courtCaseNumber: record.courtCaseNumber,
+        offenceType: record.offenceType,
+      },
+      timestamp: Date.now(),
+    });
+
     return { success: true, data: record };
   } catch (error) {
     console.error("Failed to create criminal record:", error);
     return { error: "Failed to create criminal record" };
+  }
+}
+
+/**
+ * Update an existing Judicial / Criminal Record
+ */
+export async function updateCriminalRecord(data: unknown) {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+
+  if (!session || !session.user) {
+    return { error: "Unauthorized" };
+  }
+
+  const result = UpdateCriminalRecordSchema.safeParse(data);
+  if (!result.success) {
+    return { error: "Invalid data", details: result.error.flatten() };
+  }
+
+  try {
+    const { id, ...updateData } = result.data;
+    const existing = await prisma.criminalRecord.findUnique({
+      where: { id },
+      include: { criminal: true },
+    });
+
+    if (!existing) {
+      return { error: "Criminal record not found" };
+    }
+
+    const record = await prisma.criminalRecord.update({
+      where: { id },
+      data: updateData,
+      include: {
+        criminal: {
+          select: {
+            id: true,
+            criminalId: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        action: "CRIMINAL_RECORD_UPDATED",
+        entityType: "CriminalRecord",
+        entityId: record.id,
+        userId: session.user.id,
+        details: {
+          criminalId: record.criminalId,
+          courtCaseNumber: record.courtCaseNumber,
+          updatedFields: Object.keys(updateData),
+        },
+      },
+    });
+
+    revalidatePath("/dashboard/criminals");
+    revalidatePath(`/dashboard/criminals/${record.criminalId}`);
+    if (record.criminal?.criminalId) {
+      revalidatePath(`/dashboard/criminals/${record.criminal.criminalId}`);
+    }
+
+    broadcastCriminalEvent({
+      type: "RECORD_UPDATED",
+      criminalId: record.criminalId,
+      criminalName: `${record.criminal.firstName} ${record.criminal.lastName}`,
+      actorName: session.user.name || "Investigator",
+      metadata: {
+        courtCaseNumber: record.courtCaseNumber,
+        updatedFields: Object.keys(updateData),
+      },
+      timestamp: Date.now(),
+    });
+
+    return { success: true, data: record };
+  } catch (error) {
+    console.error("Failed to update criminal record:", error);
+    return { error: "Failed to update criminal record" };
   }
 }
 
@@ -710,6 +819,14 @@ export async function deleteCriminalRecord(recordId: string, criminalId: string)
 
     revalidatePath("/dashboard/criminals");
     revalidatePath(`/dashboard/criminals/${criminalId}`);
+
+    broadcastCriminalEvent({
+      type: "RECORD_DELETED",
+      criminalId,
+      actorName: session.user.name || "Investigator",
+      metadata: { recordId },
+      timestamp: Date.now(),
+    });
 
     return { success: true };
   } catch (error) {
@@ -770,6 +887,14 @@ export async function toggleCriminalWatchlist(criminalId: string, onWatchlist: b
     if (existing.criminalId) {
       revalidatePath(`/dashboard/criminals/${existing.criminalId}`);
     }
+
+    broadcastCriminalEvent({
+      type: "WATCHLIST_TOGGLED",
+      criminalId,
+      actorName: session.user.name || "Investigator",
+      metadata: { onWatchlist },
+      timestamp: Date.now(),
+    });
 
     return { success: true, onWatchlist };
   } catch (error) {
@@ -1863,6 +1988,141 @@ export async function searchCriminalsByPhotoAction(formData: FormData) {
   } catch (error: any) {
     console.error("searchCriminalsByPhotoAction error:", error);
     return { error: error.message || "Failed to execute optical face probe" };
+  }
+}
+
+/**
+ * Update a suspect's investigative role or case status in a linked FIR
+ */
+export async function updateSuspectCaseRole(params: {
+  caseId: string;
+  criminalId: string;
+  role?: SuspectRole;
+  status?: SuspectCaseStatus;
+}) {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+
+  if (!session || !session.user) {
+    return { error: "Unauthorized" };
+  }
+
+  try {
+    await prisma.caseSuspect.updateMany({
+      where: {
+        caseId: params.caseId,
+        criminalId: params.criminalId,
+      },
+      data: {
+        ...(params.role ? { role: params.role } : {}),
+        ...(params.status ? { status: params.status } : {}),
+      },
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        action: "CASE_SUSPECT_ROLE_UPDATED",
+        entityType: "CaseSuspect",
+        userId: session.user.id,
+        details: {
+          caseId: params.caseId,
+          criminalId: params.criminalId,
+          role: params.role,
+          status: params.status,
+        },
+      },
+    });
+
+    revalidatePath("/dashboard/criminals");
+    revalidatePath(`/dashboard/criminals/${params.criminalId}`);
+
+    broadcastCriminalEvent({
+      type: "CASE_LINKED",
+      criminalId: params.criminalId,
+      actorName: session.user.name || "Investigator",
+      metadata: {
+        caseId: params.caseId,
+        role: params.role,
+        status: params.status,
+      },
+      timestamp: Date.now(),
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error("Failed to update suspect case role:", error);
+    return { error: "Failed to update suspect role in case" };
+  }
+}
+
+/**
+ * Confirm or reject an AI biometric facial recognition match candidate
+ */
+export async function updateRecognitionMatchStatus(params: {
+  resultId: string;
+  status: "CONFIRMED" | "REJECTED";
+  notes?: string;
+}) {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+
+  if (!session || !session.user) {
+    return { error: "Unauthorized" };
+  }
+
+  try {
+    const updated = await prisma.recognitionResult.update({
+      where: { id: params.resultId },
+      data: { status: params.status },
+      include: {
+        criminal: {
+          select: {
+            id: true,
+            criminalId: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        action: `BIOMETRIC_MATCH_${params.status}`,
+        entityType: "RecognitionResult",
+        entityId: updated.id,
+        userId: session.user.id,
+        details: {
+          criminalId: updated.criminalId,
+          sketchId: updated.sketchId,
+          matchScore: updated.matchScore,
+          status: params.status,
+          notes: params.notes,
+        },
+      },
+    });
+
+    revalidatePath("/dashboard/criminals");
+    revalidatePath(`/dashboard/criminals/${updated.criminalId}`);
+
+    broadcastCriminalEvent({
+      type: "BIOMETRIC_ENROLLED",
+      criminalId: updated.criminalId,
+      criminalName: `${updated.criminal.firstName} ${updated.criminal.lastName}`,
+      actorName: session.user.name || "Investigator",
+      metadata: {
+        resultId: updated.id,
+        status: params.status,
+      },
+      timestamp: Date.now(),
+    });
+
+    return { success: true, data: updated };
+  } catch (error) {
+    console.error("Failed to update recognition match status:", error);
+    return { error: "Failed to update match status" };
   }
 }
 

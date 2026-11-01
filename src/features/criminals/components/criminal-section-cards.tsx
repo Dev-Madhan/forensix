@@ -36,7 +36,7 @@ function RollingNumber({ value }: { value: number }) {
       <NumberFlow
         value={displayValue}
         trend={1}
-        className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground tabular-nums font-heading"
+        className="text-xl sm:text-3xl font-bold tracking-tight text-foreground tabular-nums font-heading"
       />
     </span>
   );
@@ -86,7 +86,7 @@ export function CriminalSectionCards({
     <motion.div
       layout
       transition={{ layout: { duration: 0.4, ease: [0.16, 1, 0.3, 1] } }}
-      className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4"
+      className="grid grid-cols-2 gap-2.5 sm:gap-4 lg:grid-cols-4"
     >
       {cards.map((card, index) => {
         const Icon = card.icon;
@@ -108,17 +108,17 @@ export function CriminalSectionCards({
             <Card
               onClick={() => onSelectFilter?.(card.key)}
               className={cn(
-                "flex flex-col justify-between gap-3 rounded-xl border p-4.5 sm:p-5 shadow-xs transition-all duration-200 h-full cursor-pointer select-none",
+                "flex flex-col justify-between gap-2 sm:gap-3 rounded-xl border p-3 sm:p-5 shadow-xs transition-all duration-200 h-full cursor-pointer select-none active:scale-[0.98]",
                 isActive
                   ? "border-[#665AEF] bg-[#665AEF]/10 ring-2 ring-[#665AEF]/30 shadow-md shadow-[#665AEF]/10"
                   : "border-border/70 bg-card/70 hover:border-border/90 hover:bg-card/90"
               )}
             >
               {/* Header: Title and Icon aligned across top */}
-              <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center justify-between gap-1.5 sm:gap-2">
                 <span
                   className={cn(
-                    "text-xs sm:text-sm font-medium truncate transition-colors",
+                    "text-[11px] sm:text-sm font-medium truncate transition-colors",
                     isActive ? "text-white font-semibold" : "text-muted-foreground"
                   )}
                 >
@@ -126,27 +126,27 @@ export function CriminalSectionCards({
                 </span>
                 <Icon
                   className={cn(
-                    "size-4.5 sm:size-5 shrink-0 transition-colors",
+                    "size-4 sm:size-5 shrink-0 transition-colors",
                     isActive ? "text-white" : "text-[#665AEF]"
                   )}
                 />
               </div>
 
               {/* Content: Hero metric rolling value and trend text */}
-              <div className="space-y-1.5">
-                <div className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground tabular-nums">
+              <div className="space-y-1 sm:space-y-1.5">
+                <div className="text-xl sm:text-3xl font-bold tracking-tight text-foreground tabular-nums">
                   <RollingNumber value={card.value} />
                 </div>
-                <div className="flex items-center gap-1.5 text-xs">
+                <div className="flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-xs">
                   <span className="inline-flex items-center gap-0.5 font-medium text-emerald-400">
-                    <ArrowUp className="size-3 shrink-0" />
+                    <ArrowUp className="size-2.5 sm:size-3 shrink-0" />
                     {card.change}
                   </span>
-                  <span className="text-muted-foreground text-[11px] sm:text-xs truncate">
+                  <span className="text-muted-foreground text-[10px] sm:text-xs truncate hidden xs:inline">
                     {card.timeframe}
                   </span>
                   {isActive && (
-                    <span className="ml-auto text-[10px] font-mono font-semibold text-[#a594fd] uppercase tracking-wider bg-[#665AEF]/20 px-1.5 py-0.5 rounded">
+                    <span className="ml-auto text-[9px] sm:text-[10px] font-mono font-semibold text-[#a594fd] uppercase tracking-wider bg-[#665AEF]/20 px-1 sm:px-1.5 py-0.5 rounded">
                       Filtered
                     </span>
                   )}
