@@ -61,9 +61,23 @@ import { getCriminalSlug } from "@/features/criminals/slug";
 import { SuspectAvatar } from "@/features/criminals/components/suspect-avatar";
 import { LinkCriminalCaseDialog } from "@/features/criminals/components/link-criminal-case-dialog";
 import { getSafeStorageUrl } from "@/lib/storage-url";
+import { cn } from "@/lib/utils";
 
 interface CriminalProfileHeaderProps {
-  criminal: Criminal;
+  criminal: Criminal & {
+    caseLinks?: Array<{
+      id?: string;
+      role?: SuspectRole;
+      status?: SuspectCaseStatus;
+      case: {
+        id: string;
+        caseNumber: string;
+        title: string;
+        status?: string;
+        priority?: string;
+      };
+    }>;
+  };
   mugshotDisplayUrl: string | null;
   onNavigateToTab?: (tabId: string) => void;
 }
@@ -75,6 +89,16 @@ export function CriminalProfileHeader({
   const router = useRouter();
   const profileSlug = getCriminalSlug(criminal);
   const demographics = (criminal.demographics as Record<string, unknown> | null) || {};
+
+  // Check if subject is linked to any active case
+  const primaryCaseLink = (criminal as any).caseLinks?.[0];
+  const linkedCase = primaryCaseLink?.case;
+  const totalLinkedCases = (criminal as any).caseLinks?.length || 0;
+  const caseButtonLabel = linkedCase
+    ? totalLinkedCases > 1
+      ? `Case: ${linkedCase.caseNumber} (+${totalLinkedCases - 1})`
+      : `Case: ${linkedCase.caseNumber}`
+    : "Link to Case";
 
   // Dynamic States
   const [isOnWatchlist, setIsOnWatchlist] = useState(
@@ -415,15 +439,28 @@ export function CriminalProfileHeader({
             <span>{isDownloadingDossier ? "Generating..." : "Dossier (PDF)"}</span>
           </Button>
 
-          {/* Link to Case — desktop only */}
+          {/* Link to Case / Active Case ID — desktop only */}
           <Button
             variant="outline"
             size="sm"
             onClick={() => setIsLinkCaseOpen(true)}
-            className="hidden sm:inline-flex h-9 gap-1.5 rounded-lg border-2 border-border/80 bg-card/60 text-xs font-medium hover:bg-muted/60 hover:text-foreground text-foreground cursor-pointer shadow-xs"
+            title={
+              linkedCase
+                ? `Linked to ${linkedCase.caseNumber}: "${linkedCase.title}". Click to change case.`
+                : "Attach suspect to an active case investigation"
+            }
+            className={cn(
+              "hidden sm:inline-flex h-9 gap-1.5 rounded-lg border-2 text-xs font-medium cursor-pointer shadow-xs transition-colors",
+              linkedCase
+                ? "border-[#665AEF]/60 bg-[#665AEF]/15 hover:bg-[#665AEF]/25 text-foreground"
+                : "border-border/80 bg-card/60 hover:bg-muted/60 hover:text-foreground text-foreground"
+            )}
           >
-            <FolderPlus className="size-3.5 text-[#665AEF]" />
-            <span>Link to Case</span>
+            <FolderPlus className={cn("size-3.5", linkedCase ? "text-[#a594fd]" : "text-[#665AEF]")} />
+            {linkedCase && (
+              <span className="size-1.5 rounded-full bg-emerald-400 shrink-0" />
+            )}
+            <span className="truncate max-w-[170px]">{caseButtonLabel}</span>
           </Button>
 
           {/* Edit Profile — desktop only */}
@@ -475,8 +512,8 @@ export function CriminalProfileHeader({
                 onClick={() => setIsLinkCaseOpen(true)}
                 className="cursor-pointer gap-2 text-xs py-2 px-2.5 rounded-md hover:bg-muted font-medium text-foreground sm:hidden"
               >
-                <FolderPlus className="size-3.5 text-[#665AEF]" />
-                <span>Link to Case</span>
+                <FolderPlus className={cn("size-3.5", linkedCase ? "text-[#a594fd]" : "text-[#665AEF]")} />
+                <span>{caseButtonLabel}</span>
               </DropdownMenuItem>
 
               <DropdownMenuItem
@@ -1175,6 +1212,19 @@ export function CriminalProfileHeader({
         isOpen={isLinkCaseOpen}
         onClose={() => setIsLinkCaseOpen(false)}
         criminal={criminal}
+        currentCase={
+          linkedCase
+            ? {
+                id: linkedCase.id,
+                caseNumber: linkedCase.caseNumber,
+                title: linkedCase.title,
+                priority: linkedCase.priority,
+                status: linkedCase.status,
+                role: primaryCaseLink?.role,
+                caseStatus: primaryCaseLink?.status,
+              }
+            : null
+        }
         onSuccess={() => router.refresh()}
       />
     </div>

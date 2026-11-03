@@ -3,7 +3,7 @@
 import * as React from "react";
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { motion } from "motion/react";
-import { ChevronDown, Check } from "lucide-react";
+import { Activity } from "lucide-react";
 
 import {
   Card,
@@ -18,20 +18,15 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import type { ActivityChartPoint } from "@/features/dashboard/queries";
+import { cn } from "@/lib/utils";
 
 export type { ActivityChartPoint };
 
 const timeOptions = [
-  { value: "7d", label: "Last 7 days" },
-  { value: "30d", label: "Last 30 days" },
-  { value: "90d", label: "Last 90 days" },
+  { value: "7d", label: "7 Days", short: "7D" },
+  { value: "30d", label: "30 Days", short: "30D" },
+  { value: "90d", label: "90 Days", short: "90D" },
 ];
 
 const chartConfig = {
@@ -44,7 +39,7 @@ const chartConfig = {
     color: "#665AEF",
   },
   searches: {
-    label: "Telemetry & Hits",
+    label: "Surveillance Hits",
     color: "#10b981",
   },
 } satisfies ChartConfig;
@@ -55,7 +50,6 @@ interface ChartAreaInteractiveProps {
 
 export function ChartAreaInteractive({ data = [] }: ChartAreaInteractiveProps) {
   const [timeRange, setTimeRange] = React.useState<"7d" | "30d" | "90d">("30d");
-  const [hoveredItem, setHoveredItem] = React.useState<string | null>(null);
 
   // Filter the full dataset based on selected timeRange (7d, 30d, 90d)
   const filteredData = React.useMemo(() => {
@@ -87,7 +81,7 @@ export function ChartAreaInteractive({ data = [] }: ChartAreaInteractiveProps) {
       ...filteredData.map((d) => Math.max(d.cases || 0, d.sketches || 0, d.searches || 0)),
       0
     );
-    // Upper boundary at least 5 for clean ticks
+    // Upper boundary at least 4 for clean ticks
     const upperLimit = Math.max(Math.ceil((maxVal + 1) / 4) * 4, 4);
     const step = upperLimit / 4;
     return {
@@ -97,91 +91,63 @@ export function ChartAreaInteractive({ data = [] }: ChartAreaInteractiveProps) {
   }, [filteredData]);
 
   return (
-    <Card className="@container/card rounded-xl border border-border/70 bg-card/70 shadow-xs">
-      <CardHeader className="flex flex-row items-center justify-between gap-4 border-b border-border/40 px-5 sm:px-6 py-4">
+    <Card className="@container/card rounded-xl border border-border/70 bg-card/75 shadow-xs overflow-hidden">
+      <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 border-b border-border/40 px-4 sm:px-6 py-3.5 sm:py-4">
         <div className="space-y-1">
-          <CardTitle className="text-base font-semibold tracking-tight text-foreground">
-            Investigation Activity
-          </CardTitle>
+          <div className="flex items-center gap-2">
+            <Activity className="size-4 text-[#665AEF] shrink-0" />
+            <CardTitle className="text-sm sm:text-base font-semibold tracking-tight text-foreground font-heading">
+              Investigation Activity
+            </CardTitle>
+          </div>
           <CardDescription className="text-xs text-muted-foreground">
-            Live database telemetry of cases, composite sketches, and surveillance signals.
+            Unified activity tracking of cases, composite sketches, and surveillance hits.
           </CardDescription>
         </div>
-        <div className="flex items-center">
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              render={
-                <button
-                  type="button"
-                  className="flex h-8 w-[124px] items-center justify-between gap-2 rounded-lg border-2 border-border bg-secondary/35 px-3 text-xs font-medium text-foreground/90 shadow-xs hover:border-border hover:bg-secondary/60 hover:text-foreground focus:outline-none focus-visible:ring-1 focus-visible:ring-primary/40 transition-all duration-150 cursor-pointer"
-                />
-              }
-            >
-              <span>
-                {timeOptions.find((opt) => opt.value === timeRange)?.label ||
-                  "Last 30 days"}
-              </span>
-              <ChevronDown className="size-3.5 text-muted-foreground opacity-80" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent
-              align="end"
-              side="bottom"
-              sideOffset={6}
-              className="w-36 p-1 rounded-xl shadow-xl bg-card/95 backdrop-blur-xl border-2 border-border overflow-hidden"
-              onPointerLeave={() => setHoveredItem(null)}
-            >
-              <motion.div
-                initial={{ opacity: 0, scale: 0.96, y: -6 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.96, y: -6 }}
-                transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-                className="space-y-0.5"
+
+        {/* Ergonomic Segmented Pill Controls for 1-Tap Switching on Mobile & Desktop */}
+        <div className="flex items-center rounded-lg border border-border/80 bg-secondary/40 p-1 self-start sm:self-auto">
+          {timeOptions.map((opt) => {
+            const isActive = timeRange === opt.value;
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => setTimeRange(opt.value as "7d" | "30d" | "90d")}
+                className={cn(
+                  "relative px-2.5 py-1 text-xs font-medium rounded-md transition-colors cursor-pointer select-none",
+                  isActive
+                    ? "text-foreground font-semibold"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
               >
-                {timeOptions.map((option) => (
-                  <DropdownMenuItem
-                    key={option.value}
-                    onPointerEnter={() => setHoveredItem(option.value)}
-                    onClick={() => setTimeRange(option.value as "7d" | "30d" | "90d")}
-                    className="relative z-0 group flex items-center justify-between cursor-pointer px-2.5 py-1.5 rounded-md transition-colors focus:text-accent-foreground hover:text-accent-foreground !bg-transparent text-xs font-medium"
-                  >
-                    {hoveredItem === option.value && (
-                      <motion.div
-                        layoutId="chart-days-hover"
-                        className="absolute inset-0 z-[-1] rounded-md bg-accent/80"
-                        transition={{
-                          type: "spring",
-                          bounce: 0.3,
-                          duration: 0.4,
-                        }}
-                      />
-                    )}
-                    <span
-                      className={
-                        timeRange === option.value
-                          ? "text-foreground font-semibold"
-                          : "text-muted-foreground"
-                      }
-                    >
-                      {option.label}
-                    </span>
-                    {timeRange === option.value && (
-                      <Check className="size-3.5 text-[#665AEF]" />
-                    )}
-                  </DropdownMenuItem>
-                ))}
-              </motion.div>
-            </DropdownMenuContent>
-          </DropdownMenu>
+                {isActive && (
+                  <motion.div
+                    layoutId="chart-time-pill"
+                    className="absolute inset-0 rounded-md bg-card border border-border/70 shadow-xs"
+                    transition={{
+                      type: "spring",
+                      stiffness: 400,
+                      damping: 32,
+                    }}
+                  />
+                )}
+                <span className="relative z-10 hidden sm:inline">{opt.label}</span>
+                <span className="relative z-10 sm:hidden">{opt.short}</span>
+              </button>
+            );
+          })}
         </div>
       </CardHeader>
+
       <CardContent className="px-2 pt-4 sm:px-6 sm:pt-6 pb-4">
         <ChartContainer
           config={chartConfig}
-          className="aspect-auto h-[260px] w-full"
+          className="aspect-auto h-[210px] sm:h-[260px] w-full"
         >
           <AreaChart
             data={filteredData}
-            margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+            margin={{ top: 10, right: 10, left: -14, bottom: 0 }}
           >
             <defs>
               {/* Blue Cases gradient */}
@@ -198,7 +164,7 @@ export function ChartAreaInteractive({ data = [] }: ChartAreaInteractiveProps) {
                 <stop offset="95%" stopColor="#665AEF" stopOpacity={0.0} />
               </linearGradient>
 
-              {/* Telemetry & Hits: soft emerald */}
+              {/* Surveillance Hits: soft emerald */}
               <linearGradient id="fillSearches" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#10b981" stopOpacity={0.3} />
                 <stop offset="60%" stopColor="#10b981" stopOpacity={0.08} />
@@ -217,7 +183,7 @@ export function ChartAreaInteractive({ data = [] }: ChartAreaInteractiveProps) {
               tickLine={false}
               axisLine={false}
               tickMargin={10}
-              minTickGap={24}
+              minTickGap={28}
               tickFormatter={(value) => {
                 const date = new Date(value);
                 return date.toLocaleDateString("en-US", {
@@ -288,18 +254,18 @@ export function ChartAreaInteractive({ data = [] }: ChartAreaInteractiveProps) {
         </ChartContainer>
 
         {/* Legend */}
-        <div className="flex flex-wrap items-center justify-center gap-6 pt-4 text-xs text-muted-foreground">
-          <div className="flex items-center gap-2">
-            <span className="size-2.5 rounded-full bg-[#3b82f6]" />
+        <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6 pt-3 sm:pt-4 text-[11px] sm:text-xs text-muted-foreground">
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <span className="size-2 sm:size-2.5 rounded-full bg-[#3b82f6]" />
             <span className="font-medium text-foreground/90">Cases Created</span>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="size-2.5 rounded-full bg-[#665AEF]" />
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <span className="size-2 sm:size-2.5 rounded-full bg-[#665AEF]" />
             <span className="font-medium text-foreground/90">Sketches Generated</span>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="size-2.5 rounded-full bg-[#10b981]" />
-            <span className="font-medium text-foreground/90">Telemetry & Hits</span>
+          <div className="flex items-center gap-1.5 sm:gap-2">
+            <span className="size-2 sm:size-2.5 rounded-full bg-[#10b981]" />
+            <span className="font-medium text-foreground/90">Surveillance Hits</span>
           </div>
         </div>
       </CardContent>

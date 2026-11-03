@@ -1,8 +1,10 @@
 "use client";
 
 import React from "react";
-import { Undo2, Redo2, Trash2, RotateCcw, Folder, ChevronDown, Check, User } from "lucide-react";
+import Link from "next/link";
+import { Undo2, Redo2, Trash2, RotateCcw, Folder, ChevronDown, Check, User, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -91,10 +93,11 @@ export function CompositeSketchHeader() {
     }
   };
 
-  const handleSelectWitness = (wId: string, statement?: string | null) => {
+  const handleSelectWitness = (wId: string, statement?: string | null, witnessName?: string) => {
     setSelectedWitnessId(wId);
     if (statement) {
       setPromptText(statement);
+      toast.info(`Hydrated statement from witness ${witnessName ? `"${witnessName}"` : ""}`);
     }
   };
 
@@ -205,7 +208,7 @@ export function CompositeSketchHeader() {
                 return (
                   <DropdownMenuItem
                     key={w.id}
-                    onClick={() => handleSelectWitness(w.id, w.statement)}
+                    onClick={() => handleSelectWitness(w.id, w.statement, w.name)}
                     className="flex items-center justify-between py-2 cursor-pointer focus:bg-white/5"
                   >
                     <div className="flex flex-col min-w-0 pr-2">
@@ -222,6 +225,24 @@ export function CompositeSketchHeader() {
               })}
             </DropdownMenuContent>
           </DropdownMenu>
+        )}
+
+        {/* Shortcut to enroll witness if current case has none */}
+        {selectedCase && (!selectedCase.witnesses || selectedCase.witnesses.length === 0) && (
+          <Link
+            href={`/case-details/${selectedCase.caseNumber || selectedCase.id}`}
+            className="hidden lg:inline-flex"
+            title="No witnesses enrolled for this case. Click to enroll a witness."
+          >
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 px-2 text-xs font-medium border-dashed border-border/80 bg-black/40 hover:bg-white/5 rounded items-center gap-1.5 text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+            >
+              <Plus className="size-3 text-muted-foreground shrink-0" />
+              <span className="text-[11px]">+ Enroll Witness</span>
+            </Button>
+          </Link>
         )}
       </div>
 

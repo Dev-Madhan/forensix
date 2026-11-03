@@ -56,6 +56,7 @@ import {
   Radio,
   Camera,
   AlertCircle,
+  Archive,
 } from "lucide-react";
 import { toast } from "sonner";
 import { useSearchParams, useRouter } from "next/navigation";
@@ -65,10 +66,12 @@ import {
   bulkToggleCriminalWatchlist,
   bulkUpdateCriminalStatus,
   bulkLinkCriminalsToCase,
+  bulkArchiveCriminals,
   toggleCriminalWatchlist,
 } from "@/features/criminals/actions";
 import { CriminalStatus, SuspectRole, SuspectCaseStatus } from "@prisma/client";
 import { Modal } from "@/components/ui/modal";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { CriminalSectionCards, type CriminalMetrics } from "./criminal-section-cards";
 import { OpticalFaceSearchModal } from "./optical-face-search-modal";
 import { CriminalMobileCard } from "./criminal-mobile-card";
@@ -293,11 +296,17 @@ function CriminalRowActions({
 interface CriminalsTableProps {
   initialCriminals?: CriminalItem[];
   metrics?: Partial<CriminalMetrics>;
+  totalCount?: number;
+  initialPage?: number;
+  pageSize?: number;
 }
 
 export function CriminalsTable({
   initialCriminals = [],
   metrics,
+  totalCount: serverTotalCount,
+  initialPage = 1,
+  pageSize: propPageSize = 10,
 }: CriminalsTableProps) {
   // Set local state strictly from incoming database records
   const [criminalsList, setCriminalsList] = React.useState<CriminalItem[]>(() => {
@@ -339,6 +348,24 @@ export function CriminalsTable({
   const [bulkRole, setBulkRole] = React.useState<SuspectRole>(SuspectRole.UNDER_INVESTIGATION);
   const [bulkStatus, setBulkStatus] = React.useState<SuspectCaseStatus>(SuspectCaseStatus.PERSON_OF_INTEREST);
   const [isBulkLinking, setIsBulkLinking] = React.useState(false);
+  const [isBulkArchiveConfirmOpen, setIsBulkArchiveConfirmOpen] = React.useState(false);
+
+  const handleConfirmBulkArchive = async () => {
+    const ids = Array.from(selectedIds);
+    setIsBulkArchiveConfirmOpen(false);
+    setIsBulkUpdating(true);
+    toast.promise(
+      bulkArchiveCriminals(ids).finally(() => setIsBulkUpdating(false)),
+      {
+        loading: `Archiving ${ids.length} suspects...`,
+        success: () => {
+          setSelectedIds(new Set());
+          return `Archived ${ids.length} suspect records`;
+        },
+        error: "Failed to archive suspects",
+      }
+    );
+  };
 
   // Filter states initialized from URL search params
   const [searchTerm, setSearchTerm] = React.useState(
@@ -512,8 +539,14 @@ export function CriminalsTable({
   }, [isMobile]);
 
   // Pagination state
-  const [currentPage, setCurrentPage] = React.useState(1);
-  const pageSize = 10;
+  const [currentPage, setCurrentPage] = React.useState(initialPage || 1);
+  const pageSize = propPageSize || 10;
+
+  React.useEffect(() => {
+    if (initialPage) {
+      setCurrentPage(initialPage);
+    }
+  }, [initialPage]);
 
   // Filter logic
   const filteredCriminals = React.useMemo(() => {
@@ -1782,6 +1815,14 @@ export function CriminalsTable({
                     <span>Link to Case</span>
                   </DropdownMenuItem>
 
+                  <DropdownMenuItem
+                    onClick={() => setIsBulkArchiveConfirmOpen(true)}
+                    className="cursor-pointer text-xs font-medium px-2.5 py-1.5 rounded-md hover:bg-destructive/20 text-rose-400 flex items-center gap-2"
+                  >
+                    <Archive className="size-3.5 text-rose-400" />
+                    <span>Archive Selected</span>
+                  </DropdownMenuItem>
+
                   <div className="h-px bg-border/60 my-1" />
 
                   {[
@@ -1953,6 +1994,18 @@ export function CriminalsTable({
                 <span className="sm:hidden">Link</span>
               </Button>
 
+              {/* Archive Selected Suspects */}
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={isBulkUpdating}
+                onClick={() => setIsBulkArchiveConfirmOpen(true)}
+                className="h-8 px-2.5 sm:px-3 rounded-lg border-2 border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 text-xs font-medium cursor-pointer gap-1.5"
+              >
+                <Archive className="size-3.5 text-rose-400" />
+                <span className="hidden sm:inline">Archive</span>
+              </Button>
+
               {/* Clear Selection */}
               <Button
                 size="icon-xs"
@@ -1987,7 +2040,7 @@ export function CriminalsTable({
               className="h-9 text-xs"
             />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-foreground">Suspect Role</label>
               <DropdownMenu>
@@ -2083,12 +2136,12 @@ export function CriminalsTable({
               </DropdownMenu>
             </div>
           </div>
-          <div className="flex justify-end gap-2 pt-2">
+          <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2">
             <Button
               variant="outline"
               size="sm"
               onClick={() => setIsBulkLinkOpen(false)}
-              className="h-9 px-3 text-xs"
+              className="h-10 sm:h-9 px-4 text-xs font-semibold rounded-lg border-2 border-border/80 bg-zinc-900/60 hover:bg-zinc-800 text-foreground cursor-pointer transition-colors w-full sm:w-auto"
             >
               Cancel
             </Button>
@@ -2121,7 +2174,7 @@ export function CriminalsTable({
                   setIsBulkLinking(false);
                 }
               }}
-              className="h-9 px-4 text-xs bg-[#665AEF] hover:bg-[#5749DF] text-white"
+              className="h-10 sm:h-9 px-4 text-xs font-semibold rounded-lg bg-[#665AEF] hover:bg-[#5749DF] text-white flex items-center justify-center gap-2 border-2 border-[#665AEF] cursor-pointer disabled:opacity-50 w-full sm:w-auto"
             >
               {isBulkLinking ? "Linking..." : `Link ${selectedIds.size} Suspects`}
             </Button>
@@ -2133,6 +2186,20 @@ export function CriminalsTable({
       <OpticalFaceSearchModal
         isOpen={isOpticalSearchOpen}
         onClose={() => setIsOpticalSearchOpen(false)}
+      />
+
+      {/* Bulk Archive Confirmation Dialog */}
+      <ConfirmDialog
+        isOpen={isBulkArchiveConfirmOpen}
+        onClose={() => setIsBulkArchiveConfirmOpen(false)}
+        onConfirm={handleConfirmBulkArchive}
+        title={`Are you sure you want to archive ${selectedIds.size} selected suspects?`}
+        description="This action cannot be undone! The suspects will be moved to the archival repository."
+        confirmText="Archive"
+        cancelText="Cancel"
+        variant="destructive"
+        icon={<Archive className="size-4" />}
+        isLoading={isBulkUpdating}
       />
 
       {/* Mobile Profile Slide-Up Drawer */}

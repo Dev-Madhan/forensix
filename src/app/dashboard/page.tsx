@@ -1,5 +1,7 @@
 import { Suspense } from "react";
 import { headers } from "next/headers";
+import Link from "next/link";
+import { Plus, Sparkles } from "lucide-react";
 import { auth } from "@/lib/auth";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { DashboardContent } from "@/features/dashboard/components/dashboard-content";
@@ -35,6 +37,14 @@ export default async function Page() {
   });
 
   const userName = session?.user?.name || "Investigator";
+  const user = session?.user
+    ? {
+        name: session.user.name,
+        email: session.user.email,
+        avatar: session.user.image || undefined,
+        role: (session.user as { role?: string })?.role || "INVESTIGATOR",
+      }
+    : undefined;
 
   let metrics: DashboardMetrics = {
     totalCases: 1,
@@ -71,10 +81,10 @@ export default async function Page() {
 
   return (
     <SidebarProvider>
-      <AppSidebar />
+      <AppSidebar user={user} />
       <SidebarInset>
-        <header className="flex h-16 shrink-0 items-center gap-2 border-b border-sidebar-border/40">
-          <div className="flex items-center gap-2 px-4">
+        <header className="flex h-14 shrink-0 items-center justify-between border-b border-sidebar-border/40 px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center gap-2">
             <SidebarTrigger className="-ml-1" />
             <Separator
               orientation="vertical"
@@ -83,10 +93,29 @@ export default async function Page() {
             <Breadcrumb>
               <BreadcrumbList>
                 <BreadcrumbItem>
-                  <BreadcrumbPage>Dashboard</BreadcrumbPage>
+                  <BreadcrumbPage className="font-heading font-medium text-sm text-foreground">
+                    Dashboard
+                  </BreadcrumbPage>
                 </BreadcrumbItem>
               </BreadcrumbList>
             </Breadcrumb>
+          </div>
+          <div className="flex items-center gap-2">
+            <Link
+              href="/case-details/new"
+              className="hidden sm:inline-flex items-center gap-1.5 rounded-lg border border-border/70 bg-card/60 px-3 py-1.5 text-xs font-medium text-foreground hover:bg-muted/60 hover:border-border transition-colors shadow-xs"
+            >
+              <Plus className="size-3.5 text-[#a594fd]" />
+              <span>New Case</span>
+            </Link>
+            <Link
+              href="/sketch"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-[#665AEF] px-3 py-1.5 text-xs font-medium text-white hover:bg-[#5749DF] transition-colors shadow-xs shadow-[#665AEF]/25"
+            >
+              <Sparkles className="size-3.5" />
+              <span className="hidden sm:inline">AI Studio</span>
+              <span className="sm:hidden">Studio</span>
+            </Link>
           </div>
         </header>
         <div className="flex flex-1 flex-col">

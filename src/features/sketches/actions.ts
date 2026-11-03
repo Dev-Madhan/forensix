@@ -98,15 +98,7 @@ export async function getStudioInitialData(targetCaseIdentifier?: string): Promi
           status: "UNDER_INVESTIGATION",
           priority: "HIGH",
           assignedToId: defaultUser.id,
-          witnesses: {
-            create: [
-              {
-                name: "Sarah Jenkins",
-                contactInfo: "s.jenkins@witness.local",
-                statement: "Suspect was male, around 35 years old, sharp oval face, arched dark eyebrows, straight pointed nose, thin lips, and slight stubble.",
-              },
-            ],
-          },
+          // No hardcoded mock witness - clean initial state for authentic enrollment
         },
         select: {
           id: true,
@@ -200,13 +192,7 @@ export async function getStudioInitialData(targetCaseIdentifier?: string): Promi
             id: "case-apex-01",
             caseNumber: "FX-2026-001",
             title: "Operation Apex: Downtown Transit Incident",
-            witnesses: [
-              {
-                id: "wit-01",
-                name: "Sarah Jenkins",
-                statement: "Suspect was male, around 35 years old, sharp oval face, arched dark eyebrows, straight pointed nose, thin lips, and slight stubble.",
-              },
-            ],
+            witnesses: [],
           },
         ],
         criminals: fallbackCriminals,

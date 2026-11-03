@@ -17,8 +17,10 @@ import {
   ExternalLink,
   Sparkles,
   Loader2,
+  Trash2,
 } from "lucide-react";
 import { Modal } from "@/components/ui/modal";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -30,7 +32,11 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { SuspectRole, SuspectCaseStatus } from "@prisma/client";
-import { linkCriminalToCase, searchCasesForLinking } from "@/features/criminals/actions";
+import {
+  linkCriminalToCase,
+  unlinkCriminalFromCase,
+  searchCasesForLinking,
+} from "@/features/criminals/actions";
 import { getCaseSlug } from "@/features/criminals/slug";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
@@ -44,6 +50,15 @@ export interface LinkCriminalCaseDialogProps {
     firstName: string;
     lastName: string;
   };
+  currentCase?: {
+    id: string;
+    caseNumber: string;
+    title: string;
+    priority?: string;
+    status?: string;
+    role?: SuspectRole;
+    caseStatus?: SuspectCaseStatus;
+  } | null;
   onSuccess?: () => void;
 }
 
@@ -124,6 +139,7 @@ export function LinkCriminalCaseDialog({
   isOpen,
   onClose,
   criminal,
+  currentCase,
   onSuccess,
 }: LinkCriminalCaseDialogProps) {
   const fullName = `${criminal.firstName} ${criminal.lastName}`.trim();
@@ -142,6 +158,8 @@ export function LinkCriminalCaseDialog({
   const [status, setStatus] = useState<SuspectCaseStatus>(SuspectCaseStatus.PERSON_OF_INTEREST);
   const [notes, setNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUnlinking, setIsUnlinking] = useState(false);
+  const [showUnlinkConfirm, setShowUnlinkConfirm] = useState(false);
 
   // Live Case Suggestions
   const [caseSuggestions, setCaseSuggestions] = useState<any[]>([]);
@@ -152,6 +170,29 @@ export function LinkCriminalCaseDialog({
   // Hover states for smooth dropdown animations
   const [hoveredRole, setHoveredRole] = useState<string | null>(null);
   const [hoveredStatus, setHoveredStatus] = useState<string | null>(null);
+
+  // Populate from currentCase or reset when opened
+  useEffect(() => {
+    if (!isOpen) return;
+    if (currentCase) {
+      setSelectedCase({
+        id: currentCase.id,
+        caseNumber: currentCase.caseNumber,
+        title: currentCase.title,
+        priority: currentCase.priority,
+        status: currentCase.status,
+      });
+      setCaseInput(currentCase.caseNumber);
+      if (currentCase.role) setRole(currentCase.role);
+      if (currentCase.caseStatus) setStatus(currentCase.caseStatus);
+    } else {
+      setSelectedCase(null);
+      setCaseInput("");
+      setRole(SuspectRole.UNDER_INVESTIGATION);
+      setStatus(SuspectCaseStatus.PERSON_OF_INTEREST);
+    }
+    setNotes("");
+  }, [isOpen, currentCase]);
 
   // Load initial cases when opened
   useEffect(() => {
@@ -219,6 +260,27 @@ export function LinkCriminalCaseDialog({
     setCaseInput("");
   };
 
+  const handleConfirmUnlink = async () => {
+    if (!currentCase) return;
+
+    setIsUnlinking(true);
+    try {
+      const res = await unlinkCriminalFromCase(currentCase.id, criminal.id);
+      if (res.error) {
+        toast.error(`Unlink failed: ${res.error}`);
+      } else {
+        toast.success(`Unlinked ${fullName} from Case ${currentCase.caseNumber}`);
+        setShowUnlinkConfirm(false);
+        onSuccess?.();
+        handleClose();
+      }
+    } catch {
+      toast.error("Failed to detach suspect from case.");
+    } finally {
+      setIsUnlinking(false);
+    }
+  };
+
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
     const finalCaseQuery = caseInput.trim();
@@ -229,6 +291,18 @@ export function LinkCriminalCaseDialog({
 
     setIsSubmitting(true);
     try {
+      // If changing from an existing case to a different case, detach from old case first
+      const isChangingCase =
+        currentCase &&
+        (selectedCase
+          ? selectedCase.id !== currentCase.id
+          : finalCaseQuery.toLowerCase() !== currentCase.caseNumber.toLowerCase() &&
+            finalCaseQuery !== currentCase.id);
+
+      if (isChangingCase) {
+        await unlinkCriminalFromCase(currentCase.id, criminal.id);
+      }
+
       const res = await linkCriminalToCase({
         caseId: finalCaseQuery,
         criminalId: criminal.id,
@@ -245,9 +319,14 @@ export function LinkCriminalCaseDialog({
       }
 
       const caseNumber = res.data?.case?.caseNumber || finalCaseQuery;
-      toast.success(`Suspect ${fullName} linked to Case ${caseNumber}`, {
-        description: `Role assigned: ${ROLE_CONFIGS[role].label} • Status: ${STATUS_CONFIGS[status].label}`,
-      });
+      toast.success(
+        isChangingCase
+          ? `Transferred case link to Case ${caseNumber}`
+          : `Suspect ${fullName} associated with Case ${caseNumber}`,
+        {
+          description: `Role assigned: ${ROLE_CONFIGS[role].label} • Status: ${STATUS_CONFIGS[status].label}`,
+        }
+      );
 
       onSuccess?.();
       handleClose();
@@ -259,7 +338,7 @@ export function LinkCriminalCaseDialog({
   };
 
   const handleClose = () => {
-    if (isSubmitting) return;
+    if (isSubmitting || isUnlinking) return;
     onClose();
     setTimeout(() => {
       setCaseInput("");
@@ -279,42 +358,79 @@ export function LinkCriminalCaseDialog({
       isOpen={isOpen}
       onClose={handleClose}
       maxWidth="max-w-lg"
-      className="border-2 border-border/90 bg-[#0B0F17]/95 backdrop-blur-2xl shadow-2xl rounded-2xl"
+      className="border-2 border-border/80 bg-black/95 backdrop-blur-2xl shadow-2xl rounded-2xl"
       title={
-        <div className="flex items-center gap-3">
-          <div className="flex size-10 items-center justify-center rounded-xl bg-[#665AEF]/20 text-[#a594fd] border-2 border-[#665AEF]/40 shadow-md shadow-[#665AEF]/20 shrink-0">
-            <FolderPlus className="size-5" />
-          </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <h3 className="text-base sm:text-lg font-bold font-heading text-foreground truncate">
-                Associate with Case
-              </h3>
-              <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-md bg-[#665AEF]/20 text-[#a594fd] border border-[#665AEF]/40 uppercase tracking-wider shrink-0">
+        <div className="flex items-start sm:items-center gap-2 sm:gap-2.5 min-w-0 pr-1">
+          <FolderPlus className="size-4.5 sm:size-5 text-[#665AEF] shrink-0 mt-0.5 sm:mt-0" />
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+              <span className="text-sm sm:text-base font-bold font-heading text-foreground truncate">
+                {currentCase ? "Change Case Association" : "Associate with Case"}
+              </span>
+              <span className="text-[9px] sm:text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-md bg-[#665AEF]/20 text-[#a594fd] border border-[#665AEF]/40 uppercase tracking-wider shrink-0">
                 {criminalCode}
               </span>
             </div>
-            <p className="text-xs text-muted-foreground truncate mt-0.5">
-              Establish a verified judicial linkage for <span className="text-foreground font-semibold">{fullName}</span>.
+            <p className="text-[11px] sm:text-xs text-muted-foreground truncate mt-0.5">
+              {currentCase ? (
+                <span>
+                  Currently linked to{" "}
+                  <strong className="text-emerald-400 font-mono">
+                    {currentCase.caseNumber}
+                  </strong>
+                  . Select another case to change.
+                </span>
+              ) : (
+                <span>
+                  Establish a verified judicial linkage for{" "}
+                  <span className="text-foreground font-semibold">
+                    {fullName}
+                  </span>
+                  .
+                </span>
+              )}
             </p>
           </div>
         </div>
       }
       footer={
-        <div className="flex items-center justify-between gap-3 w-full">
-          <div className="hidden sm:flex items-center gap-1.5 text-[11px] text-muted-foreground font-mono">
-            <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            <span>CCTNS Judicial Ledger</span>
-          </div>
-
-          <div className="flex items-center gap-2.5 ml-auto">
+        <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-2.5 sm:gap-3 w-full">
+          {currentCase ? (
             <Button
               type="button"
               variant="outline"
               size="sm"
-              disabled={isSubmitting}
+              disabled={isSubmitting || isUnlinking}
+              onClick={() => setShowUnlinkConfirm(true)}
+              className="h-10 sm:h-9 px-3 text-xs font-semibold rounded-lg text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 border-2 border-rose-500/30 cursor-pointer w-full sm:w-auto flex items-center justify-center gap-1.5"
+            >
+              {isUnlinking ? (
+                <>
+                  <Loader2 className="size-3.5 animate-spin" />
+                  <span>Unlinking...</span>
+                </>
+              ) : (
+                <>
+                  <Trash2 className="size-3.5" />
+                  <span>Unlink Case</span>
+                </>
+              )}
+            </Button>
+          ) : (
+            <div className="hidden sm:flex items-center gap-1.5 text-[11px] text-muted-foreground font-mono">
+              <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span>CCTNS Judicial Ledger</span>
+            </div>
+          )}
+
+          <div className="flex items-center gap-2 sm:gap-2.5 w-full sm:w-auto sm:ml-auto">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={isSubmitting || isUnlinking}
               onClick={handleClose}
-              className="h-9 px-4 text-xs font-semibold rounded-lg border-2 border-border/80 bg-background/50 hover:bg-muted text-foreground cursor-pointer transition-colors"
+              className="h-10 sm:h-9 px-4 text-xs font-semibold rounded-lg border-2 border-border/80 bg-zinc-950/80 hover:bg-zinc-900 text-foreground cursor-pointer transition-colors flex-1 sm:flex-none justify-center"
             >
               Cancel
             </Button>
@@ -322,19 +438,23 @@ export function LinkCriminalCaseDialog({
             <Button
               type="button"
               size="sm"
-              disabled={isSubmitting || !caseInput.trim()}
+              disabled={isSubmitting || isUnlinking || !caseInput.trim()}
               onClick={handleSubmit}
-              className="h-9 px-4 text-xs font-semibold rounded-lg bg-[#665AEF] hover:bg-[#5749DF] text-white flex items-center gap-2 shadow-md shadow-[#665AEF]/30 hover:shadow-[#665AEF]/50 transition-all cursor-pointer disabled:opacity-50"
+              className="h-10 sm:h-9 px-4 text-xs font-semibold rounded-lg bg-[#665AEF] hover:bg-[#5749DF] text-white flex items-center justify-center gap-2 border-2 border-[#665AEF] shadow-md shadow-[#665AEF]/30 hover:shadow-[#665AEF]/50 transition-all cursor-pointer disabled:opacity-50 flex-1 sm:flex-none whitespace-nowrap"
             >
               {isSubmitting ? (
                 <>
                   <Loader2 className="size-3.5 animate-spin" />
-                  <span>Linking Dossier...</span>
+                  <span>
+                    {currentCase ? "Updating..." : "Linking..."}
+                  </span>
                 </>
               ) : (
                 <>
                   <FolderPlus className="size-3.5" />
-                  <span>Confirm Association</span>
+                  <span>
+                    {currentCase ? "Change Case Link" : "Confirm Association"}
+                  </span>
                 </>
               )}
             </Button>
@@ -368,7 +488,7 @@ export function LinkCriminalCaseDialog({
               }}
               onFocus={() => setShowSuggestions(true)}
               placeholder="Search active cases or type FX-2026-###..."
-              className="h-10 pl-9 pr-9 text-xs sm:text-sm font-mono border-2 border-border/80 bg-background/60 focus-visible:border-[#665AEF] focus-visible:ring-1 focus-visible:ring-[#665AEF] rounded-lg"
+              className="h-10 pl-9 pr-9 text-xs sm:text-sm font-mono border-2 border-border/80 bg-zinc-950/80 focus-visible:border-[#665AEF] focus-visible:ring-1 focus-visible:ring-[#665AEF] rounded-lg"
             />
             {caseInput && (
               <button
@@ -389,10 +509,10 @@ export function LinkCriminalCaseDialog({
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: -6, scale: 0.98 }}
                 transition={{ duration: 0.18, ease: "easeOut" }}
-                className="absolute left-0 right-0 top-full mt-1.5 z-50 rounded-xl border-2 border-border/90 bg-[#0F1420] shadow-2xl overflow-hidden max-h-56 overflow-y-auto no-scrollbar scrollbar-none [&::-webkit-scrollbar]:hidden"
+                className="absolute left-0 right-0 top-full mt-1.5 z-50 rounded-xl border-2 border-border/90 bg-zinc-950 shadow-2xl overflow-hidden max-h-48 sm:max-h-56 overflow-y-auto no-scrollbar scrollbar-none [&::-webkit-scrollbar]:hidden"
               >
                 <div className="p-1.5 space-y-1">
-                  <div className="px-2.5 py-1 text-[10px] font-mono text-muted-foreground uppercase tracking-widest flex items-center justify-between border-b border-border/40 pb-1.5 mb-1">
+                  <div className="px-2.5 py-1 text-[10px] font-mono text-muted-foreground uppercase tracking-widest flex items-center justify-between border-b-2 border-border/60 pb-1.5 mb-1">
                     <span>Active Investigation Dockets</span>
                     {isLoadingCases && <Loader2 className="size-3 animate-spin text-[#a594fd]" />}
                   </div>
@@ -405,8 +525,8 @@ export function LinkCriminalCaseDialog({
                         className={cn(
                           "px-2.5 py-2 rounded-lg cursor-pointer transition-colors flex items-center justify-between gap-2 text-xs",
                           selectedCase?.id === c.id
-                            ? "bg-[#665AEF]/25 text-white border border-[#665AEF]/50"
-                            : "hover:bg-muted/50 text-foreground"
+                            ? "bg-[#665AEF]/20 text-white border-2 border-[#665AEF]/50"
+                            : "hover:bg-zinc-900/80 text-foreground"
                         )}
                       >
                         <div className="min-w-0">
@@ -414,8 +534,8 @@ export function LinkCriminalCaseDialog({
                             <span className="font-mono font-bold text-white text-[11px]">{c.caseNumber}</span>
                             {c.priority && (
                               <span className={cn(
-                                "text-[9px] font-mono font-bold px-1.5 py-0.2 rounded border uppercase",
-                                c.priority === "CRITICAL" ? "bg-rose-500/15 text-rose-400 border-rose-500/30" : "bg-neutral-800 text-neutral-300 border-neutral-700"
+                                "text-[9px] font-mono font-bold px-1.5 py-0.2 rounded border-2 uppercase",
+                                c.priority === "CRITICAL" ? "bg-rose-500/15 text-rose-400 border-rose-500/30" : "bg-neutral-900 text-neutral-300 border-neutral-700"
                               )}>
                                 {c.priority}
                               </span>
@@ -445,7 +565,7 @@ export function LinkCriminalCaseDialog({
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
-            className="p-2.5 rounded-lg border border-[#665AEF]/30 bg-[#665AEF]/10 flex items-center justify-between gap-2 text-xs"
+            className="p-2.5 rounded-lg border-2 border-zinc-800 bg-zinc-950 flex items-center justify-between gap-2 text-xs"
           >
             <div className="flex items-center gap-2 min-w-0">
               <span className="font-mono font-bold text-[#a594fd] shrink-0">{selectedCase.caseNumber}:</span>
@@ -475,7 +595,7 @@ export function LinkCriminalCaseDialog({
                   <Button
                     type="button"
                     variant="outline"
-                    className="h-10 w-full justify-between rounded-lg border-2 border-border/80 bg-background/60 px-3 text-xs sm:text-sm font-medium hover:bg-muted/60 text-foreground cursor-pointer flex items-center shadow-xs"
+                    className="h-10 w-full justify-between rounded-lg border-2 border-border/80 bg-zinc-950/80 px-3 text-xs sm:text-sm font-medium hover:bg-zinc-900 text-foreground cursor-pointer flex items-center shadow-xs"
                   />
                 }
               >
@@ -489,7 +609,7 @@ export function LinkCriminalCaseDialog({
                 align="start"
                 side="bottom"
                 sideOffset={6}
-                className="w-(--anchor-width) min-w-56 p-1.5 rounded-xl shadow-2xl bg-card/95 backdrop-blur-xl border-2 border-border z-50"
+                className="w-(--anchor-width) min-w-48 max-w-[calc(100vw-2.5rem)] p-1.5 rounded-xl shadow-2xl bg-zinc-950 backdrop-blur-xl border-2 border-border/90 z-50"
                 onPointerLeave={() => setHoveredRole(null)}
               >
                 <div className="space-y-0.5">
@@ -506,7 +626,7 @@ export function LinkCriminalCaseDialog({
                         {hoveredRole === r && (
                           <motion.div
                             layoutId="dialog-role-hover"
-                            className="absolute inset-0 z-[-1] rounded-lg bg-accent/80"
+                            className="absolute inset-0 z-[-1] rounded-lg bg-zinc-800/80"
                             transition={{ type: "spring", bounce: 0.25, duration: 0.35 }}
                           />
                         )}
@@ -537,7 +657,7 @@ export function LinkCriminalCaseDialog({
                   <Button
                     type="button"
                     variant="outline"
-                    className="h-10 w-full justify-between rounded-lg border-2 border-border/80 bg-background/60 px-3 text-xs sm:text-sm font-medium hover:bg-muted/60 text-foreground cursor-pointer flex items-center shadow-xs"
+                    className="h-10 w-full justify-between rounded-lg border-2 border-border/80 bg-zinc-950/80 px-3 text-xs sm:text-sm font-medium hover:bg-zinc-900 text-foreground cursor-pointer flex items-center shadow-xs"
                   />
                 }
               >
@@ -551,7 +671,7 @@ export function LinkCriminalCaseDialog({
                 align="start"
                 side="bottom"
                 sideOffset={6}
-                className="w-(--anchor-width) min-w-48 p-1.5 rounded-xl shadow-2xl bg-card/95 backdrop-blur-xl border-2 border-border z-50"
+                className="w-(--anchor-width) min-w-48 max-w-[calc(100vw-2.5rem)] p-1.5 rounded-xl shadow-2xl bg-zinc-950 backdrop-blur-xl border-2 border-border/90 z-50"
                 onPointerLeave={() => setHoveredStatus(null)}
               >
                 <div className="space-y-0.5">
@@ -568,7 +688,7 @@ export function LinkCriminalCaseDialog({
                         {hoveredStatus === st && (
                           <motion.div
                             layoutId="dialog-status-hover"
-                            className="absolute inset-0 z-[-1] rounded-lg bg-accent/80"
+                            className="absolute inset-0 z-[-1] rounded-lg bg-zinc-800/80"
                             transition={{ type: "spring", bounce: 0.25, duration: 0.35 }}
                           />
                         )}
@@ -599,10 +719,24 @@ export function LinkCriminalCaseDialog({
             maxLength={250}
             onChange={(e) => setNotes(e.target.value)}
             placeholder="e.g. Sighted near crime scene perimeter, ANPR hit at junction..."
-            className="h-10 text-xs sm:text-sm border-2 border-border/80 bg-background/60 focus-visible:border-[#665AEF] focus-visible:ring-1 focus-visible:ring-[#665AEF] rounded-lg"
+            className="h-10 text-xs sm:text-sm border-2 border-border/80 bg-zinc-950/80 focus-visible:border-[#665AEF] focus-visible:ring-1 focus-visible:ring-[#665AEF] rounded-lg"
           />
         </div>
       </form>
+
+      {/* Sleek Confirm Dialog Matching Project Theme */}
+      <ConfirmDialog
+        isOpen={showUnlinkConfirm}
+        onClose={() => setShowUnlinkConfirm(false)}
+        onConfirm={handleConfirmUnlink}
+        title={`Are you sure you want to detach ${fullName} from case ${currentCase?.caseNumber}?`}
+        description="This action cannot be undone!"
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="destructive"
+        icon={<Trash2 className="size-4" />}
+        isLoading={isUnlinking}
+      />
     </Modal>
   );
 }

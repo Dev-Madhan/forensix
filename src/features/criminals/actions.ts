@@ -229,6 +229,50 @@ export async function archiveCriminal(criminalId: string, reason?: string) {
 }
 
 /**
+ * Bulk Archives multiple Criminal profiles
+ */
+export async function bulkArchiveCriminals(criminalIds: string[], reason?: string) {
+  const session = await auth.api.getSession({
+    headers: await headers(),
+  });
+
+  if (!session || !session.user) {
+    return { error: "Unauthorized" };
+  }
+
+  if (!criminalIds || criminalIds.length === 0) {
+    return { error: "No criminal IDs provided" };
+  }
+
+  try {
+    const updated = await prisma.criminal.updateMany({
+      where: { id: { in: criminalIds } },
+      data: { status: "INACTIVE" },
+    });
+
+    await prisma.auditLog.create({
+      data: {
+        action: "CRIMINALS_BULK_ARCHIVED",
+        entityType: "Criminal",
+        entityId: criminalIds[0],
+        userId: session.user.id,
+        details: {
+          count: criminalIds.length,
+          criminalIds,
+          reason: reason || "Bulk administrative archival",
+        },
+      },
+    });
+
+    revalidatePath("/dashboard/criminals");
+    return { success: true, count: updated.count };
+  } catch (error) {
+    console.error("Failed to bulk archive criminals:", error);
+    return { error: "Failed to bulk archive criminals" };
+  }
+}
+
+/**
  * Link a Criminal to a Case as a Suspect with role, status, and match confidence
  */
 export async function linkCriminalToCase(data: unknown) {

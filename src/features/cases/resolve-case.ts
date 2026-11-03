@@ -5,6 +5,7 @@ import crypto from "crypto";
 import { INITIAL_CASES, type CaseItem } from "@/features/cases/types";
 import type { EvidenceItem } from "@/features/cases/components/evidence/types";
 import type { SuspectItem, SuspectStatus, SuspectRole } from "@/features/cases/components/suspects/types";
+import type { WitnessItem } from "@/features/cases/witnesses/types";
 import { getSafeStorageUrl } from "@/lib/storage-url";
 
 export interface CaseAuditLogItem {
@@ -38,11 +39,13 @@ export interface ResolvedCaseDetail {
   tags?: string[];
   evidenceCount?: number;
   suspectsCount?: number;
+  witnessesCount?: number;
   notesCount?: number;
   createdAt: string;
   updatedAt: string;
   evidences: EvidenceItem[];
   suspects: SuspectItem[];
+  witnesses: WitnessItem[];
   auditLogs: CaseAuditLogItem[];
   sketches?: Array<{
     id: string;
@@ -188,6 +191,16 @@ export async function resolveCaseBySlug(slug: string): Promise<ResolvedCaseDetai
           orderBy: { createdAt: "desc" },
           include: { recognitionResults: { include: { criminal: true } } },
         },
+        witnesses: {
+          orderBy: { createdAt: "desc" },
+          include: {
+            sketches: { select: { id: true } },
+            inquiries: {
+              include: { investigator: { select: { id: true, name: true } } },
+              orderBy: { inquiryDate: "desc" },
+            },
+          },
+        },
       },
     });
 
@@ -218,6 +231,16 @@ export async function resolveCaseBySlug(slug: string): Promise<ResolvedCaseDetai
           sketches: {
             orderBy: { createdAt: "desc" },
             include: { recognitionResults: { include: { criminal: true } } },
+          },
+          witnesses: {
+            orderBy: { createdAt: "desc" },
+            include: {
+              sketches: { select: { id: true } },
+              inquiries: {
+                include: { investigator: { select: { id: true, name: true } } },
+                orderBy: { inquiryDate: "desc" },
+              },
+            },
           },
         },
       });
@@ -279,6 +302,76 @@ export async function resolveCaseBySlug(slug: string): Promise<ResolvedCaseDetai
       dbCase.suspects && dbCase.suspects.length > 0
         ? dbCase.suspects.map(mapPrismaSuspectToItem)
         : [];
+
+    // Map real witnesses directly from database
+    const mappedWitnesses: WitnessItem[] = (dbCase.witnesses || []).map((w: any) => ({
+      id: w.id,
+      witnessCode: w.witnessCode || `FX-WIT-${w.id.slice(0, 6).toUpperCase()}`,
+      caseId: w.caseId,
+      caseNumber: dbCase.caseNumber,
+      name: w.name,
+      alias: w.alias,
+      dateOfBirth: w.dateOfBirth?.toISOString().slice(0, 10) || null,
+      ageAtIncident: w.ageAtIncident,
+      gender: w.gender,
+      occupation: w.occupation,
+      employerName: w.employerName,
+      idType: w.idType,
+      idNumberMasked: w.idNumberMasked,
+      idVerified: w.idVerified || false,
+      contactInfo: w.contactInfo || w.primaryPhone || null,
+      primaryPhone: w.primaryPhone || w.contactInfo || "Not Provided",
+      secondaryPhone: w.secondaryPhone,
+      email: w.email,
+      emergencyContactName: w.emergencyContactName,
+      emergencyContactPhone: w.emergencyContactPhone,
+      emergencyRelationship: w.emergencyRelationship,
+      currentAddress: w.currentAddress,
+      permanentAddress: w.permanentAddress,
+      city: w.city,
+      state: w.state,
+      postalCode: w.postalCode,
+      witnessType: w.witnessType || "EYEWITNESS",
+      credibility: w.credibility || "UNVERIFIED",
+      availabilityStatus: w.availabilityStatus || "ACTIVE_AVAILABLE",
+      isProtected: w.isProtected || false,
+      protectionProtocol: w.protectionProtocol,
+      incidentDistanceMeters: w.incidentDistanceMeters,
+      lightingCondition: w.lightingCondition,
+      weatherCondition: w.weatherCondition,
+      observationDurationSec: w.observationDurationSec,
+      timeElapsedHours: w.timeElapsedHours,
+      impairmentFactors: w.impairmentFactors,
+      confidenceScore: w.confidenceScore,
+      statement: w.statement || "",
+      statementAudioUrl: w.statementAudioUrl,
+      keyFacialFeatures: w.keyFacialFeatures,
+      interviewDate: w.interviewDate?.toISOString().slice(0, 10) || w.createdAt.toISOString().slice(0, 10),
+      interviewingOfficerName: null,
+      sketchesCount: (w.sketches || []).length,
+      inquiriesCount: (w.inquiries || []).length,
+      inquiries: (w.inquiries || []).map((inq: any) => ({
+        id: inq.id,
+        witnessId: inq.witnessId,
+        investigatorId: inq.investigatorId,
+        investigatorName: inq.investigator?.name || "Investigator",
+        investigatorInitials: (inq.investigator?.name || "IN")
+          .split(" ")
+          .map((n: string) => n[0])
+          .join("")
+          .toUpperCase()
+          .slice(0, 2),
+        inquiryDate: inq.inquiryDate.toISOString(),
+        contactMethod: inq.contactMethod,
+        purpose: inq.purpose,
+        notes: inq.notes,
+        outcome: inq.outcome,
+        nextFollowUpDate: inq.nextFollowUpDate?.toISOString() || null,
+        createdAt: inq.createdAt.toISOString(),
+      })),
+      createdAt: w.createdAt.toISOString(),
+      updatedAt: w.updatedAt.toISOString(),
+    }));
 
     return {
       id: dbCase.id,
@@ -355,11 +448,13 @@ export async function resolveCaseBySlug(slug: string): Promise<ResolvedCaseDetai
       tags: ["Forensics", "Active Case", "Investigation"],
       evidenceCount: mappedEvidences.length,
       suspectsCount: mappedSuspects.length,
+      witnessesCount: mappedWitnesses.length,
       notesCount: 6,
       createdAt: dbCase.createdAt.toISOString(),
       updatedAt: dbCase.updatedAt.toISOString(),
       evidences: mappedEvidences,
       suspects: mappedSuspects,
+      witnesses: mappedWitnesses,
       auditLogs: auditLogItems,
       sketches: (dbCase.sketches || []).map((sk: any) => ({
         id: sk.id,

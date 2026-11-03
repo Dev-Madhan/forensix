@@ -21,7 +21,11 @@ export type ForensicEventType =
   | "SKETCH_GENERATED"
   | "SURVEILLANCE_HIT"
   | "AUDIT_RECORD_ADDED"
-  | "METRICS_REFRESH";
+  | "METRICS_REFRESH"
+  | "WITNESS_ENROLLED"
+  | "WITNESS_UPDATED"
+  | "WITNESS_DELETED"
+  | "WITNESS_INQUIRY_LOGGED";
 
 export interface ForensicEventPayload {
   type: ForensicEventType;

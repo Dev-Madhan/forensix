@@ -142,23 +142,40 @@ export function OpticalFaceSearchModal({
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      maxWidth="max-w-3xl"
+      maxWidth="max-w-2xl"
+      className="border-2 border-border/80 bg-black/95 backdrop-blur-2xl shadow-2xl rounded-2xl"
       title={
-        <div className="flex items-center gap-2.5">
-          <div className="flex size-8 items-center justify-center rounded-lg bg-[#665AEF]/20 text-[#a594fd] border border-[#665AEF]/30">
-            <ScanFace className="size-4.5" />
-          </div>
-          <div>
-            <h3 className="text-base font-semibold text-foreground tracking-tight">
+        <div className="flex items-start sm:items-center gap-2 sm:gap-2.5 min-w-0 pr-1">
+          <ScanFace className="size-4.5 sm:size-5 text-[#665AEF] shrink-0 mt-0.5 sm:mt-0" />
+          <div className="space-y-0.5 min-w-0 flex-1">
+            <span className="text-sm sm:text-base font-semibold text-foreground tracking-tight block truncate">
               Optical Face Recognition Search
-            </h3>
-            <p className="text-[11px] text-muted-foreground font-normal">
-              1:N Biometric facial feature matching across all enrolled suspect records
-            </p>
+            </span>
+            <span className="text-[11px] sm:text-xs text-muted-foreground font-normal block truncate">
+              1:N Biometric facial feature matching
+            </span>
           </div>
         </div>
       }
-      description=""
+      footer={
+        <div className="flex items-center justify-between w-full text-[11px] font-mono text-muted-foreground gap-2">
+          <div className="flex items-center gap-1.5 min-w-0 flex-1">
+            <Lock className="size-3 text-emerald-400 shrink-0" />
+            <span className="truncate text-[10px] sm:text-[11px]">
+              Evidentiary protocol audit active
+            </span>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={onClose}
+            className="h-8.5 sm:h-8 px-4 text-xs font-semibold rounded-lg border-2 border-border/80 hover:bg-muted text-foreground cursor-pointer shrink-0"
+          >
+            Close
+          </Button>
+        </div>
+      }
     >
       <div className="space-y-4 text-xs">
         {/* Top Dropzone / Preview Area */}
@@ -169,7 +186,7 @@ export function OpticalFaceSearchModal({
             onDragLeave={handleDragLeave}
             onClick={() => fileInputRef.current?.click()}
             className={cn(
-              "relative border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center text-center gap-3 cursor-pointer transition-all duration-200",
+              "relative border-2 border-dashed rounded-2xl p-8 sm:p-10 flex flex-col items-center justify-center text-center gap-3.5 cursor-pointer transition-all duration-200",
               isDragging
                 ? "border-[#665AEF] bg-[#665AEF]/10 scale-[0.99]"
                 : "border-border/80 bg-card/40 hover:bg-card/70 hover:border-[#665AEF]/50"
@@ -186,31 +203,32 @@ export function OpticalFaceSearchModal({
                 }
               }}
             />
-            <div className="size-12 rounded-full bg-[#665AEF]/15 border border-[#665AEF]/30 flex items-center justify-center text-[#a594fd]">
+            <div className="size-12 rounded-xl bg-[#665AEF]/15 border-2 border-[#665AEF]/30 flex items-center justify-center text-[#a594fd] shadow-inner">
               <UploadCloud className="size-6" />
             </div>
             <div className="space-y-1 max-w-sm">
-              <p className="text-sm font-semibold text-foreground">
+              <p className="text-sm font-semibold text-foreground tracking-tight">
                 Drop CCTV Snapshot or Scene Photo Here
               </p>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs text-muted-foreground leading-relaxed">
                 Supports JPG, PNG, WEBP files up to 25MB. Extracts 512D ArcFace facial embedding vectors automatically.
               </p>
             </div>
-            <span className="inline-flex items-center gap-1.5 text-[11px] font-mono text-muted-foreground px-2.5 py-1 rounded-md bg-muted/50 border border-border/50 mt-1">
-              <ScanFace className="size-3 text-[#665AEF]" />
+            <span className="inline-flex items-center gap-1.5 text-[11px] font-mono text-muted-foreground px-3 py-1.5 rounded-lg bg-zinc-950/80 border-2 border-border/60 mt-0.5">
+              <ScanFace className="size-3.5 text-[#665AEF]" />
               <span>Click to Browse Local File</span>
             </span>
           </div>
         ) : (
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 p-4 rounded-xl border border-border/80 bg-card/60">
+          <div className="flex flex-col sm:flex-row items-stretch gap-4 sm:gap-5 p-4 sm:p-5 rounded-2xl border-2 border-border/80 bg-zinc-950/80 shadow-xs">
             {/* Image Preview with Cyber Laser Scanning HUD */}
-            <div className="relative size-32 sm:size-36 rounded-xl overflow-hidden border-2 border-[#665AEF]/50 shrink-0 bg-black/60 shadow-lg mx-auto sm:mx-0">
+            <div className="relative w-full sm:w-44 h-56 sm:h-auto sm:self-stretch rounded-xl overflow-hidden border-2 border-[#665AEF]/50 shrink-0 bg-black/60 shadow-md">
               <Image
                 src={previewUrl}
                 alt="Query Probe"
                 fill
                 className="object-cover"
+                sizes="(max-width: 640px) 100vw, 176px"
               />
               {/* Laser Scanning Animation */}
               {isScanning && (
@@ -224,20 +242,22 @@ export function OpticalFaceSearchModal({
                   }}
                 />
               )}
-              <div className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded text-[9px] font-mono font-bold bg-black/70 text-cyan-400 border border-cyan-500/30">
+              <div className="absolute top-2 left-2 px-2 py-0.5 rounded-md text-[9px] font-mono font-bold bg-black/85 text-cyan-400 border-2 border-cyan-500/40 backdrop-blur-xs tracking-wider shadow-xs">
                 PROBE
               </div>
             </div>
 
             {/* Probe Details & Execution Controls */}
-            <div className="flex-1 space-y-3 min-w-0">
-              <div className="flex items-start justify-between gap-2">
-                <div className="space-y-0.5">
-                  <div className="text-sm font-semibold text-foreground truncate max-w-xs">
+            <div className="flex-1 space-y-4 min-w-0">
+              <div className="flex items-center justify-between gap-3 pb-3 border-b border-border/40">
+                <div className="space-y-0.5 min-w-0">
+                  <div className="text-sm font-semibold text-foreground truncate max-w-[200px] sm:max-w-xs tracking-tight">
                     {selectedFile?.name}
                   </div>
-                  <div className="text-[11px] text-muted-foreground font-mono">
-                    {Math.round((selectedFile?.size || 0) / 1024)} KB · Image Probe Loaded
+                  <div className="text-[11px] text-muted-foreground font-mono flex items-center gap-1.5">
+                    <span>{Math.round((selectedFile?.size || 0) / 1024)} KB</span>
+                    <span>•</span>
+                    <span className="text-emerald-400 font-medium">Probe Loaded</span>
                   </div>
                 </div>
                 <Button
@@ -245,49 +265,62 @@ export function OpticalFaceSearchModal({
                   variant="ghost"
                   size="icon"
                   onClick={handleReset}
-                  className="size-7 text-muted-foreground hover:text-foreground cursor-pointer"
-                  title="Remove image"
+                  className="size-7.5 rounded-lg border-2 border-border/60 hover:border-destructive/60 hover:bg-destructive/10 text-muted-foreground hover:text-destructive cursor-pointer transition-all shrink-0"
+                  title="Remove probe image"
                 >
-                  <X className="size-4" />
+                  <X className="size-3.5" />
                 </Button>
               </div>
 
               {/* Threshold Selection Tabs */}
-              <div className="space-y-1.5">
-                <label className="text-[11px] font-medium text-foreground">
-                  Match Sensitivity Gate:
-                </label>
-                <div className="flex items-center gap-2">
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-semibold text-foreground tracking-tight">
+                    Match Sensitivity Gate:
+                  </span>
+                  <span className="font-mono text-[11px] text-muted-foreground">
+                    Min. Threshold: <span className="text-[#a594fd] font-semibold">≥{threshold}%</span>
+                  </span>
+                </div>
+                <div className="grid grid-cols-3 gap-2 p-1.5 rounded-xl bg-background/60 border-2 border-border/80 shadow-inner">
                   {[
-                    { val: 85, label: "Strict (≥ 85%)" },
-                    { val: 75, label: "Medium (≥ 75%)" },
-                    { val: 60, label: "Broad (≥ 60%)" },
+                    { val: 85, label: "Strict", sub: "≥ 85%" },
+                    { val: 75, label: "Medium", sub: "≥ 75%" },
+                    { val: 60, label: "Broad", sub: "≥ 60%" },
                   ].map((t) => (
                     <button
                       key={t.val}
                       type="button"
                       onClick={() => setThreshold(t.val)}
                       className={cn(
-                        "flex-1 py-1.5 px-2 rounded-md text-[11px] font-medium border transition-colors cursor-pointer",
+                        "h-8.5 sm:h-9 px-2 rounded-lg text-xs font-medium transition-all cursor-pointer flex items-center justify-center gap-1.5 text-center",
                         threshold === t.val
-                          ? "bg-[#665AEF]/20 border-[#665AEF] text-[#a594fd] font-semibold"
-                          : "bg-muted/30 border-border/60 text-muted-foreground hover:bg-muted"
+                          ? "bg-[#665AEF] text-white shadow-xs font-semibold"
+                          : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
                       )}
                     >
-                      {t.label}
+                      <span>{t.label}</span>
+                      <span
+                        className={cn(
+                          "text-[10px] font-mono",
+                          threshold === t.val ? "text-white/80" : "text-muted-foreground/70"
+                        )}
+                      >
+                        ({t.sub})
+                      </span>
                     </button>
                   ))}
                 </div>
               </div>
 
               {/* Action Buttons */}
-              <div className="flex items-center gap-2 pt-1">
+              <div className="flex items-center gap-2.5 pt-1">
                 <Button
                   type="button"
                   size="sm"
                   onClick={handleExecuteScan}
                   disabled={isScanning}
-                  className="h-8 px-4 text-xs font-semibold bg-[#665AEF] hover:bg-[#5749DF] text-white gap-1.5 cursor-pointer shadow-md"
+                  className="h-9.5 px-4 text-xs font-semibold bg-[#665AEF] hover:bg-[#5748e6] text-white gap-2 cursor-pointer shadow-xs rounded-xl transition-all"
                 >
                   {isScanning ? (
                     <>
@@ -296,7 +329,7 @@ export function OpticalFaceSearchModal({
                     </>
                   ) : (
                     <>
-                      <ScanFace className="size-3.5" />
+                      <ScanFace className="size-4" />
                       <span>Execute Biometric Lookup</span>
                     </>
                   )}
@@ -306,7 +339,7 @@ export function OpticalFaceSearchModal({
                   variant="outline"
                   size="sm"
                   onClick={handleReset}
-                  className="h-8 text-xs text-muted-foreground hover:text-foreground cursor-pointer"
+                  className="h-9.5 px-3.5 text-xs font-medium rounded-xl border-2 border-border/80 hover:bg-muted/60 text-foreground cursor-pointer transition-all"
                 >
                   Change Photo
                 </Button>
@@ -322,10 +355,10 @@ export function OpticalFaceSearchModal({
               initial={{ opacity: 0, y: 4 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0 }}
-              className="py-12 flex flex-col items-center justify-center gap-3 text-center border rounded-xl border-border/60 bg-muted/10"
+              className="py-10 px-4 flex flex-col items-center justify-center gap-3 text-center border-2 rounded-2xl border-border/70 bg-card/40"
             >
-              <div className="relative">
-                <div className="size-10 rounded-full border-2 border-[#665AEF] border-t-transparent animate-spin" />
+              <div className="relative size-12 flex items-center justify-center">
+                <div className="size-12 rounded-full border-2 border-[#665AEF] border-t-transparent animate-spin" />
                 <ScanFace className="size-5 text-[#665AEF] absolute inset-0 m-auto" />
               </div>
               <div className="space-y-1 max-w-sm">
@@ -343,28 +376,31 @@ export function OpticalFaceSearchModal({
             <motion.div
               initial={{ opacity: 0, y: 6 }}
               animate={{ opacity: 1, y: 0 }}
-              className="space-y-3 pt-2"
+              className="space-y-3 pt-1"
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Sparkles className="size-4 text-cyan-400" />
-                  <span className="text-xs font-semibold text-foreground">
+                  <span className="text-xs font-semibold text-foreground tracking-tight">
                     Ranked Identity Matches ({filteredCandidates.length})
                   </span>
                 </div>
-                <span className="text-[10px] font-mono text-muted-foreground">
+                <Badge
+                  variant="outline"
+                  className="text-[10px] font-mono text-muted-foreground border-border/70 px-2 py-0.5"
+                >
                   Threshold: ≥{threshold}% Cosine Similarity
-                </span>
+                </Badge>
               </div>
 
               {filteredCandidates.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-72 overflow-y-auto pr-1">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[300px] overflow-y-auto pr-1">
                   {filteredCandidates.map((c) => (
                     <Link
                       key={c.id}
                       href={`/dashboard/criminals/${c.slug}`}
                       onClick={onClose}
-                      className="group p-3 rounded-xl border border-border/70 bg-card/50 hover:bg-card/90 hover:border-[#665AEF]/60 transition-all flex items-start gap-3 shadow-xs cursor-pointer"
+                      className="group p-3 rounded-xl border-2 border-border/80 bg-card/60 hover:bg-card hover:border-[#665AEF]/70 transition-all flex items-center gap-3 shadow-xs cursor-pointer"
                     >
                       <div className="relative shrink-0">
                         <SuspectAvatar
@@ -425,17 +461,19 @@ export function OpticalFaceSearchModal({
                         </div>
                       </div>
 
-                      <ArrowRight className="size-3.5 text-muted-foreground/40 group-hover:text-[#a594fd] group-hover:translate-x-0.5 transition-all shrink-0 self-center" />
+                      <ArrowRight className="size-4 text-muted-foreground/40 group-hover:text-[#a594fd] group-hover:translate-x-0.5 transition-all shrink-0" />
                     </Link>
                   ))}
                 </div>
               ) : (
-                <div className="py-8 flex flex-col items-center justify-center text-center gap-2 border border-dashed rounded-xl border-border/60 bg-muted/10">
-                  <AlertTriangle className="size-6 text-amber-400" />
+                <div className="py-8 px-4 flex flex-col items-center justify-center text-center gap-2.5 border-2 border-dashed rounded-2xl border-border/60 bg-muted/10">
+                  <div className="size-10 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                    <AlertTriangle className="size-5" />
+                  </div>
                   <p className="text-xs font-semibold text-foreground">
                     No Matches Exceeding {threshold}% Confidence
                   </p>
-                  <p className="text-[11px] text-muted-foreground max-w-sm">
+                  <p className="text-[11px] text-muted-foreground max-w-sm leading-relaxed">
                     Try lowering the sensitivity threshold to "Broad (≥ 60%)" or uploading a clearer, forward-facing frontal photograph.
                   </p>
                 </div>
@@ -443,23 +481,6 @@ export function OpticalFaceSearchModal({
             </motion.div>
           )}
         </AnimatePresence>
-
-        {/* Security Seal Footnote */}
-        <div className="flex items-center justify-between pt-3 border-t border-border/40 text-[10px] font-mono text-muted-foreground">
-          <div className="flex items-center gap-1.5">
-            <Lock className="size-3 text-emerald-400 shrink-0" />
-            <span>Biometric probes are signed and audited under Law Enforcement evidentiary protocols.</span>
-          </div>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={onClose}
-            className="text-xs rounded-md h-7 cursor-pointer"
-          >
-            Close
-          </Button>
-        </div>
       </div>
     </Modal>
   );

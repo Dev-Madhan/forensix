@@ -197,11 +197,15 @@ export function SketchProvider({ children }: { children: React.ReactNode }) {
           : data.cases[0];
 
         setSelectedCaseId(active.id);
+        const urlWitnessId = searchParams.get("witnessId");
         if (active.witnesses && active.witnesses.length > 0) {
-          setSelectedWitnessId(active.witnesses[0].id);
+          const targetWitness = urlWitnessId
+            ? active.witnesses.find((w) => w.id === urlWitnessId) || active.witnesses[0]
+            : active.witnesses[0];
+          setSelectedWitnessId(targetWitness.id);
           // Auto-hydrate witness statement into prompt if prompt is currently empty
-          if (active.witnesses[0].statement) {
-            setPromptText((prev) => (prev.trim().length === 0 ? (active.witnesses[0].statement || "") : prev));
+          if (targetWitness.statement) {
+            setPromptText((prev) => (prev.trim().length === 0 ? (targetWitness.statement || "") : prev));
           }
         }
       }
@@ -225,12 +229,16 @@ export function SketchProvider({ children }: { children: React.ReactNode }) {
     if (selectedCase?.witnesses && selectedCase.witnesses.length > 0) {
       const currentValid = selectedCase.witnesses.some((w) => w.id === selectedWitnessId);
       if (!currentValid) {
-        setSelectedWitnessId(selectedCase.witnesses[0].id);
+        const urlWitnessId = searchParams.get("witnessId");
+        const match = urlWitnessId
+          ? selectedCase.witnesses.find((w) => w.id === urlWitnessId)
+          : null;
+        setSelectedWitnessId(match ? match.id : selectedCase.witnesses[0].id);
       }
     } else {
       setSelectedWitnessId(null);
     }
-  }, [selectedCase, selectedWitnessId]);
+  }, [selectedCase, selectedWitnessId, searchParams]);
 
   const refreshCases = async () => {
     await loadCases(selectedCaseId);

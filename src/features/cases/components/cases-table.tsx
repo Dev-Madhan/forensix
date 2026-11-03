@@ -738,7 +738,7 @@ function CaseDetailsPreview({ caseItem, onMediaAdded }: CaseDetailsPreviewProps)
         <Folder className="size-8 text-[#665AEF]/40" />
         <div className="space-y-1">
           <p className="text-sm font-medium text-foreground">No Case Selected</p>
-          <p className="text-xs text-muted-foreground">Select an active investigation file from the ledger to inspect evidence and telemetry.</p>
+          <p className="text-xs text-muted-foreground">Select an active investigation file from the ledger to inspect evidence and case intelligence.</p>
         </div>
       </div>
     );

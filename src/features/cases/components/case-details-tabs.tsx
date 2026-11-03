@@ -1,5 +1,6 @@
 "use client";
 
+// Fresh module evaluation
 import React, { useState } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "motion/react";
@@ -63,6 +64,7 @@ import { CaseIncidentMediaCard } from "@/features/cases/components/case-incident
 import { CaseIncidentLocationCard } from "@/features/cases/components/case-incident-location-card";
 import { EvidenceTabContent } from "@/features/cases/components/evidence/evidence-tab-content";
 import { SuspectsTabContent } from "@/features/cases/components/suspects/suspects-tab-content";
+import { WitnessesTabContent } from "@/features/cases/components/witnesses/witnesses-tab-content";
 import { ActivityTabContent, logCaseActivity } from "@/features/cases/components/activity";
 import {
   Dialog,
@@ -140,6 +142,11 @@ export function CaseDetailsTabs({ caseData }: CaseDetailsTabsProps) {
     return caseData.suspects?.length ?? (caseData.suspectsCount || 0);
   });
 
+  // 3. Dynamic Live Witnesses Calculation
+  const [liveWitnessCount, setLiveWitnessCount] = useState<number>(() => {
+    return caseData.witnesses?.length ?? (caseData.witnessesCount || 0);
+  });
+
   React.useEffect(() => {
     if (caseData.evidences) {
       setLiveEvidenceCount(caseData.evidences.length);
@@ -147,7 +154,10 @@ export function CaseDetailsTabs({ caseData }: CaseDetailsTabsProps) {
     if (caseData.suspects) {
       setLiveSuspectsCount(caseData.suspects.length);
     }
-  }, [caseData.evidences, caseData.suspects]);
+    if (caseData.witnesses) {
+      setLiveWitnessCount(caseData.witnesses.length);
+    }
+  }, [caseData.evidences, caseData.suspects, caseData.witnesses]);
 
   React.useEffect(() => {
     const handleCaseActivity = (e: any) => {
@@ -164,6 +174,12 @@ export function CaseDetailsTabs({ caseData }: CaseDetailsTabsProps) {
           setLiveSuspectsCount((prev) => Math.max(0, prev - 1));
         } else if (detail.actionType === "SUSPECT" || detail.action === "Added Suspect") {
           setLiveSuspectsCount((prev) => prev + 1);
+        }
+      } else if (detail.category === "Witness") {
+        if (detail.actionType === "DELETE" || detail.action === "Witness Deleted") {
+          setLiveWitnessCount((prev) => Math.max(0, prev - 1));
+        } else if (detail.actionType === "WITNESS" || detail.action === "Enrolled Witness") {
+          setLiveWitnessCount((prev) => prev + 1);
         }
       }
     };
@@ -219,11 +235,12 @@ export function CaseDetailsTabs({ caseData }: CaseDetailsTabsProps) {
   const tabs = React.useMemo(
     () => [
       { id: "overview", label: "Overview" },
-      { id: "evidence", label: "Evidence" },
-      { id: "suspects", label: "Suspects" },
+      { id: "evidence", label: "Evidence", count: liveEvidenceCount },
+      { id: "suspects", label: "Suspects", count: liveSuspectsCount },
+      { id: "witnesses", label: "Witnesses", count: liveWitnessCount },
       { id: "activity", label: "Activity Log" },
     ],
-    []
+    [liveEvidenceCount, liveSuspectsCount, liveWitnessCount]
   );
 
   // Interactive tags state
@@ -524,7 +541,21 @@ export function CaseDetailsTabs({ caseData }: CaseDetailsTabsProps) {
                     : "text-muted-foreground hover:text-foreground"
                 )}
               >
-                <span className="relative z-10">{tab.label}</span>
+                <span className="relative z-10 flex items-center gap-1.5">
+                  {tab.label}
+                  {typeof (tab as any).count === "number" && (
+                    <span
+                      className={cn(
+                        "text-[10.5px] font-mono px-1.5 py-0.2 rounded-full border transition-colors",
+                        isActive
+                          ? "bg-[#665AEF]/20 text-[#8579ff] border-[#665AEF]/40"
+                          : "bg-secondary/80 text-muted-foreground border-border/50"
+                      )}
+                    >
+                      {(tab as any).count}
+                    </span>
+                  )}
+                </span>
 
                 {/* Sliding Active Underline Indicator Bar */}
                 {isActive && (
@@ -562,8 +593,8 @@ export function CaseDetailsTabs({ caseData }: CaseDetailsTabsProps) {
             >
               <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start w-full">
                 <div className="xl:col-span-8 2xl:col-span-8 space-y-6 min-w-0">
-                  {/* A. 4 Quick Stat Cards */}
-                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+                  {/* A. 5 Quick Stat Cards */}
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
                     {/* Card 1: Evidence Files */}
                     <motion.div
                       whileHover={{ y: -2 }}
@@ -613,6 +644,33 @@ export function CaseDetailsTabs({ caseData }: CaseDetailsTabsProps) {
                           />
                           <span className="text-xs text-muted-foreground font-medium block mt-1 truncate">
                             Suspects Linked
+                          </span>
+                        </div>
+                      </Card>
+                    </motion.div>
+
+                    {/* Card 3: Enrolled Witnesses */}
+                    <motion.div
+                      whileHover={{ y: -2 }}
+                      whileTap={{ scale: 0.98 }}
+                      transition={{ duration: 0.15 }}
+                      className="h-full"
+                    >
+                      <Card
+                        onClick={() => setActiveTab("witnesses")}
+                        className="group border border-border/80 bg-card/40 hover:bg-card/70 hover:border-border transition-all p-3.5 sm:p-4 rounded-xl cursor-pointer shadow-2xs flex flex-col justify-between h-full"
+                      >
+                        <div className="flex items-center justify-between">
+                          <Users className="size-5 text-emerald-400 group-hover:scale-110 transition-transform" />
+                          <ChevronRight className="size-4 text-muted-foreground/40 group-hover:text-foreground group-hover:translate-x-0.5 transition-all" />
+                        </div>
+                        <div className="mt-3">
+                          <RollingNumber
+                            value={liveWitnessCount}
+                            className="text-2xl font-bold font-heading text-foreground block leading-tight"
+                          />
+                          <span className="text-xs text-muted-foreground font-medium block mt-1 truncate">
+                            Witness Dossiers
                           </span>
                         </div>
                       </Card>
@@ -1203,7 +1261,29 @@ export function CaseDetailsTabs({ caseData }: CaseDetailsTabsProps) {
             </motion.div>
           )}
 
-          {/* 4. ACTIVITY LOG TAB PANEL */}
+          {/* 4. WITNESSES TAB PANEL */}
+          {activeTab === "witnesses" && (
+            <motion.div
+              key="witnesses"
+              role="tabpanel"
+              id="case-tabpanel-witnesses"
+              aria-labelledby="case-tab-witnesses"
+              variants={tabContentVariants}
+              initial="initial"
+              animate="animate"
+              exit="exit"
+              className="outline-none"
+            >
+              <WitnessesTabContent
+                caseId={caseData.id}
+                caseNumber={caseData.caseNumber}
+                initialWitnesses={caseData.witnesses || []}
+                onWitnessesCountChange={setLiveWitnessCount}
+              />
+            </motion.div>
+          )}
+
+          {/* 5. ACTIVITY LOG TAB PANEL */}
           {activeTab === "activity" && (
             <motion.div
               key="activity"

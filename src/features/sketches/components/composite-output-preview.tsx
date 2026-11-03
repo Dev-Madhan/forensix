@@ -59,7 +59,10 @@ export function CompositeOutputPreview() {
     savedSketchId,
     saveToVault,
     criminalsCatalog,
+    selectedWitnessId,
   } = useSketch();
+
+  const activeWitness = selectedCase?.witnesses?.find((w) => w.id === selectedWitnessId);
 
   const [isExpanded, setIsExpanded] = useState(false);
   const [activeTab, setActiveTab] = useState<"sketch" | "dossier">("sketch");
@@ -302,6 +305,25 @@ export function CompositeOutputPreview() {
           </div>
         )}
       </div>
+
+      {/* Witness Attribution Bar (if witness selected) */}
+      {activeWitness && (
+        <div className="flex items-center justify-between px-3.5 py-1.5 bg-[#0f0f18] border-b border-border/60 text-[11px]">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <User className="size-3 text-emerald-400 shrink-0" />
+            <span className="text-muted-foreground">Witness Attribution:</span>
+            <span className="font-semibold text-foreground truncate">{activeWitness.name}</span>
+            {activeWitness.statement && (
+              <span className="hidden md:inline text-muted-foreground/75 italic truncate max-w-sm">
+                — &quot;{activeWitness.statement}&quot;
+              </span>
+            )}
+          </div>
+          <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 text-[10px] font-mono shrink-0">
+            Witness Backed
+          </Badge>
+        </div>
+      )}
 
       {/* Main Content Area: Viewport Canvas OR Forensic LLM Dossier */}
       {activeTab === "sketch" ? (

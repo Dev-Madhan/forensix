@@ -82,6 +82,42 @@ enum SurveillanceHitStatus {
   RESOLVED
 }
 
+enum WitnessType {
+  EYEWITNESS
+  VICTIM_WITNESS
+  EARWITNESS
+  FIRST_RESPONDER
+  INFORMANT
+  EXPERT_WITNESS
+  CHARACTER_WITNESS
+}
+
+enum WitnessCredibility {
+  HIGH
+  MEDIUM
+  LOW
+  UNVERIFIED
+  COMPROMISED
+}
+
+enum WitnessAvailability {
+  ACTIVE_AVAILABLE
+  RELOCATED
+  UNREACHABLE
+  UNDER_PROTECTION
+  SUBPOENA_ISSUED
+  DECEASED
+}
+
+enum IdentificationType {
+  AADHAAR
+  PASSPORT
+  DRIVERS_LICENSE
+  NATIONAL_ID
+  VOTER_ID
+  OTHER
+}
+
 // --- MODELS ---
 
 model User {
@@ -104,6 +140,8 @@ model User {
   auditLogs        AuditLog[]
   assignedSuspects CaseSuspect[]
   criminalRecords  CriminalRecord[]
+  witnessInquiries WitnessInquiryLog[] @relation("InvestigatorInquiries")
+  interviewedWitnesses Witness[]        @relation("OfficerWitnessInterviews")
   sessions         Session[]
   accounts         Account[]
 
@@ -129,15 +167,95 @@ model Case {
 }
 
 model Witness {
-  id          String   @id @default(uuid())
-  name        String
-  contactInfo String?
-  statement   String?  @db.Text
-  caseId      String
-  case        Case     @relation(fields: [caseId], references: [id], onDelete: Cascade)
-  sketches    Sketch[] // Sketches based on this witness's description
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                    String              @id @default(uuid())
+  witnessCode           String?             @unique @default(cuid())
+  caseId                String
+  case                  Case                @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  // 1. Core Personal Identity
+  name                  String
+  alias                 String?
+  dateOfBirth           DateTime?
+  ageAtIncident         Int?
+  gender                String?
+  occupation            String?
+  employerName          String?
+
+  // 2. Identity Verification (Future Proofing)
+  idType                IdentificationType  @default(NATIONAL_ID)
+  idNumberMasked        String?
+  idVerified            Boolean             @default(false)
+
+  // 3. Multi-Channel Contact Details (Re-contact Protocol)
+  contactInfo           String?
+  primaryPhone          String?
+  secondaryPhone        String?
+  email                 String?
+  emergencyContactName  String?
+  emergencyContactPhone String?
+  emergencyRelationship String?
+
+  // 4. Physical Residential Tracking
+  currentAddress        String?             @db.Text
+  permanentAddress      String?             @db.Text
+  city                  String?
+  state                 String?
+  postalCode            String?
+
+  // 5. Investigative & Legal Classification
+  witnessType           WitnessType         @default(EYEWITNESS)
+  credibility           WitnessCredibility  @default(UNVERIFIED)
+  availabilityStatus    WitnessAvailability @default(ACTIVE_AVAILABLE)
+  isProtected           Boolean             @default(false)
+  protectionProtocol    String?             @db.Text
+
+  // 6. Observation Conditions & Memory Decay Analytics
+  incidentDistanceMeters Float?
+  lightingCondition     String?
+  weatherCondition      String?
+  observationDurationSec Int?
+  timeElapsedHours      Float?
+  impairmentFactors     String?
+  confidenceScore       Int?
+
+  // 7. Testimony & Statements
+  statement             String?             @db.Text
+  statementAudioUrl     String?
+  keyFacialFeatures     String?             @db.Text
+  interviewDate         DateTime            @default(now())
+  interviewingOfficerId String?
+  interviewingOfficer   User?               @relation("OfficerWitnessInterviews", fields: [interviewingOfficerId], references: [id])
+
+  // 8. Relations
+  sketches              Sketch[]
+  inquiries             WitnessInquiryLog[]
+
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+
+  @@index([caseId])
+  @@index([witnessType])
+  @@index([availabilityStatus])
+}
+
+model WitnessInquiryLog {
+  id               String    @id @default(uuid())
+  witnessId        String
+  witness          Witness   @relation(fields: [witnessId], references: [id], onDelete: Cascade)
+  investigatorId   String
+  investigator     User      @relation("InvestigatorInquiries", fields: [investigatorId], references: [id])
+  inquiryDate      DateTime  @default(now())
+  contactMethod    String
+  purpose          String
+  notes            String    @db.Text
+  outcome          String?
+  nextFollowUpDate DateTime?
+
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([witnessId])
+  @@index([investigatorId])
 }
 
 model Sketch {
@@ -182,6 +300,11 @@ model Criminal {
   recognitionResults RecognitionResult[]
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
+
+  @@index([status])
+  @@index([riskLevel])
+  @@index([createdAt])
+  @@index([lastName, firstName])
 }
 
 model CriminalRecord {

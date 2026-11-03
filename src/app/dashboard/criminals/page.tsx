@@ -29,7 +29,21 @@ export const metadata = {
   description: "Search, view, and manage criminal records with AI-powered intelligence.",
 };
 
-export default async function CriminalsPage() {
+export default async function CriminalsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{
+    q?: string;
+    search?: string;
+    status?: string;
+    risk?: string;
+    category?: string;
+    page?: string;
+    pageSize?: string;
+    sort?: string;
+    order?: string;
+  }>;
+}) {
   const session = await auth.api.getSession({
     headers: await headers(),
   });
@@ -43,9 +57,28 @@ export default async function CriminalsPage() {
       }
     : undefined;
 
-  // Query database items and live metrics in parallel
+  const resolvedParams = searchParams ? await searchParams : undefined;
+  const page = resolvedParams?.page ? Math.max(1, parseInt(resolvedParams.page, 10)) : 1;
+  const pageSize = resolvedParams?.pageSize ? Math.max(10, parseInt(resolvedParams.pageSize, 10)) : 50;
+  const search = resolvedParams?.q || resolvedParams?.search || undefined;
+  const status = resolvedParams?.status || undefined;
+  const riskLevel = resolvedParams?.risk || undefined;
+  const category = resolvedParams?.category || undefined;
+  const sortKey = (resolvedParams?.sort as "name" | "id" | "dob" | "risk" | "status") || undefined;
+  const sortOrder = (resolvedParams?.order as "asc" | "desc") || undefined;
+
+  // Query database items with server-side pagination and live metrics in parallel
   const [criminals, metrics] = await Promise.all([
-    getCriminalsForTable(),
+    getCriminalsForTable({
+      page,
+      pageSize,
+      search,
+      status,
+      riskLevel,
+      category,
+      sortKey,
+      sortOrder,
+    }),
     getCriminalIntelligenceMetrics(),
   ]);
 
@@ -108,7 +141,13 @@ export default async function CriminalsPage() {
                 </div>
               }
             >
-              <CriminalsTable initialCriminals={criminals} metrics={metrics} />
+              <CriminalsTable
+                initialCriminals={criminals}
+                metrics={metrics}
+                totalCount={criminals.totalCount}
+                initialPage={criminals.currentPage}
+                pageSize={criminals.pageSize}
+              />
             </Suspense>
           </div>
         </div>

@@ -227,7 +227,7 @@ export function DashboardContent({
         layout
         variants={itemVariants}
         transition={{ layout: { duration: 0.45, ease: [0.16, 1, 0.3, 1] } }}
-        className="px-4 lg:px-6"
+        className="px-4 sm:px-6 lg:px-8 max-w-7xl mx-auto w-full"
       >
         <ChartAreaInteractive data={currentChartData} />
       </motion.div>
@@ -237,19 +237,19 @@ export function DashboardContent({
         layout
         variants={itemVariants}
         transition={{ layout: { duration: 0.45, ease: [0.16, 1, 0.3, 1] } }}
-        className="grid grid-cols-1 gap-4 px-4 lg:grid-cols-12 lg:px-6"
+        className="grid grid-cols-1 gap-4 px-4 sm:px-6 lg:px-8 lg:grid-cols-12 max-w-7xl mx-auto w-full items-stretch"
       >
         <motion.div
           layout
           transition={{ layout: { duration: 0.45, ease: [0.16, 1, 0.3, 1] } }}
-          className="lg:col-span-7"
+          className="lg:col-span-7 flex flex-col"
         >
           <RecentCasesTable cases={currentCases} />
         </motion.div>
         <motion.div
           layout
           transition={{ layout: { duration: 0.45, ease: [0.16, 1, 0.3, 1] } }}
-          className="lg:col-span-5"
+          className="lg:col-span-5 flex flex-col"
         >
           <RecentSketches sketches={currentSketches} />
         </motion.div>

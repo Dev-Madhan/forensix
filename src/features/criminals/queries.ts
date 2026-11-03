@@ -6,9 +6,24 @@ import { type CriminalItem } from "@/features/criminals/types";
 import { getSafeStorageUrl } from "@/lib/storage-url";
 
 export interface GetCriminalsFilters {
-  status?: CriminalStatus;
-  riskLevel?: CriminalRiskLevel;
+  status?: CriminalStatus | string;
+  riskLevel?: CriminalRiskLevel | string;
   search?: string;
+  category?: string;
+  page?: number;
+  pageSize?: number;
+  take?: number;
+  skip?: number;
+  sortKey?: "name" | "id" | "dob" | "risk" | "status";
+  sortOrder?: "asc" | "desc";
+}
+
+export interface PaginatedCriminalsResult {
+  items: CriminalItem[];
+  totalCount: number;
+  pageCount: number;
+  currentPage: number;
+  pageSize: number;
 }
 
 export async function getCriminals(filters?: GetCriminalsFilters) {
@@ -22,68 +37,119 @@ export async function getCriminals(filters?: GetCriminalsFilters) {
 
   const whereClause: Prisma.CriminalWhereInput = {};
 
-  if (filters?.status) {
-    whereClause.status = filters.status;
+  if (filters?.status && filters.status !== "ALL") {
+    const raw = String(filters.status).toUpperCase();
+    if (Object.values(CriminalStatus).includes(raw as CriminalStatus)) {
+      whereClause.status = raw as CriminalStatus;
+    }
   }
 
-  if (filters?.riskLevel) {
-    whereClause.riskLevel = filters.riskLevel;
+  if (filters?.riskLevel && filters.riskLevel !== "ALL") {
+    const raw = String(filters.riskLevel).toUpperCase();
+    if (Object.values(CriminalRiskLevel).includes(raw as CriminalRiskLevel)) {
+      whereClause.riskLevel = raw as CriminalRiskLevel;
+    }
   }
 
-  if (filters?.search) {
+  if (filters?.search && filters.search.trim()) {
+    const s = filters.search.trim();
     whereClause.OR = [
-      { firstName: { contains: filters.search, mode: "insensitive" } },
-      { lastName: { contains: filters.search, mode: "insensitive" } },
-      { alias: { contains: filters.search, mode: "insensitive" } },
-      { criminalId: { contains: filters.search, mode: "insensitive" } },
+      { firstName: { contains: s, mode: "insensitive" } },
+      { lastName: { contains: s, mode: "insensitive" } },
+      { alias: { contains: s, mode: "insensitive" } },
+      { criminalId: { contains: s, mode: "insensitive" } },
+      { lastKnownLocation: { contains: s, mode: "insensitive" } },
     ];
   }
 
-  const criminals = await prisma.criminal.findMany({
-    where: whereClause,
-    include: {
-      caseLinks: {
-        include: {
-          case: {
-            select: {
-              id: true,
-              caseNumber: true,
-              title: true,
-              status: true,
+  // Calculate order
+  let orderByClause: Prisma.CriminalOrderByWithRelationInput = { createdAt: "desc" };
+  if (filters?.sortKey) {
+    const dir = filters.sortOrder === "asc" ? "asc" : "desc";
+    if (filters.sortKey === "name") {
+      orderByClause = { lastName: dir };
+    } else if (filters.sortKey === "id") {
+      orderByClause = { criminalId: dir };
+    } else if (filters.sortKey === "dob") {
+      orderByClause = { dateOfBirth: dir };
+    } else if (filters.sortKey === "risk") {
+      orderByClause = { riskLevel: dir };
+    } else if (filters.sortKey === "status") {
+      orderByClause = { status: dir };
+    }
+  }
+
+  const page = Math.max(1, filters?.page || 1);
+  const pageSize = filters?.pageSize || filters?.take;
+  const skip =
+    filters?.skip !== undefined
+      ? filters.skip
+      : filters?.page && pageSize
+      ? (page - 1) * pageSize
+      : undefined;
+  const take = pageSize;
+
+  const [criminals, totalCount] = await Promise.all([
+    prisma.criminal.findMany({
+      where: whereClause,
+      include: {
+        caseLinks: {
+          include: {
+            case: {
+              select: {
+                id: true,
+                caseNumber: true,
+                title: true,
+                status: true,
+              },
             },
           },
         },
-      },
-      _count: {
-        select: {
-          caseLinks: true,
-          evidences: true,
-          recognitionResults: true,
+        _count: {
+          select: {
+            caseLinks: true,
+            evidences: true,
+            recognitionResults: true,
+          },
         },
       },
-    },
-    orderBy: { createdAt: "desc" },
-  });
+      orderBy: orderByClause,
+      ...(skip !== undefined ? { skip } : {}),
+      ...(take !== undefined ? { take } : {}),
+    }),
+    prisma.criminal.count({ where: whereClause }),
+  ]);
 
-  return criminals;
+  return { criminals, totalCount, page, pageSize: pageSize || totalCount };
 }
 
 /**
  * Returns formatted CriminalItem objects ready for the CriminalsTable component
+ * Returns an array decorated with pagination metadata for backwards compatibility.
  */
-export async function getCriminalsForTable(filters?: GetCriminalsFilters): Promise<CriminalItem[]> {
+export async function getCriminalsForTable(
+  filters?: GetCriminalsFilters
+): Promise<CriminalItem[] & { totalCount: number; pageCount: number; currentPage: number; pageSize: number }> {
   try {
-    const dbCriminals = await getCriminals(filters);
+    const { criminals: dbCriminals, totalCount, page, pageSize } = await getCriminals(filters);
 
     if (dbCriminals.length === 0) {
-      return [];
+      const empty = [] as unknown as CriminalItem[] & {
+        totalCount: number;
+        pageCount: number;
+        currentPage: number;
+        pageSize: number;
+      };
+      empty.totalCount = totalCount;
+      empty.pageCount = Math.max(1, Math.ceil(totalCount / (pageSize || 1)));
+      empty.currentPage = page;
+      empty.pageSize = pageSize;
+      return empty;
     }
 
-    const formatted: CriminalItem[] = await Promise.all(
-      dbCriminals.map(async (c, index) => {
+    const formatted = (await Promise.all(
+      dbCriminals.map(async (c) => {
         const demo = (c.demographics as Record<string, any>) || {};
-        const fullName = `${c.firstName} ${c.lastName}`.trim();
-        
         const statusMap: Record<string, "Active" | "Inactive" | "Wanted" | "In Custody" | "Under Surveillance"> = {
           ACTIVE: "Active",
           WANTED: "Wanted",
@@ -98,7 +164,11 @@ export async function getCriminalsForTable(filters?: GetCriminalsFilters): Promi
           LOW: "Low",
         };
 
-        const age = demo.age || (c.dateOfBirth ? new Date().getFullYear() - new Date(c.dateOfBirth).getFullYear() : 32);
+        const age =
+          demo.age ||
+          (c.dateOfBirth
+            ? new Date().getFullYear() - new Date(c.dateOfBirth).getFullYear()
+            : 32);
         const crimeCategories = demo.secondaryCategories
           ? [demo.primaryCategory || "Robbery", String(demo.secondaryCategories)]
           : [demo.primaryCategory || "Robbery / Theft"];
@@ -133,12 +203,32 @@ export async function getCriminalsForTable(filters?: GetCriminalsFilters): Promi
           linkedCases: c._count.caseLinks || demo.totalCasesCount || 0,
         };
       })
-    );
+    )) as CriminalItem[] & {
+      totalCount: number;
+      pageCount: number;
+      currentPage: number;
+      pageSize: number;
+    };
+
+    formatted.totalCount = totalCount;
+    formatted.pageCount = Math.max(1, Math.ceil(totalCount / (pageSize || 1)));
+    formatted.currentPage = page;
+    formatted.pageSize = pageSize;
 
     return formatted;
   } catch (error) {
     console.warn("Failed to load table criminals from database:", error);
-    return [];
+    const fallback = [] as unknown as CriminalItem[] & {
+      totalCount: number;
+      pageCount: number;
+      currentPage: number;
+      pageSize: number;
+    };
+    fallback.totalCount = 0;
+    fallback.pageCount = 1;
+    fallback.currentPage = 1;
+    fallback.pageSize = 50;
+    return fallback;
   }
 }
 
