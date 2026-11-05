@@ -31,6 +31,8 @@ export function extractTigrisStorageKey(urlOrKey: string | null | undefined): st
         // If path-style URL (fly.storage.tigris.dev/<bucket>/<key>)
         if (path.startsWith(`${bucketName}/`)) {
           path = path.slice(bucketName.length + 1);
+        } else if (path.startsWith("forensix-evidence/")) {
+          path = path.slice("forensix-evidence/".length);
         }
         return path || null;
       }

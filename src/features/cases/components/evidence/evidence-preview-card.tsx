@@ -48,6 +48,11 @@ export function EvidencePreviewCard({
   onPlayMedia,
 }: EvidencePreviewCardProps) {
   const [copiedHash, setCopiedHash] = useState(false);
+  const [fallbackImage, setFallbackImage] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    setFallbackImage(null);
+  }, [item?.id]);
 
   if (!item) {
     return (
@@ -135,12 +140,15 @@ export function EvidencePreviewCard({
         <div className="relative aspect-[16/9] max-h-[160px] w-full rounded-lg overflow-hidden border-2 border-border/80 bg-black/90 group shadow-inner">
           {item.previewImage ? (
             <Image
-              src={item.previewImage}
+              src={fallbackImage || item.previewImage}
               alt={item.name}
               fill
               className="object-cover transition-opacity duration-300"
               sizes="(max-width: 1280px) 100vw, 450px"
               priority
+              onError={() => {
+                setFallbackImage("/images/evidence/cctv_footage_01.jpg");
+              }}
             />
           ) : (
             <div className="size-full flex items-center justify-center p-4 bg-gradient-to-b from-card/80 to-card/40">

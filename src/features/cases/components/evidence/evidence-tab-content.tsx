@@ -36,20 +36,21 @@ export function EvidenceTabContent({
     return initialEvidence || [];
   });
 
-  // Synchronize state when server-hydrated initialEvidence changes
-  React.useEffect(() => {
-    if (initialEvidence) {
-      setEvidenceList(initialEvidence);
-      if (initialEvidence.length > 0 && !initialEvidence.some((e) => e.id === selectedEvidenceId)) {
-        setSelectedEvidenceId(initialEvidence[0].id);
-      }
-    }
-  }, [initialEvidence]);
-
   // 2. Currently active / selected evidence item for the Right Column Inspector
+  // Declared before the sync effect so the closure captures the correct setter reference
   const [selectedEvidenceId, setSelectedEvidenceId] = useState<string>(() => {
     return initialEvidence?.[0]?.id || "";
   });
+
+  // Synchronize state when server-hydrated initialEvidence changes
+  React.useEffect(() => {
+    if (initialEvidence && initialEvidence.length > 0) {
+      setEvidenceList(initialEvidence);
+      setSelectedEvidenceId((prev) =>
+        initialEvidence.some((e) => e.id === prev) ? prev : initialEvidence[0].id
+      );
+    }
+  }, [initialEvidence]);
 
   // 3. Selection checkboxes
   const [selectedRowIds, setSelectedRowIds] = useState<Set<string>>(new Set());

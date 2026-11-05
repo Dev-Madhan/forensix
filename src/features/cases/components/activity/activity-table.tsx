@@ -128,6 +128,12 @@ export function ActivityTable({
             Suspect
           </span>
         );
+      case "Witness":
+        return (
+          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium border border-indigo-500/25 bg-indigo-500/10 text-indigo-400 whitespace-nowrap">
+            Witness
+          </span>
+        );
       case "Note":
         return (
           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium border border-amber-500/25 bg-amber-500/10 text-amber-400 whitespace-nowrap">

@@ -56,6 +56,25 @@ export interface ResolvedCaseDetail {
   }>;
 }
 
+// Normalize DB-stored uppercase/underscore strings to display format
+const SOURCE_MAP: Record<string, "CCTV" | "Crime Scene" | "Investigator" | "Phone Record"> = {
+  CCTV: "CCTV",
+  CRIME_SCENE: "Crime Scene",
+  INVESTIGATOR: "Investigator",
+  PHONE_RECORD: "Phone Record",
+  LAB_ANALYSIS: "Crime Scene",
+  DIGITAL: "Investigator",
+  WITNESS: "Investigator",
+};
+
+const STATUS_MAP: Record<string, "Verified" | "Under Review" | "Flagged"> = {
+  VERIFIED: "Verified",
+  UNDER_REVIEW: "Under Review",
+  FLAGGED: "Flagged",
+  PENDING: "Under Review",
+  REJECTED: "Flagged",
+};
+
 export function mapPrismaEvidenceToItem(e: any): EvidenceItem {
   const meta = (e.metadata as Record<string, any>) || {};
   const ext = (e.fileName || "").split(".").pop()?.toLowerCase() || "";
@@ -72,33 +91,57 @@ export function mapPrismaEvidenceToItem(e: any): EvidenceItem {
   if (type === "Video") thumbnailType = "cctv";
   else if (type === "Audio") thumbnailType = "audio";
   else if (type === "Image") {
-    if (e.fileName.toLowerCase().includes("fingerprint")) thumbnailType = "fingerprint";
-    else if (e.fileName.toLowerCase().includes("weapon")) thumbnailType = "weapon";
+    const lowerName = (e.fileName || "").toLowerCase();
+    if (lowerName.includes("fingerprint")) thumbnailType = "fingerprint";
+    else if (lowerName.includes("weapon")) thumbnailType = "weapon";
     else thumbnailType = "cctv";
   }
 
   const dt = new Date(e.uploadedAt || e.createdAt);
-  const sizeMb = (e.fileSize / (1024 * 1024)).toFixed(1);
-  const fileSize = e.fileSize > 1024 * 1024 ? `${sizeMb} MB` : `${Math.round(e.fileSize / 1024)} KB`;
+
+  // Guard fileSize against null/zero to avoid NaN
+  const rawSize = typeof e.fileSize === "number" && e.fileSize > 0 ? e.fileSize : 0;
+  const fileSize =
+    rawSize === 0
+      ? "Unknown"
+      : rawSize > 1024 * 1024
+      ? `${(rawSize / (1024 * 1024)).toFixed(1)} MB`
+      : `${Math.round(rawSize / 1024)} KB`;
+
+  // Normalize source: DB stores "CRIME_SCENE", display needs "Crime Scene"
+  const rawSource = (e.source || "").toString().trim().toUpperCase().replace(/\s+/g, "_");
+  const normalizedSource: "CCTV" | "Crime Scene" | "Investigator" | "Phone Record" =
+    SOURCE_MAP[rawSource] ?? "Crime Scene";
+
+  // Normalize status: DB stores "VERIFIED", display needs "Verified"
+  const rawStatus = (e.status || "").toString().trim().toUpperCase().replace(/\s+/g, "_");
+  const normalizedStatus: "Verified" | "Under Review" | "Flagged" =
+    STATUS_MAP[rawStatus] ?? "Verified";
 
   return {
     id: e.id,
     name: e.title || e.fileName,
     description: e.description || e.fileName,
     type,
-    source: (e.source as any) || "Crime Scene",
+    source: normalizedSource,
     addedBy: {
       name: "Investigator",
       initials: "IN",
     },
     dateAdded: dt.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
     timeAdded: dt.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true }),
-    status: (e.status as any) || "Verified",
+    status: normalizedStatus,
     fileSize,
     hash: e.sha256Hash ? `${e.sha256Hash.slice(0, 4)}...${e.sha256Hash.slice(-4)}` : "sha256",
     location: e.locationFound || `/evidence/${e.storageKey}`,
     thumbnailType,
-    previewImage: isImage ? (getSafeStorageUrl(e.storageKey || e.fileUrl) || "/images/cctv-suspect.jpg") : undefined,
+    previewImage:
+      getSafeStorageUrl(
+        e.storageKey || e.fileUrl,
+        type === "Video"
+          ? "/images/evidence/cctv_footage_01.jpg"
+          : "/images/evidence/cctv_footage_01.jpg"
+      ) || "/images/evidence/cctv_footage_01.jpg",
     camId: meta.camId || undefined,
     timestamp: dt.toISOString().slice(0, 19).replace("T", " "),
     fullDescription: e.description || e.fileName,

@@ -11,6 +11,7 @@ import { WitnessInquiryDialog } from "./witness-inquiry-dialog";
 import { Button } from "@/components/ui/button";
 import { Users, UserPlus, Sparkles, PhoneCall, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
+import { logCaseActivity } from "../activity";
 import { deleteWitness, getWitnessCorroboration } from "../../witnesses/actions";
 import { useWitnessRealtime } from "../../witnesses/use-witness-realtime";
 import type { WitnessItem, WitnessInquiryItem } from "../../witnesses/types";
@@ -146,8 +147,10 @@ export function WitnessesTabContent({
   };
 
   const handleWitnessSaved = (savedWitness: WitnessItem) => {
+    let isNew = false;
     setWitnesses((prev) => {
       const existsIndex = prev.findIndex((w) => w.id === savedWitness.id);
+      isNew = existsIndex < 0;
       let updated: WitnessItem[];
       if (existsIndex >= 0) {
         updated = [...prev];
@@ -157,6 +160,15 @@ export function WitnessesTabContent({
       }
       onWitnessesCountChange?.(updated.length);
       return updated;
+    });
+
+    logCaseActivity({
+      caseId,
+      caseNumber,
+      action: isNew ? "Enrolled Witness" : "Updated Witness",
+      actionType: "WITNESS",
+      category: "Witness",
+      details: `${isNew ? "Enrolled" : "Updated"} witness ${savedWitness.name} (${savedWitness.witnessCode || "Registry"}).`,
     });
 
     // Also update active dossier view if open
@@ -183,6 +195,15 @@ export function WitnessesTabContent({
         if (dossierWitness?.id === witness.id) {
           setDossierWitness(null);
         }
+
+        logCaseActivity({
+          caseId,
+          caseNumber,
+          action: "Witness Deleted",
+          actionType: "DELETE",
+          category: "Witness",
+          details: `Removed witness ${witness.name} from registry.`,
+        });
       } else {
         toast.error(res.error || "Failed to delete witness");
       }

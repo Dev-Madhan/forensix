@@ -60,6 +60,7 @@ import {
   ExternalLink,
   ZoomIn,
 } from "lucide-react";
+import { getSafeStorageUrl } from "@/lib/storage-url";
 import { EvidenceUploadDialog } from "./evidence/evidence-upload-dialog";
 import { INITIAL_CASES, type CaseItem, type CaseMediaItem } from "@/features/cases/types";
 export { INITIAL_CASES, type CaseItem, type CaseMediaItem };
@@ -160,10 +161,16 @@ export function CasesTable({ initialCases = [] }: CasesTableProps) {
   const allCases = localCases;
 
   const handleMediaAdded = (caseId: string, mediaItem: CaseMediaItem) => {
+    const safeMediaItem: CaseMediaItem = {
+      ...mediaItem,
+      fileUrl:
+        getSafeStorageUrl(mediaItem.fileUrl, "/images/evidence/cctv_footage_01.jpg") ||
+        mediaItem.fileUrl,
+    };
     setLocalCases((prev) =>
       prev.map((c) =>
         c.id === caseId
-          ? { ...c, media: [mediaItem, ...(c.media || [])] }
+          ? { ...c, media: [safeMediaItem, ...(c.media || [])] }
           : c
       )
     );
@@ -722,6 +729,56 @@ function formatBytes(bytes: number): string {
   return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
 }
 
+function SafeMediaImage({
+  src,
+  alt,
+  category,
+  priority = false,
+  className,
+}: {
+  src: string;
+  alt: string;
+  category?: string;
+  priority?: boolean;
+  className?: string;
+}) {
+  const fallbackSrc =
+    category === "SKETCH"
+      ? "/images/sketches/sketch-01.jpg"
+      : "/images/evidence/cctv_footage_01.jpg";
+
+  const resolvedInitial = React.useMemo(() => {
+    return getSafeStorageUrl(src, fallbackSrc) || src || fallbackSrc;
+  }, [src, fallbackSrc]);
+
+  const [imgSrc, setImgSrc] = React.useState(resolvedInitial);
+  const [hasError, setHasError] = React.useState(false);
+
+  React.useEffect(() => {
+    const safe = getSafeStorageUrl(src, fallbackSrc) || src || fallbackSrc;
+    setImgSrc(safe);
+    setHasError(false);
+  }, [src, fallbackSrc]);
+
+  return (
+    <Image
+      src={hasError ? fallbackSrc : imgSrc || fallbackSrc}
+      alt={alt}
+      fill
+      unoptimized
+      className={className || "object-cover transition-opacity duration-300"}
+      sizes="(max-width: 1280px) 100vw, 400px"
+      priority={priority}
+      onError={() => {
+        if (!hasError) {
+          setHasError(true);
+          setImgSrc(fallbackSrc);
+        }
+      }}
+    />
+  );
+}
+
 function CaseDetailsPreview({ caseItem, onMediaAdded }: CaseDetailsPreviewProps) {
   const [mediaIndex, setMediaIndex] = React.useState(0);
   const [isUploadOpen, setIsUploadOpen] = React.useState(false);
@@ -816,7 +873,7 @@ function CaseDetailsPreview({ caseItem, onMediaAdded }: CaseDetailsPreviewProps)
                 >
                   {currentMedia.category === "VIDEO" ? (
                     <video
-                      src={currentMedia.fileUrl}
+                      src={getSafeStorageUrl(currentMedia.fileUrl) || currentMedia.fileUrl}
                       controls={false}
                       className="w-full h-full object-cover"
                     />
@@ -841,19 +898,16 @@ function CaseDetailsPreview({ caseItem, onMediaAdded }: CaseDetailsPreviewProps)
                       </span>
                     </div>
                   ) : (
-                    <Image
+                    <SafeMediaImage
                       src={currentMedia.fileUrl}
                       alt={currentMedia.title}
-                      fill
-                      unoptimized
-                      className="object-cover"
-                      sizes="(max-width: 1280px) 100vw, 400px"
+                      category={currentMedia.category}
                       priority
                     />
                   )}
 
                   {/* Timestamp & Camera ID / Source Overlay */}
-                  <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5 font-heading font-semibold text-[10px] tracking-wider text-white/90 bg-black/70 backdrop-blur-xs px-2 py-0.5 rounded">
+                  <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5 font-heading font-semibold text-[10px] tracking-wider text-white/90 bg-black/70 backdrop-blur-xs px-2 py-0.5 rounded border border-white/10 shadow-xs">
                     <span
                       className={cn(
                         "size-1.5 rounded-full animate-pulse",
@@ -870,7 +924,7 @@ function CaseDetailsPreview({ caseItem, onMediaAdded }: CaseDetailsPreviewProps)
                     </span>
                   </div>
 
-                  <div className="absolute bottom-2.5 left-2.5 font-mono text-[10px] text-white/80 bg-black/60 px-1.5 py-0.5 rounded">
+                  <div className="absolute bottom-2.5 left-2.5 font-mono text-[10px] text-white/80 bg-black/60 px-1.5 py-0.5 rounded border border-white/10">
                     {currentMedia.metadata?.timestamp || caseItem.date}
                   </div>
 
@@ -878,15 +932,17 @@ function CaseDetailsPreview({ caseItem, onMediaAdded }: CaseDetailsPreviewProps)
                   {totalMedia > 1 && (
                     <>
                       <button
+                        type="button"
                         onClick={handlePrev}
-                        className="absolute left-2 top-1/2 -translate-y-1/2 size-7 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer z-10"
+                        className="absolute left-2 top-1/2 -translate-y-1/2 size-7 rounded-full bg-black/60 hover:bg-black/85 text-white/90 hover:text-white backdrop-blur-xs border-2 border-white/20 flex items-center justify-center transition-all cursor-pointer z-10 shadow-md"
                         aria-label="Previous camera angle"
                       >
                         <ChevronLeft className="size-4" />
                       </button>
                       <button
+                        type="button"
                         onClick={handleNext}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 size-7 rounded-full bg-black/60 hover:bg-black/80 text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer z-10"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 size-7 rounded-full bg-black/60 hover:bg-black/85 text-white/90 hover:text-white backdrop-blur-xs border-2 border-white/20 flex items-center justify-center transition-all cursor-pointer z-10 shadow-md"
                         aria-label="Next camera angle"
                       >
                         <ChevronRight className="size-4" />
@@ -895,7 +951,7 @@ function CaseDetailsPreview({ caseItem, onMediaAdded }: CaseDetailsPreviewProps)
                   )}
 
                   {/* Bottom-right 1/N Pagination badge */}
-                  <div className="absolute bottom-2.5 right-2.5 font-mono text-[10px] text-white/90 bg-black/75 backdrop-blur-xs px-2 py-0.5 rounded tabular-nums">
+                  <div className="absolute bottom-2.5 right-2.5 font-mono text-[10px] text-white/90 bg-black/75 backdrop-blur-xs px-2 py-0.5 rounded border border-white/10 tabular-nums">
                     {mediaIndex + 1}/{totalMedia}
                   </div>
                 </div>
@@ -1034,11 +1090,10 @@ function CaseDetailsPreview({ caseItem, onMediaAdded }: CaseDetailsPreviewProps)
                 </div>
               ) : (
                 <div className="relative aspect-auto max-h-[460px] w-full h-[360px]">
-                  <Image
+                  <SafeMediaImage
                     src={currentMedia.fileUrl}
                     alt={currentMedia.title}
-                    fill
-                    unoptimized
+                    category={currentMedia.category}
                     className="object-contain"
                   />
                 </div>

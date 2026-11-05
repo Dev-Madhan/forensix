@@ -43,6 +43,16 @@ export function logCaseActivity(payload: LogActivityPayload) {
   if (typeof window === "undefined") return;
   const event = new CustomEvent(ACTIVITY_EVENT_NAME, { detail: payload });
   window.dispatchEvent(event);
+
+  try {
+    if ("BroadcastChannel" in window) {
+      const bc = new BroadcastChannel("forensix_activity_sync");
+      bc.postMessage({ type: "ACTIVITY_LOGGED", payload });
+      bc.close();
+    }
+  } catch {
+    // Ignore cross-tab sync errors in environments where unsupported
+  }
 }
 
 interface UseCaseActivityHistoryProps {
@@ -269,8 +279,22 @@ export function useCaseActivityHistory({
     };
 
     window.addEventListener(ACTIVITY_EVENT_NAME, handleNewActivity);
+
+    let bc: BroadcastChannel | null = null;
+    try {
+      if ("BroadcastChannel" in window) {
+        bc = new BroadcastChannel("forensix_activity_sync");
+        bc.onmessage = (e) => {
+          if (e.data?.payload) {
+            handleNewActivity(new CustomEvent(ACTIVITY_EVENT_NAME, { detail: e.data.payload }));
+          }
+        };
+      }
+    } catch {}
+
     return () => {
       window.removeEventListener(ACTIVITY_EVENT_NAME, handleNewActivity);
+      if (bc) bc.close();
     };
   }, [caseId, caseNumber, currentUser, storageKey]);
 

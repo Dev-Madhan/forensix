@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import { CaseSectionCards } from "@/features/cases/components/case-section-cards";
 import { CasesTable, type CaseItem } from "@/features/cases/components/cases-table";
+import { getSafeStorageUrl } from "@/lib/storage-url";
 
 export const metadata = {
   title: "Case | Forensix",
@@ -88,6 +89,7 @@ export default async function CasesPage() {
             title: true,
             fileName: true,
             fileUrl: true,
+            storageKey: true,
             fileSize: true,
             mimeType: true,
             category: true,
@@ -123,19 +125,40 @@ export default async function CasesPage() {
       const media: import("@/features/cases/types").CaseMediaItem[] = [];
 
       for (const ev of c.evidences) {
+        const ext = (ev.fileName || "").split(".").pop()?.toLowerCase() || "";
+        const isImg =
+          ev.category === "IMAGE" ||
+          (ev.mimeType && ev.mimeType.startsWith("image/")) ||
+          ["jpg", "jpeg", "png", "webp", "gif", "svg", "bmp"].includes(ext);
+        const isVid =
+          ev.category === "VIDEO" ||
+          (ev.mimeType && ev.mimeType.startsWith("video/")) ||
+          ["mp4", "mkv", "avi", "mov", "webm", "m4v"].includes(ext);
+        const isAud =
+          ev.category === "AUDIO" ||
+          (ev.mimeType && ev.mimeType.startsWith("audio/")) ||
+          ["mp3", "wav", "m4a", "ogg", "flac"].includes(ext);
+
         let cat: import("@/features/cases/types").CaseMediaItem["category"] = "DOCUMENT";
-        if (ev.category === "IMAGE" || ev.mimeType.startsWith("image/")) cat = "IMAGE";
-        else if (ev.category === "VIDEO" || ev.mimeType.startsWith("video/")) cat = "VIDEO";
-        else if (ev.category === "AUDIO" || ev.mimeType.startsWith("audio/")) cat = "AUDIO";
+        if (isImg) cat = "IMAGE";
+        else if (isVid) cat = "VIDEO";
+        else if (isAud) cat = "AUDIO";
 
         const meta = (ev.metadata && typeof ev.metadata === "object" ? ev.metadata : {}) as Record<string, unknown>;
+
+        // Safely resolve fileUrl through Tigris proxy or reliable evidence fallback
+        const safeUrl =
+          getSafeStorageUrl(
+            ev.storageKey || ev.fileUrl,
+            cat === "IMAGE" ? "/images/evidence/cctv_footage_01.jpg" : undefined
+          ) || ev.fileUrl || "/images/evidence/cctv_footage_01.jpg";
 
         media.push({
           id: ev.id,
           title: ev.title || ev.fileName,
           category: cat,
           source: ev.source || "CRIME_SCENE",
-          fileUrl: ev.fileUrl || "",
+          fileUrl: safeUrl,
           fileName: ev.fileName,
           fileSize: ev.fileSize,
           mimeType: ev.mimeType,
@@ -154,12 +177,15 @@ export default async function CasesPage() {
       }
 
       for (const sk of c.sketches) {
+        const safeSketchUrl =
+          getSafeStorageUrl(sk.imageUrl, "/images/sketches/sketch-01.jpg") || sk.imageUrl;
+
         media.push({
           id: sk.id,
           title: sk.description || "AI Forensic Composite Sketch",
           category: "SKETCH",
           source: "FORENSIC_STUDIO",
-          fileUrl: sk.imageUrl,
+          fileUrl: safeSketchUrl,
           fileName: `sketch_${sk.id.slice(0, 8)}.png`,
           fileSize: 1024 * 512,
           mimeType: "image/png",

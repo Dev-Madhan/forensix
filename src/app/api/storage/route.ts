@@ -9,14 +9,25 @@ export async function GET(request: NextRequest) {
   const rawKey = searchParams.get("key");
 
   if (!rawKey) {
-    return NextResponse.redirect(new URL("/images/suspects/arun-prakash.jpg", request.url));
+    return NextResponse.redirect(new URL("/images/evidence/cctv_footage_01.jpg", request.url));
   }
 
   // Clean key: decode and remove leading slashes or bucket prefix if present
   let key = decodeURIComponent(rawKey).trim().replace(/^\/+/, "");
   if (key.startsWith(`${TIGRIS_BUCKET}/`)) {
     key = key.slice(TIGRIS_BUCKET.length + 1);
+  } else if (key.startsWith("forensix-evidence/")) {
+    key = key.slice("forensix-evidence/".length);
   }
+
+  const isEvidence =
+    key.startsWith("cases/") ||
+    key.includes("evidence") ||
+    key.includes("crime_scene") ||
+    key.includes("cctv");
+  const fallbackUrl = isEvidence
+    ? "/images/evidence/cctv_footage_01.jpg"
+    : "/images/suspects/arun-prakash.jpg";
 
   try {
     const command = new GetObjectCommand({
@@ -28,7 +39,7 @@ export async function GET(request: NextRequest) {
 
     if (!response.Body) {
       console.warn("Storage item has no body for key:", key);
-      return NextResponse.redirect(new URL("/images/suspects/arun-prakash.jpg", request.url));
+      return NextResponse.redirect(new URL(fallbackUrl, request.url));
     }
 
     const headers = new Headers();
@@ -68,7 +79,7 @@ export async function GET(request: NextRequest) {
     if (error?.name !== "NoSuchKey" && error?.$metadata?.httpStatusCode !== 404) {
       console.error("Storage streaming error for key:", key, error);
     }
-    return NextResponse.redirect(new URL("/images/suspects/arun-prakash.jpg", request.url));
+    return NextResponse.redirect(new URL(fallbackUrl, request.url));
   }
 }
 

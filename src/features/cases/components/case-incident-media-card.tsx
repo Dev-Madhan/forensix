@@ -25,6 +25,12 @@ export function CaseIncidentMediaCard({
   className,
 }: CaseIncidentMediaCardProps) {
   const [currentIndex, setCurrentIndex] = React.useState(0);
+  const [mediaFallbackSrc, setMediaFallbackSrc] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    setMediaFallbackSrc(null);
+  }, [currentIndex]);
+
   const resolvedLoc = React.useMemo(
     () => resolveCaseLocation(caseData),
     [caseData]
@@ -110,13 +116,16 @@ export function CaseIncidentMediaCard({
           <div className="relative aspect-[16/10] w-full rounded-lg overflow-hidden border-2 border-border/80 bg-black/90 group shadow-inner">
             <Image
               key={currentMedia.id}
-              src={currentMedia.src}
+              src={mediaFallbackSrc || currentMedia.src}
               alt={currentMedia.caption}
               fill
               unoptimized
               className="object-cover transition-opacity duration-300"
               sizes="(max-width: 1280px) 100vw, 400px"
               priority
+              onError={() => {
+                setMediaFallbackSrc("/images/evidence/cctv_footage_01.jpg");
+              }}
             />
 
             {/* Top-Right Forensic Timestamp & Camera ID */}

@@ -3,6 +3,7 @@ export type ActivityCategory =
   | "Case"
   | "Analysis"
   | "Suspect"
+  | "Witness"
   | "Note"
   | "Records";
 
@@ -11,6 +12,7 @@ export type ActivityActionType =
   | "CASE"
   | "ANALYSIS"
   | "SUSPECT"
+  | "WITNESS"
   | "NOTE"
   | "RECORD"
   | "DELETE"

@@ -38,6 +38,7 @@ export const ACTIVITY_TYPE_OPTIONS: { id: string; label: string }[] = [
   { id: "Case", label: "Case Updates" },
   { id: "Analysis", label: "AI Analysis" },
   { id: "Suspect", label: "Suspect Actions" },
+  { id: "Witness", label: "Witnesses" },
   { id: "Note", label: "Notes" },
   { id: "Records", label: "Records" },
 ];
@@ -69,9 +70,6 @@ export function ActivityFiltersForm({
   const userOptions = [
     { id: "ALL", label: "All Users" },
     { id: "CURRENT_USER", label: `${currentUserName} (You)` },
-    { id: "Arjun Karthik", label: "Arjun Karthik (Investigator)" },
-    { id: "Priya Nair", label: "Priya Nair (Senior Analyst)" },
-    { id: "Raghav Menon", label: "Raghav Menon (Field Officer)" },
     { id: "System", label: "System (Forensix AI)" },
   ];
 
