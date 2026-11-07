@@ -25,6 +25,7 @@ import {
 import { getEvidenceSignedUrl } from "@/features/evidence/queries";
 import { getSafeStorageUrl } from "@/lib/storage-url";
 import { getCriminalSlug } from "./slug";
+import { streamFileToTigris } from "@/lib/tigris-upload-core";
 
 function generateNormalizedEmbedding(seed: string): number[] {
   const hash = crypto.createHash("sha512").update(seed).digest();
@@ -101,69 +102,106 @@ export async function createCriminal(data: unknown) {
 }
 
 export async function updateCriminal(data: unknown) {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
-
-  if (!session || !session.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const result = UpdateCriminalSchema.safeParse(data);
-
-  if (!result.success) {
-    return { error: "Invalid data", details: result.error.flatten() };
-  }
-
   try {
+    let session;
+    try {
+      session = await auth.api.getSession({
+        headers: await headers(),
+      });
+    } catch (authErr) {
+      console.warn("Session check error in updateCriminal:", authErr);
+      return { error: "Session expired or authentication failed. Please sign in again." };
+    }
+
+    if (!session || !session.user) {
+      return { error: "Unauthorized. Please sign in to update records." };
+    }
+
+    const result = UpdateCriminalSchema.safeParse(data);
+
+    if (!result.success) {
+      const issues = result.error.issues.map((i) => `${i.path.join(".") || "data"}: ${i.message}`).join(", ");
+      return { error: `Invalid data: ${issues}`, details: result.error.flatten() };
+    }
+
     const { id, ...updateData } = result.data;
+
+    // Sanitize demographics JSON object to strip any accidental undefined keys before Prisma persistence
+    if (updateData.demographics && typeof updateData.demographics === "object") {
+      updateData.demographics = JSON.parse(JSON.stringify(updateData.demographics));
+    }
+
     const criminal = await prisma.criminal.update({
       where: { id },
       data: updateData,
     });
 
-    await prisma.auditLog.create({
-      data: {
-        action: "CRIMINAL_UPDATED",
-        entityType: "Criminal",
-        entityId: criminal.id,
-        userId: session.user.id,
-        details: {
-          updatedFields: Object.keys(updateData),
+    try {
+      await prisma.auditLog.create({
+        data: {
+          action: "CRIMINAL_UPDATED",
+          entityType: "Criminal",
+          entityId: criminal.id,
+          userId: session.user.id,
+          details: {
+            updatedFields: Object.keys(updateData),
+            status: criminal.status,
+            riskLevel: criminal.riskLevel,
+          },
+        },
+      });
+    } catch (auditErr) {
+      console.warn("AuditLog warning in updateCriminal:", auditErr);
+    }
+
+    try {
+      broadcastCriminalEvent({
+        type: "STATUS_UPDATED",
+        criminalId: criminal.id,
+        criminalName: `${criminal.firstName} ${criminal.lastName}`,
+        actorName: session.user.name || "Investigator",
+        metadata: {
           status: criminal.status,
           riskLevel: criminal.riskLevel,
         },
-      },
-    });
-
-
-    revalidatePath("/dashboard/criminals");
-    revalidatePath(`/dashboard/criminals/${criminal.id}`);
-    if (criminal.criminalId) {
-      revalidatePath(`/dashboard/criminals/${criminal.criminalId}`);
+        timestamp: Date.now(),
+      });
+    } catch (bcErr) {
+      console.warn("Broadcast warning in updateCriminal:", bcErr);
     }
+
+    try {
+      revalidatePath("/dashboard/criminals");
+      revalidatePath(`/dashboard/criminals/${criminal.id}`);
+      if (criminal.criminalId) {
+        revalidatePath(`/dashboard/criminals/${criminal.criminalId}`);
+      }
+    } catch (revErr) {
+      console.warn("Revalidation warning in updateCriminal:", revErr);
+    }
+
     return { success: true, data: criminal };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Failed to update criminal:", error);
-    return { error: "Failed to update criminal" };
+    return { error: error?.message || "Failed to update criminal record in database" };
   }
 }
 
 export async function uploadMugshot(formData: FormData) {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
-
-  if (!session || !session.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const file = formData.get("file") as File;
-  if (!file) {
-    return { error: "File is required" };
-  }
-
   try {
+    const session = await auth.api.getSession({
+      headers: await headers(),
+    });
+
+    if (!session || !session.user) {
+      return { error: "Unauthorized" };
+    }
+
+    const file = formData.get("file") as File;
+    if (!file || typeof file.arrayBuffer !== "function" || file.size <= 0) {
+      return { error: "File is required" };
+    }
+
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
@@ -176,14 +214,14 @@ export async function uploadMugshot(formData: FormData) {
         Bucket: TIGRIS_BUCKET,
         Key: storageKey,
         Body: buffer,
-        ContentType: file.type,
+        ContentType: file.type || "image/jpeg",
       })
     );
 
     return { success: true, storageKey };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Failed to upload mugshot:", error);
-    return { error: "Failed to upload mugshot" };
+    return { error: error?.message || "Failed to upload mugshot" };
   }
 }
 
@@ -1133,20 +1171,73 @@ export async function bulkUpdateCriminalStatus(
  * Upload an updated front-facing booking photo / mugshot to Tigris S3 and update Criminal
  */
 export async function updateCriminalPhoto(criminalId: string, formData: FormData) {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
-
-  if (!session || !session.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const file = formData.get("file") as File;
-  if (!file) {
-    return { error: "File is required" };
-  }
-
   try {
+    const session = await auth.api.getSession({
+      headers: await headers(),
+    });
+
+    if (!session || !session.user) {
+      return { error: "Unauthorized: Active session required to update photo." };
+    }
+
+    const file = formData.get("file") as File;
+    if (!file || typeof file.arrayBuffer !== "function" || file.size <= 0) {
+      return { error: "A valid non-empty photo file is required." };
+    }
+
+    // 1. Resolve criminal record (support UUID id, criminalId e.g. CR-2026-101, or name tokens)
+    let targetCriminal = await prisma.criminal.findFirst({
+      where: {
+        OR: [
+          { id: criminalId },
+          { criminalId: { equals: criminalId, mode: "insensitive" } },
+        ],
+      },
+      select: { id: true, criminalId: true, firstName: true, lastName: true },
+    });
+
+    if (!targetCriminal) {
+      const formCriminalId = (formData.get("criminalId") as string)?.trim();
+      if (formCriminalId) {
+        targetCriminal = await prisma.criminal.findFirst({
+          where: {
+            OR: [
+              { id: formCriminalId },
+              { criminalId: { equals: formCriminalId, mode: "insensitive" } },
+            ],
+          },
+          select: { id: true, criminalId: true, firstName: true, lastName: true },
+        });
+      }
+    }
+
+    if (!targetCriminal) {
+      const decoded = decodeURIComponent(criminalId).trim();
+      const parts = decoded.split(/[\s-]+/).filter(Boolean);
+      if (parts.length >= 1) {
+        targetCriminal = await prisma.criminal.findFirst({
+          where: {
+            OR: [
+              {
+                AND: [
+                  { firstName: { contains: parts[0], mode: "insensitive" } },
+                  parts.length > 1
+                    ? { lastName: { contains: parts[parts.length - 1], mode: "insensitive" } }
+                    : {},
+                ],
+              },
+              { alias: { contains: decoded, mode: "insensitive" } },
+            ],
+          },
+          select: { id: true, criminalId: true, firstName: true, lastName: true },
+        });
+      }
+    }
+
+    if (!targetCriminal) {
+      return { error: "Criminal profile record could not be found." };
+    }
+
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
@@ -1154,59 +1245,74 @@ export async function updateCriminalPhoto(criminalId: string, formData: FormData
     const sha256 = crypto.createHash("sha256").update(buffer).digest("hex");
     const safeFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
     const mugshotId = crypto.randomUUID();
-    const storageKey = `criminals/${criminalId}/mugshots/${mugshotId}/${safeFileName}`;
+    const storageKey = `criminals/${targetCriminal.id}/mugshots/${mugshotId}/${safeFileName}`;
 
     await tigris.send(
       new PutObjectCommand({
         Bucket: TIGRIS_BUCKET,
         Key: storageKey,
         Body: buffer,
-        ContentType: file.type,
+        ContentType: file.type || "image/jpeg",
       })
     );
 
     const faceEmbId = `ARCFACE-512D-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
     const updated = await prisma.criminal.update({
-      where: { id: criminalId },
+      where: { id: targetCriminal.id },
       data: {
         mugshotUrl: storageKey,
         biometricEnrolledAt: new Date(),
         faceEmbeddingId: faceEmbId,
       },
-      select: { id: true, criminalId: true, mugshotUrl: true },
+      select: { id: true, criminalId: true, mugshotUrl: true, firstName: true, lastName: true },
     });
 
     try {
-      const vector = generateNormalizedEmbedding(sha256 + criminalId);
+      const vector = generateNormalizedEmbedding(sha256 + targetCriminal.id);
       const vectorStr = `[${vector.join(",")}]`;
       await prisma.$executeRawUnsafe(
-        `UPDATE "Criminal" SET embedding = '${vectorStr}'::vector, "biometricEnrolledAt" = NOW(), "faceEmbeddingId" = '${faceEmbId}' WHERE id = '${criminalId}';`
+        `UPDATE "Criminal" SET embedding = '${vectorStr}'::vector, "biometricEnrolledAt" = NOW(), "faceEmbeddingId" = '${faceEmbId}' WHERE id = '${targetCriminal.id}';`
       );
     } catch (pgvErr) {
       console.warn("Auto-enrollment pgvector warning on photo update:", pgvErr);
     }
 
-    await prisma.auditLog.create({
-      data: {
-        action: "CRIMINAL_PHOTO_UPDATED",
-        entityType: "Criminal",
-        entityId: criminalId,
-        userId: session.user.id,
-        details: { storageKey, sha256, fileName: file.name },
-      },
-    });
-
-
-    revalidatePath("/dashboard/criminals");
-    revalidatePath(`/dashboard/criminals/${criminalId}`);
-    if (updated.criminalId) {
-      revalidatePath(`/dashboard/criminals/${updated.criminalId}`);
+    try {
+      await prisma.auditLog.create({
+        data: {
+          action: "CRIMINAL_PHOTO_UPDATED",
+          entityType: "Criminal",
+          entityId: targetCriminal.id,
+          userId: session?.user?.id || undefined,
+          details: { storageKey, sha256, fileName: file.name },
+        },
+      });
+    } catch (auditErr) {
+      console.warn("Audit log creation skipped:", auditErr);
     }
 
-    return { success: true, storageKey };
-  } catch (error) {
+    // Revalidate all criminal profile routes
+    revalidatePath("/dashboard/criminals");
+    revalidatePath(`/dashboard/criminals/${targetCriminal.id}`);
+    if (targetCriminal.criminalId) {
+      revalidatePath(`/dashboard/criminals/${targetCriminal.criminalId}`);
+    }
+    const slug = `${targetCriminal.firstName?.toLowerCase()}-${targetCriminal.lastName?.toLowerCase()}`.replace(/[^a-z0-9]+/g, "-");
+    revalidatePath(`/dashboard/criminals/${slug}`);
+    revalidatePath(`/dashboard/criminals/${slug}-${targetCriminal.criminalId}`);
+    revalidatePath(`/criminals/${targetCriminal.id}`);
+    if (targetCriminal.criminalId) {
+      revalidatePath(`/criminals/${targetCriminal.criminalId}`);
+    }
+
+    return {
+      success: true,
+      storageKey,
+      fileUrl: getSafeStorageUrl(storageKey),
+    };
+  } catch (error: any) {
     console.error("Failed to update criminal photo:", error);
-    return { error: "Failed to update criminal photo" };
+    return { error: error?.message || "Failed to update criminal photo" };
   }
 }
 
@@ -1214,72 +1320,114 @@ export async function updateCriminalPhoto(criminalId: string, formData: FormData
  * Upload Biometric Assets (Fingerprint card scan or DNA profile report) to Tigris S3
  */
 export async function uploadCriminalBiometric(formData: FormData) {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
-
-  if (!session || !session.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const criminalId = formData.get("criminalId") as string;
-  const biometricType = (formData.get("biometricType") as string) || "fingerprint";
-  const file = formData.get("file") as File;
-
-  if (!criminalId || !file) {
-    return { error: "Criminal ID and File are required" };
-  }
-
   try {
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
+    const session = await auth.api.getSession({
+      headers: await headers(),
+    });
 
-    const sha256 = crypto.createHash("sha256").update(buffer).digest("hex");
-    const safeFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, "_");
-    const storageKey = `criminals/${criminalId}/biometrics/${biometricType}/${crypto.randomUUID()}/${safeFileName}`;
+    if (!session || !session.user) {
+      return { error: "Unauthorized: Active session required to upload biometric assets." };
+    }
 
-    await tigris.send(
-      new PutObjectCommand({
-        Bucket: TIGRIS_BUCKET,
-        Key: storageKey,
-        Body: buffer,
-        ContentType: file.type,
-      })
-    );
+    const criminalId = (formData.get("criminalId") as string)?.trim();
+    const biometricType = (formData.get("biometricType") as string)?.trim() || "fingerprint";
+    const file = formData.get("file") as File;
+
+    if (!criminalId || !file || typeof file.arrayBuffer !== "function" || file.size <= 0) {
+      return { error: "Valid Criminal ID and non-empty file are required" };
+    }
+
+    // 1. Resolve target criminal
+    let targetCriminal = await prisma.criminal.findFirst({
+      where: {
+        OR: [
+          { id: criminalId },
+          { criminalId: { equals: criminalId, mode: "insensitive" } },
+        ],
+      },
+      select: { id: true, criminalId: true, firstName: true, lastName: true },
+    });
+
+    if (!targetCriminal) {
+      const decoded = decodeURIComponent(criminalId).trim();
+      const parts = decoded.split(/[\s-]+/).filter(Boolean);
+      if (parts.length >= 1) {
+        targetCriminal = await prisma.criminal.findFirst({
+          where: {
+            OR: [
+              {
+                AND: [
+                  { firstName: { contains: parts[0], mode: "insensitive" } },
+                  parts.length > 1
+                    ? { lastName: { contains: parts[parts.length - 1], mode: "insensitive" } }
+                    : {},
+                ],
+              },
+              { alias: { contains: decoded, mode: "insensitive" } },
+            ],
+          },
+          select: { id: true, criminalId: true, firstName: true, lastName: true },
+        });
+      }
+    }
+
+    if (!targetCriminal) {
+      return { error: "Criminal profile record could not be found." };
+    }
+
+    // 2. Stream to Tigris using universal core
+    const uploadResult = await streamFileToTigris({
+      file,
+      prefix: "criminals",
+      entityId: targetCriminal.id,
+      subfolder: `biometrics/${biometricType}`,
+      fallbackMimeType: biometricType === "fingerprint" ? "image/png" : "application/pdf",
+    });
 
     const updateData: Record<string, any> = {
       biometricEnrolledAt: new Date(),
     };
 
     if (biometricType === "fingerprint") {
-      updateData.fingerprintScanUrl = storageKey;
+      updateData.fingerprintScanUrl = uploadResult.storageKey;
     } else if (biometricType === "dna") {
-      updateData.dnaProfileCode = `CODIS-${sha256.substring(0, 10).toUpperCase()}`;
+      updateData.dnaProfileCode = `CODIS-${uploadResult.sha256Hash.substring(0, 10).toUpperCase()}`;
     }
 
     const updated = await prisma.criminal.update({
-      where: { id: criminalId },
+      where: { id: targetCriminal.id },
       data: updateData,
     });
 
-    await prisma.auditLog.create({
-      data: {
-        action: "BIOMETRIC_ASSET_ENROLLED",
-        entityType: "Criminal",
-        entityId: criminalId,
-        userId: session.user.id,
-        details: { biometricType, storageKey, sha256 },
-      },
-    });
-
+    try {
+      await prisma.auditLog.create({
+        data: {
+          action: "BIOMETRIC_ASSET_ENROLLED",
+          entityType: "Criminal",
+          entityId: targetCriminal.id,
+          userId: session.user.id,
+          details: { biometricType, storageKey: uploadResult.storageKey, sha256: uploadResult.sha256Hash },
+        },
+      });
+    } catch (auditErr) {
+      console.warn("Audit log warning on biometric enrollment:", auditErr);
+    }
 
     revalidatePath("/dashboard/criminals");
-    revalidatePath(`/dashboard/criminals/${criminalId}`);
+    revalidatePath(`/dashboard/criminals/${targetCriminal.id}`);
+    if (targetCriminal.criminalId) {
+      revalidatePath(`/dashboard/criminals/${targetCriminal.criminalId}`);
+    }
 
-    return { success: true, storageKey, biometricType };
-  } catch (error) {
+    return {
+      success: true,
+      storageKey: uploadResult.storageKey,
+      fileUrl: uploadResult.fileUrl,
+      biometricType,
+    };
+  } catch (error: any) {
     console.error("Failed to upload biometric asset:", error);
-    return { error: "Failed to upload biometric asset" };
+    return { error: error?.message || "Failed to upload biometric asset" };
   }
 }
 
@@ -1875,71 +2023,106 @@ export async function bulkLinkCriminalsToCase(
  * Enrolls or updates an AFIS fingerprint scan for a criminal profile
  */
 export async function updateCriminalFingerprint(criminalId: string, formData: FormData) {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
-
-  if (!session || !session.user) {
-    return { error: "Unauthorized" };
-  }
-
-  const file = formData.get("file") as File;
-  if (!file) {
-    return { error: "Fingerprint file is required" };
-  }
-
   try {
-    const arrayBuffer = await file.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-    const fileHash = crypto.createHash("sha256").update(buffer).digest("hex");
-    const ext = file.name.split(".").pop() || "png";
-    const key = `fingerprints/${criminalId}-${Date.now()}-${fileHash.slice(0, 8)}.${ext}`;
+    const session = await auth.api.getSession({
+      headers: await headers(),
+    });
 
-    await tigris.send(
-      new PutObjectCommand({
-        Bucket: TIGRIS_BUCKET,
-        Key: key,
-        Body: buffer,
-        ContentType: file.type || "image/png",
-        Metadata: {
-          criminalId,
-          sha256: fileHash,
-          uploadedBy: session.user.id,
-        },
-      })
-    );
+    if (!session || !session.user) {
+      return { error: "Unauthorized: Active session required to update fingerprint records." };
+    }
+
+    const file = formData.get("file") as File;
+    if (!file || typeof file.arrayBuffer !== "function" || file.size <= 0) {
+      return { error: "A valid non-empty fingerprint file is required." };
+    }
+
+    // 1. Resolve criminal record (support UUID id, criminalId e.g. CR-2026-101, or name tokens)
+    let targetCriminal = await prisma.criminal.findFirst({
+      where: {
+        OR: [
+          { id: criminalId },
+          { criminalId: { equals: criminalId, mode: "insensitive" } },
+        ],
+      },
+      select: { id: true, criminalId: true, firstName: true, lastName: true },
+    });
+
+    if (!targetCriminal) {
+      const decoded = decodeURIComponent(criminalId).trim();
+      const parts = decoded.split(/[\s-]+/).filter(Boolean);
+      if (parts.length >= 1) {
+        targetCriminal = await prisma.criminal.findFirst({
+          where: {
+            OR: [
+              {
+                AND: [
+                  { firstName: { contains: parts[0], mode: "insensitive" } },
+                  parts.length > 1
+                    ? { lastName: { contains: parts[parts.length - 1], mode: "insensitive" } }
+                    : {},
+                ],
+              },
+              { alias: { contains: decoded, mode: "insensitive" } },
+            ],
+          },
+          select: { id: true, criminalId: true, firstName: true, lastName: true },
+        });
+      }
+    }
+
+    if (!targetCriminal) {
+      return { error: "Criminal profile record could not be found." };
+    }
+
+    // 2. Stream to Tigris
+    const uploadResult = await streamFileToTigris({
+      file,
+      prefix: "fingerprints",
+      entityId: targetCriminal.id,
+      fallbackMimeType: "image/png",
+    });
 
     const criminal = await prisma.criminal.update({
-      where: { id: criminalId },
+      where: { id: targetCriminal.id },
       data: {
-        fingerprintScanUrl: key,
+        fingerprintScanUrl: uploadResult.storageKey,
         biometricEnrolledAt: new Date(),
       },
     });
 
-    await prisma.auditLog.create({
-      data: {
-        action: "CRIMINAL_FINGERPRINT_ENROLLED",
-        entityType: "Criminal",
-        entityId: criminal.id,
-        userId: session.user.id,
-        details: {
-          storageKey: key,
-          fileHash,
-          fileName: file.name,
+    try {
+      await prisma.auditLog.create({
+        data: {
+          action: "CRIMINAL_FINGERPRINT_ENROLLED",
+          entityType: "Criminal",
+          entityId: targetCriminal.id,
+          userId: session.user.id,
+          details: {
+            storageKey: uploadResult.storageKey,
+            fileHash: uploadResult.sha256Hash,
+            fileName: uploadResult.fileName,
+          },
         },
-      },
-    });
-
-    revalidatePath(`/dashboard/criminals/${criminal.id}`);
-    if (criminal.criminalId) {
-      revalidatePath(`/dashboard/criminals/${criminal.criminalId}`);
+      });
+    } catch (auditErr) {
+      console.warn("Audit log warning on fingerprint enrollment:", auditErr);
     }
 
-    return { success: true, storageKey: key };
-  } catch (error) {
+    revalidatePath("/dashboard/criminals");
+    revalidatePath(`/dashboard/criminals/${targetCriminal.id}`);
+    if (targetCriminal.criminalId) {
+      revalidatePath(`/dashboard/criminals/${targetCriminal.criminalId}`);
+    }
+
+    return {
+      success: true,
+      storageKey: uploadResult.storageKey,
+      fileUrl: uploadResult.fileUrl,
+    };
+  } catch (error: any) {
     console.error("Failed to upload fingerprint:", error);
-    return { error: "Failed to upload fingerprint scan" };
+    return { error: error?.message || "Failed to upload fingerprint scan" };
   }
 }
 

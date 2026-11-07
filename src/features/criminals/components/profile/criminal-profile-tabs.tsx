@@ -1095,6 +1095,9 @@ export function CriminalProfileTabs({
       const formData = new FormData();
       formData.append("file", evidenceFile);
       formData.append("criminalId", criminal.id);
+      if (criminal.criminalId) {
+        formData.append("subjectCode", criminal.criminalId);
+      }
       formData.append("title", evidenceTitle.trim() || evidenceFile.name);
       formData.append("category", evidenceCategory);
       formData.append("source", evidenceSource);
@@ -1122,9 +1125,10 @@ export function CriminalProfileTabs({
         setIsAttachEvidenceOpen(false);
         setEvidenceTitle("");
         setEvidenceFile(null);
+        router.refresh();
       }
-    } catch {
-      toast.error("Failed to upload evidence to storage");
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to upload evidence to storage");
     } finally {
       setIsUploadingEvidence(false);
     }
@@ -1145,6 +1149,7 @@ export function CriminalProfileTabs({
     try {
       const formData = new FormData();
       formData.append("file", file);
+      formData.append("criminalId", criminal.criminalId || criminal.id);
       const res = await updateCriminalFingerprint(criminal.id, formData);
       if (res.error) {
         toast.error(res.error);
@@ -1153,9 +1158,10 @@ export function CriminalProfileTabs({
         if (res.storageKey) {
           setFingerprintUrl(`/api/storage?key=${encodeURIComponent(res.storageKey)}`);
         }
+        router.refresh();
       }
-    } catch {
-      toast.error("Failed to upload fingerprint scan");
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to upload fingerprint scan");
     } finally {
       setIsUploadingFingerprint(false);
     }

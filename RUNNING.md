@@ -201,7 +201,7 @@ INFO:     Application startup complete.
 This creates a **permanent public HTTPS URL** that bridges your local AI service to the internet:
 
 ```powershell
-Evidn
+ngrok http 8000 --url https://concerned-dominoes-debtor.ngrok-free.dev  
 ```
 
 > ⚠️ The port must be **8000** (matching the AI service). Using any other port (e.g. 80) will cause 502 errors.

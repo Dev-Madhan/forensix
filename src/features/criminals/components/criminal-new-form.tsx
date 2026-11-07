@@ -177,6 +177,7 @@ export function CriminalNewForm({
   const [criminalId, setCriminalId] = React.useState(suggestedCriminalId);
   const [nationalId, setNationalId] = React.useState("");
   const [passportNumber, setPassportNumber] = React.useState("");
+  const [drivingLicense, setDrivingLicense] = React.useState("");
   const [otherId, setOtherId] = React.useState("");
 
   // 3. Crime Information State
@@ -391,6 +392,7 @@ export function CriminalNewForm({
     setCriminalId(suggestedCriminalId);
     setNationalId("");
     setPassportNumber("");
+    setDrivingLicense("");
     setOtherId("");
     setPrimaryCategory("");
     setSecondaryCategory("");
@@ -484,9 +486,12 @@ export function CriminalNewForm({
           knownAs,
           fathersName,
           mothersName,
-          nationalId,
-          passportNumber,
-          otherId,
+          nationalId: nationalId.trim() || undefined,
+          aadharId: nationalId.trim() || undefined,
+          passportNumber: passportNumber.trim() || undefined,
+          passportNo: passportNumber.trim() || undefined,
+          drivingLicense: drivingLicense.trim() || undefined,
+          otherId: otherId.trim() || undefined,
           primaryCategory,
           secondaryCategory,
           riskLevel,
@@ -1058,6 +1063,20 @@ export function CriminalNewForm({
                     onChange={(e) => setPassportNumber(e.target.value)}
                     placeholder="Enter passport number (if available)"
                     className="h-10 text-xs sm:text-sm border-2 border-border/80 bg-background/50 rounded-lg focus-visible:border-[#665AEF] focus-visible:ring-1 focus-visible:ring-[#665AEF]"
+                  />
+                </div>
+
+                {/* Driving License Number */}
+                <div className="space-y-1.5">
+                  <Label htmlFor="driving-license" className="text-xs font-semibold text-muted-foreground">
+                    Driving License Number
+                  </Label>
+                  <Input
+                    id="driving-license"
+                    value={drivingLicense}
+                    onChange={(e) => setDrivingLicense(e.target.value)}
+                    placeholder="Enter driving license (if available)"
+                    className="h-10 text-xs sm:text-sm font-mono border-2 border-border/80 bg-background/50 rounded-lg focus-visible:border-[#665AEF] focus-visible:ring-1 focus-visible:ring-[#665AEF] uppercase"
                   />
                 </div>
 

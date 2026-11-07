@@ -76,6 +76,7 @@ import { CaseStatus, CasePriority } from "@prisma/client";
 import { createCase } from "@/features/cases/actions";
 import { uploadEvidence } from "@/features/evidence/actions";
 import { CaseEvidenceUploadSection } from "./case-evidence-upload-section";
+import { getFileCategory } from "@/lib/evidence-upload-config";
 import { resolveCaseLocation, LANDMARK_GAZETTEER } from "@/lib/case-location-resolver";
 
 function parseReportedDate(val?: string): Date | undefined {
@@ -897,15 +898,30 @@ export function CaseNewForm({ initialUser, suggestedCaseNumber }: CaseNewFormPro
         if (createdCaseId && stagedEvidence.length > 0) {
           toast.loading(`Attaching ${stagedEvidence.length} forensic file(s)...`, { id: "upload-evidence" });
           let uploadedCount = 0;
-          for (const file of stagedEvidence) {
+          const uploadErrors: string[] = [];
+          for (const item of stagedEvidence) {
             try {
+              const file = (item as any)?.file instanceof File ? (item as any).file : (item instanceof File ? item : null);
+              if (!file) continue;
+
               const formData = new FormData();
               formData.append("caseId", createdCaseId);
+              formData.append("caseNumber", createdNumber);
               formData.append("file", file);
+              formData.append("title", file.name);
+              formData.append("category", getFileCategory(file));
+              formData.append("source", "CRIME_SCENE");
+              formData.append("status", "VERIFIED");
+              formData.append("description", `Evidence attached during case creation: ${file.name}`);
+
               const uploadRes = await uploadEvidence(formData);
-              if (uploadRes && !uploadRes.error) uploadedCount++;
-            } catch (err) {
-              console.warn("Evidence upload error:", err);
+              if (uploadRes && !uploadRes.error) {
+                uploadedCount++;
+              } else if (uploadRes?.error) {
+                uploadErrors.push(`${file.name}: ${uploadRes.error}`);
+              }
+            } catch (err: any) {
+              uploadErrors.push(`${(item as any)?.name || "File"}: ${err?.message || "Upload failed"}`);
             }
           }
           toast.dismiss("upload-evidence");
@@ -913,6 +929,9 @@ export function CaseNewForm({ initialUser, suggestedCaseNumber }: CaseNewFormPro
             toast.success(`Investigation ${createdNumber} created with ${uploadedCount} evidence file(s)!`);
           } else {
             toast.success(`Investigation ${createdNumber} created successfully!`);
+          }
+          if (uploadErrors.length > 0) {
+            toast.error(`Some files could not be uploaded:\n${uploadErrors.join("\n")}`);
           }
         } else {
           toast.success(`Investigation ${createdNumber} created successfully!`);

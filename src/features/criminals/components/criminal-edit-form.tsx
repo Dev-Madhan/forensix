@@ -206,17 +206,28 @@ export function CriminalEditForm({
   );
 
   // Identifiers
+  const initialDl =
+    (demographics.drivingLicense as string)?.trim() ||
+    (demographics.drivingLicenseNumber as string)?.trim() ||
+    (demographics.dlNumber as string)?.trim() ||
+    "";
+  const initialOther = (demographics.otherId as string)?.trim() || "";
   const [nationalId, setNationalId] = React.useState<string>(
-    (demographics.nationalId as string) || ""
+    (demographics.nationalId as string) ||
+    (demographics.aadharId as string) ||
+    (demographics.aadhaarNumber as string) ||
+    (demographics.aadharNumber as string) ||
+    ""
   );
   const [passportNumber, setPassportNumber] = React.useState<string>(
-    (demographics.passportNumber as string) || ""
+    (demographics.passportNumber as string) ||
+    (demographics.passportNo as string) ||
+    (demographics.passport as string) ||
+    ""
   );
-  const [drivingLicense, setDrivingLicense] = React.useState<string>(
-    (demographics.drivingLicense as string) || "TN-DL-4382"
-  );
+  const [drivingLicense, setDrivingLicense] = React.useState<string>(initialDl);
   const [otherId, setOtherId] = React.useState<string>(
-    (demographics.otherId as string) || ""
+    initialOther && initialOther !== initialDl ? initialOther : ""
   );
 
   // Physical Characteristics
@@ -399,10 +410,21 @@ export function CriminalEditForm({
     setOccupation((demographics.occupation as string) || "");
     setMaritalStatus((demographics.maritalStatus as string) || "Single");
     setPlaceOfBirth((demographics.placeOfBirth as string) || "Chennai, Tamil Nadu");
-    setNationalId((demographics.nationalId as string) || "");
-    setPassportNumber((demographics.passportNumber as string) || "");
-    setDrivingLicense((demographics.drivingLicense as string) || "TN-DL-4382");
-    setOtherId((demographics.otherId as string) || "");
+    setNationalId(
+      (demographics.nationalId as string) ||
+      (demographics.aadharId as string) ||
+      (demographics.aadhaarNumber as string) ||
+      (demographics.aadharNumber as string) ||
+      ""
+    );
+    setPassportNumber(
+      (demographics.passportNumber as string) ||
+      (demographics.passportNo as string) ||
+      (demographics.passport as string) ||
+      ""
+    );
+    setDrivingLicense(initialDl);
+    setOtherId(initialOther && initialOther !== initialDl ? initialOther : "");
     setHeight((demographics.height as string)?.replace(/[^0-9]/g, "") || "178");
     setWeight((demographics.weight as string)?.replace(/[^0-9]/g, "") || "70");
     setBuild((demographics.build as string) || "Athletic");
@@ -470,10 +492,12 @@ export function CriminalEditForm({
         occupation: occupation.trim(),
         maritalStatus,
         placeOfBirth: placeOfBirth.trim(),
-        nationalId: nationalId.trim(),
-        passportNumber: passportNumber.trim(),
-        drivingLicense: drivingLicense.trim(),
-        otherId: drivingLicense.trim() || otherId.trim(),
+        nationalId: nationalId.trim() || undefined,
+        aadharId: nationalId.trim() || undefined,
+        passportNumber: passportNumber.trim() || undefined,
+        passportNo: passportNumber.trim() || undefined,
+        drivingLicense: drivingLicense.trim() || undefined,
+        otherId: otherId.trim() || undefined,
         primaryCategory,
         secondaryCategory,
         riskLevel,
@@ -506,7 +530,11 @@ export function CriminalEditForm({
 
       // Update DNA profile code if modified
       if (dnaProfileCode.trim() && dnaProfileCode !== (criminal.dnaProfileCode || "")) {
-        await updateCriminalDnaProfile(criminal.id, dnaProfileCode.trim());
+        try {
+          await updateCriminalDnaProfile(criminal.id, dnaProfileCode.trim());
+        } catch (dnaErr) {
+          console.warn("DNA profile update warning:", dnaErr);
+        }
       }
 
       const result = await updateCriminal({
@@ -514,7 +542,7 @@ export function CriminalEditForm({
         firstName,
         lastName,
         alias: knownAs || aliases[0] || undefined,
-        dateOfBirth: dateOfBirth ? dateOfBirth.toISOString() : undefined,
+        dateOfBirth: dateOfBirth && isValid(dateOfBirth) ? dateOfBirth.toISOString() : undefined,
         gender: gender || undefined,
         nationality: nationality || undefined,
         address: address.trim() || undefined,
@@ -526,11 +554,11 @@ export function CriminalEditForm({
         fingerprintScanUrl: finalFingerprintKey,
         dnaProfileCode: dnaProfileCode.trim() || undefined,
         watchlistStatus,
-        demographics: updatedDemographics,
+        demographics: JSON.parse(JSON.stringify(updatedDemographics)),
       });
 
-      if (result.error) {
-        toast.error(`Update failed: ${result.error}`);
+      if (!result || result.error) {
+        toast.error(`Update failed: ${result?.error || "Unknown server response"}`);
         setIsSaving(false);
         return;
       }
@@ -544,9 +572,9 @@ export function CriminalEditForm({
       });
       router.push(`/dashboard/criminals/${canonicalSlug}`);
       router.refresh();
-    } catch (err) {
+    } catch (err: any) {
       console.error("Save criminal error:", err);
-      toast.error("Failed to update criminal profile.");
+      toast.error(err?.message || "Failed to update criminal profile.");
       setIsSaving(false);
     }
   };
@@ -1284,6 +1312,23 @@ export function CriminalEditForm({
                     value={passportNumber}
                     onChange={(e) => setPassportNumber(e.target.value)}
                     placeholder="e.g. Z5489102"
+                    className="h-10 text-xs sm:text-sm font-mono border-2 border-border/80 bg-background/50 focus-visible:border-ring uppercase"
+                  />
+                </div>
+
+                {/* Other ID / Secondary Document */}
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label
+                    htmlFor="other-id"
+                    className="text-xs font-semibold text-muted-foreground uppercase tracking-wider"
+                  >
+                    Other ID / Secondary Document
+                  </Label>
+                  <Input
+                    id="other-id"
+                    value={otherId}
+                    onChange={(e) => setOtherId(e.target.value)}
+                    placeholder="e.g. Voter ID, PAN, Ration Card, Arms License"
                     className="h-10 text-xs sm:text-sm font-mono border-2 border-border/80 bg-background/50 focus-visible:border-ring uppercase"
                   />
                 </div>

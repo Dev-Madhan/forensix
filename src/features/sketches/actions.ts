@@ -624,8 +624,12 @@ export async function saveSketchToVault(data: {
     try {
       revalidatePath("/sketch");
       revalidatePath("/dashboard");
+      revalidatePath(`/cases/${targetCase.caseNumber}`);
+      revalidatePath(`/cases/${realCaseId}`);
       revalidatePath(`/case-details/${targetCase.caseNumber}`);
       revalidatePath(`/case-details/${realCaseId}`);
+      revalidatePath(`/dashboard/cases/${realCaseId}`);
+      revalidatePath(`/dashboard/cases/${targetCase.caseNumber}`);
     } catch {
       // Revalidation ignored outside request context
     }

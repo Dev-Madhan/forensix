@@ -73,8 +73,9 @@ import { motion } from "motion/react";
 import { toast } from "sonner";
 import { CaseStatus, CasePriority } from "@prisma/client";
 import { updateCase } from "@/features/cases/actions";
-import { uploadEvidence } from "@/features/evidence/actions";
-import { CaseEvidenceUploadSection } from "./case-evidence-upload-section";
+import { uploadEvidence, deleteEvidence } from "@/features/evidence/actions";
+import { CaseEvidenceUploadSection, type ExistingEvidenceItem } from "./case-evidence-upload-section";
+import { getFileCategory } from "@/lib/evidence-upload-config";
 import { resolveCaseLocation, LANDMARK_GAZETTEER } from "@/lib/case-location-resolver";
 import type { ResolvedCaseDetail } from "@/features/cases/resolve-case";
 
@@ -366,6 +367,31 @@ export function CaseEditForm({ caseData }: CaseEditFormProps) {
 
   // Staged Evidence Files
   const [stagedEvidence, setStagedEvidence] = React.useState<File[]>([]);
+
+  // Linked Case Evidence (Existing)
+  const [existingEvidence, setExistingEvidence] = React.useState<ExistingEvidenceItem[]>(() => {
+    return (caseData.evidences || []).map((ev: any) => ({
+      id: ev.id,
+      fileName: ev.name || ev.fileName || "Evidence",
+      fileSize: ev.fileSize || 0,
+      mimeType: ev.mimeType || (ev.type === "Video" ? "video/mp4" : ev.type === "Image" ? "image/jpeg" : "application/pdf"),
+      uploadedAt: ev.dateAdded || ev.uploadedAt,
+    }));
+  });
+
+  const handleDeleteExistingEvidence = async (evidenceId: string) => {
+    try {
+      const res = await deleteEvidence(evidenceId, caseData.id);
+      if (res.error) {
+        toast.error(`Failed to delete evidence: ${res.error}`);
+      } else {
+        setExistingEvidence((prev) => prev.filter((e) => e.id !== evidenceId));
+        toast.success("Evidence item removed from case");
+      }
+    } catch (err: any) {
+      toast.error(`Failed to remove evidence: ${err?.message || "Unknown error"}`);
+    }
+  };
 
   const handleAddTag = (tagToAdd?: string) => {
     const clean = (tagToAdd || newTagInput).trim();
@@ -867,15 +893,30 @@ export function CaseEditForm({ caseData }: CaseEditFormProps) {
         if (caseData.id && stagedEvidence.length > 0) {
           toast.loading(`Attaching ${stagedEvidence.length} forensic file(s)...`, { id: "upload-evidence" });
           let uploadedCount = 0;
-          for (const file of stagedEvidence) {
+          const uploadErrors: string[] = [];
+          for (const item of stagedEvidence) {
             try {
+              const file = (item as any)?.file instanceof File ? (item as any).file : (item instanceof File ? item : null);
+              if (!file) continue;
+
               const formData = new FormData();
               formData.append("caseId", caseData.id);
+              formData.append("caseNumber", caseData.caseNumber);
               formData.append("file", file);
+              formData.append("title", file.name);
+              formData.append("category", getFileCategory(file));
+              formData.append("source", "CRIME_SCENE");
+              formData.append("status", "VERIFIED");
+              formData.append("description", `Evidence attached during case edit: ${file.name}`);
+
               const uploadRes = await uploadEvidence(formData);
-              if (uploadRes && !uploadRes.error) uploadedCount++;
-            } catch (err) {
-              console.warn("Evidence upload error:", err);
+              if (uploadRes && !uploadRes.error) {
+                uploadedCount++;
+              } else if (uploadRes?.error) {
+                uploadErrors.push(`${file.name}: ${uploadRes.error}`);
+              }
+            } catch (err: any) {
+              uploadErrors.push(`${(item as any)?.name || "File"}: ${err?.message || "Upload failed"}`);
             }
           }
           toast.dismiss("upload-evidence");
@@ -883,6 +924,9 @@ export function CaseEditForm({ caseData }: CaseEditFormProps) {
             toast.success(`Case ${caseData.caseNumber} updated with ${uploadedCount} evidence file(s)!`);
           } else {
             toast.success(`Case ${caseData.caseNumber} updated successfully!`);
+          }
+          if (uploadErrors.length > 0) {
+            toast.error(`Some files could not be uploaded:\n${uploadErrors.join("\n")}`);
           }
         } else {
           toast.success(`Case ${caseData.caseNumber} updated successfully!`);
@@ -2028,6 +2072,8 @@ export function CaseEditForm({ caseData }: CaseEditFormProps) {
           <CaseEvidenceUploadSection
             stagedFiles={stagedEvidence}
             onStagedFilesChange={setStagedEvidence}
+            existingEvidence={existingEvidence}
+            onDeleteExisting={handleDeleteExistingEvidence}
             disabled={isSaving}
           />
         </div>

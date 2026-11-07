@@ -9,7 +9,12 @@ export const CreateCriminalSchema = z.object({
   dateOfBirth: z
     .union([z.string(), z.date()])
     .optional()
-    .transform((val) => (val ? new Date(val) : undefined)),
+    .nullable()
+    .transform((val) => {
+      if (!val) return undefined;
+      const d = val instanceof Date ? val : new Date(val);
+      return !isNaN(d.getTime()) ? d : undefined;
+    }),
   gender: z.string().optional(),
   nationality: z.string().optional(),
   address: z.string().optional(),
@@ -25,7 +30,11 @@ export const CreateCriminalSchema = z.object({
     .union([z.string(), z.date()])
     .optional()
     .nullable()
-    .transform((val) => (val ? new Date(val) : undefined)),
+    .transform((val) => {
+      if (!val) return undefined;
+      const d = val instanceof Date ? val : new Date(val);
+      return !isNaN(d.getTime()) ? d : undefined;
+    }),
   demographics: z.record(z.string(), z.any()).optional(),
 });
 
@@ -40,7 +49,12 @@ export const UpdateCriminalSchema = z.object({
   dateOfBirth: z
     .union([z.string(), z.date()])
     .optional()
-    .transform((val) => (val ? new Date(val) : undefined)),
+    .nullable()
+    .transform((val) => {
+      if (!val) return undefined;
+      const d = val instanceof Date ? val : new Date(val);
+      return !isNaN(d.getTime()) ? d : undefined;
+    }),
   gender: z.string().optional(),
   nationality: z.string().optional(),
   address: z.string().optional(),
@@ -56,7 +70,11 @@ export const UpdateCriminalSchema = z.object({
     .union([z.string(), z.date()])
     .optional()
     .nullable()
-    .transform((val) => (val ? new Date(val) : undefined)),
+    .transform((val) => {
+      if (!val) return undefined;
+      const d = val instanceof Date ? val : new Date(val);
+      return !isNaN(d.getTime()) ? d : undefined;
+    }),
   demographics: z.record(z.string(), z.any()).optional(),
 });
 

@@ -25,6 +25,7 @@ import {
 import {
   TIGRIS_UPLOAD_LIMITS,
   ALL_ALLOWED_MIME_TYPES,
+  ALL_ALLOWED_DROP_ACCEPT,
   tigrisEvidenceValidator,
   getFileCategory,
 } from "@/lib/evidence-upload-config";
@@ -32,6 +33,7 @@ import {
 export {
   TIGRIS_UPLOAD_LIMITS,
   ALL_ALLOWED_MIME_TYPES,
+  ALL_ALLOWED_DROP_ACCEPT,
   tigrisEvidenceValidator,
   getFileCategory,
 };
@@ -854,7 +856,7 @@ export function getFileIcon(fileName: string, mimeType?: string) {
 export function MediaDropZone({
   onFilesChange,
   onAcceptedFilesChange,
-  accept = ALL_ALLOWED_MIME_TYPES,
+  accept = ALL_ALLOWED_DROP_ACCEPT,
   minSize = TIGRIS_UPLOAD_LIMITS.MIN_FILE_SIZE_BYTES,
   maxSize = TIGRIS_UPLOAD_LIMITS.VIDEO.maxSizeBytes,
   maxFiles = TIGRIS_UPLOAD_LIMITS.MAX_BATCH_FILES,
@@ -862,7 +864,7 @@ export function MediaDropZone({
   className,
   dropzoneClassName,
   title = "Drag files here, or click to browse",
-  description = "Photos up to 5 MB · Videos up to 40 MB · Audio & Docs up to 10 MB",
+  description = "Photos & Documents up to 25 MB · Videos up to 100 MB",
   disabled = false,
   showFileList = true,
   options,

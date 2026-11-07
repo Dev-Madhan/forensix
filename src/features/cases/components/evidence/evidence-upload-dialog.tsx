@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { motion } from "motion/react";
 import {
   Dialog,
@@ -36,7 +37,7 @@ import { toast } from "sonner";
 import { useMediaDrop } from "react-mediadrop";
 import {
   TIGRIS_UPLOAD_LIMITS,
-  ALL_ALLOWED_MIME_TYPES,
+  ALL_ALLOWED_DROP_ACCEPT,
   tigrisEvidenceValidator,
 } from "@/lib/evidence-upload-config";
 import { uploadEvidence } from "@/features/evidence/actions";
@@ -115,6 +116,7 @@ export function EvidenceUploadDialog({
   caseId,
   caseNumber,
 }: EvidenceUploadDialogProps) {
+  const router = useRouter();
   const [fileName, setFileName] = useState("");
   const [fileType, setFileType] = useState<EvidenceType>("Video");
   const [source, setSource] = useState<EvidenceSource>("CCTV");
@@ -138,10 +140,10 @@ export function EvidenceUploadDialog({
     clearFiles,
   } = useMediaDrop({
     restrictions: {
-      accept: ALL_ALLOWED_MIME_TYPES,
-      maxFiles: TIGRIS_UPLOAD_LIMITS.MAX_BATCH_FILES, // 3 files
-      maxSize: TIGRIS_UPLOAD_LIMITS.VIDEO.maxSizeBytes, // 40 MB ceiling
-      minSize: TIGRIS_UPLOAD_LIMITS.MIN_FILE_SIZE_BYTES, // 100 Bytes
+      accept: ALL_ALLOWED_DROP_ACCEPT,
+      maxFiles: 10,
+      maxSize: TIGRIS_UPLOAD_LIMITS.VIDEO.maxSizeBytes, // 100 MB ceiling
+      minSize: TIGRIS_UPLOAD_LIMITS.MIN_FILE_SIZE_BYTES, // 1 Byte
     },
     validator: tigrisEvidenceValidator,
   });
@@ -168,53 +170,66 @@ export function EvidenceUploadDialog({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!fileName.trim() && acceptedFiles.length === 0) {
-      toast.error("Please drop an evidence file or enter a file name");
-      return;
-    }
-
     if (acceptedFiles.length === 0) {
-      toast.error("Please select a file to upload to the forensic vault");
+      toast.error("Please drop or select an evidence file to upload");
       return;
     }
 
     setIsSubmitting(true);
     const resolvedCaseIdentifier = caseId || caseNumber || "FX-2026-001";
+    let successCount = 0;
+    const uploadErrors: string[] = [];
 
     try {
       for (let i = 0; i < acceptedFiles.length; i++) {
-        const file = acceptedFiles[i];
-        const detectedType = inferEvidenceType(file.name, file.type);
-        const titleVal = acceptedFiles.length === 1 && fileName.trim() ? fileName.trim() : file.name;
+        const fileItem = acceptedFiles[i];
+        const rawFile = (fileItem as any)?.file instanceof File ? (fileItem as any).file : (fileItem instanceof File ? fileItem : null);
+        if (!rawFile) {
+          uploadErrors.push(`Could not read file data for ${fileItem.name || "item"}`);
+          continue;
+        }
+
+        const detectedType = inferEvidenceType(rawFile.name, rawFile.type);
+        const titleVal = acceptedFiles.length === 1 && fileName.trim() ? fileName.trim() : rawFile.name;
 
         const formData = new FormData();
         formData.append("caseId", resolvedCaseIdentifier);
-        const rawFile = (file as any).file instanceof File ? (file as any).file : (file as unknown as File);
+        if (caseNumber) {
+          formData.append("caseNumber", caseNumber);
+        }
         formData.append("file", rawFile);
         formData.append("title", titleVal);
-        formData.append("description", description.trim() || `Field acquired forensic evidence file: ${file.name}`);
+        formData.append("description", description.trim() || `Field acquired forensic evidence file: ${rawFile.name}`);
         formData.append("category", detectedType.toUpperCase());
         formData.append("source", source.toUpperCase().replace(/\s+/g, "_"));
         formData.append("status", "VERIFIED");
-        formData.append("locationFound", `/evidence/uploads/${file.name}`);
+        formData.append("locationFound", `/evidence/uploads/${rawFile.name}`);
 
         const res = await uploadEvidence(formData);
         if (res.error) {
-          toast.error(`Upload error for ${file.name}: ${res.error}`);
+          uploadErrors.push(`${rawFile.name}: ${res.error}`);
         } else if (res.data) {
           const newItem = mapPrismaEvidenceToItem(res.data);
           onAddEvidence(newItem);
+          successCount++;
         }
       }
 
-      toast.success(`${acceptedFiles.length} file(s) cryptographically hashed and uploaded to Tigris vault`);
-      onOpenChange(false);
-      clearFiles();
-      setFileName("");
-      setDescription("");
+      if (successCount > 0) {
+        toast.success(`${successCount} file(s) cryptographically hashed and uploaded to Tigris vault`);
+        onOpenChange(false);
+        clearFiles();
+        setFileName("");
+        setDescription("");
+        router.refresh();
+      }
+
+      if (uploadErrors.length > 0) {
+        toast.error(`Upload notice:\n${uploadErrors.join("\n")}`);
+      }
     } catch (err: any) {
       console.error("Upload failed:", err);
-      toast.error("Failed to upload evidence to Tigris storage");
+      toast.error("Failed to upload evidence to Tigris storage: " + (err?.message || "Unknown error"));
     } finally {
       setIsSubmitting(false);
     }

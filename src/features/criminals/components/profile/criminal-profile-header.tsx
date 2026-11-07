@@ -128,6 +128,7 @@ export function CriminalProfileHeader({
 
   const [isPhotoLightboxOpen, setIsPhotoLightboxOpen] = useState(false);
   const [isChangePhotoOpen, setIsChangePhotoOpen] = useState(false);
+  const [isPhotoDragOver, setIsPhotoDragOver] = useState(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
   const [isDownloadingDossier, setIsDownloadingDossier] = useState(false);
@@ -153,14 +154,23 @@ export function CriminalProfileHeader({
   );
 
   const [photoLoadError, setPhotoLoadError] = useState(false);
+  const [currentMugshot, setCurrentMugshot] = useState<string | null>(() => {
+    return (mugshotDisplayUrl && !mugshotDisplayUrl.includes("undefined"))
+      ? mugshotDisplayUrl
+      : criminal.mugshotUrl || null;
+  });
+
+  // Sync state if server prop updates
+  React.useEffect(() => {
+    if (mugshotDisplayUrl && !mugshotDisplayUrl.includes("undefined")) {
+      setCurrentMugshot(mugshotDisplayUrl);
+    } else if (criminal.mugshotUrl) {
+      setCurrentMugshot(criminal.mugshotUrl);
+    }
+  }, [mugshotDisplayUrl, criminal.mugshotUrl]);
 
   // Safe resolved photo
-  const resolvedPhoto =
-    mugshotDisplayUrl && !mugshotDisplayUrl.includes("undefined")
-      ? getSafeStorageUrl(mugshotDisplayUrl)
-      : criminal.mugshotUrl
-      ? getSafeStorageUrl(criminal.mugshotUrl)
-      : null;
+  const resolvedPhoto = currentMugshot ? getSafeStorageUrl(currentMugshot) : null;
 
   const formattedDob = formatCriminalDobWithAge(criminal.dateOfBirth);
 
@@ -173,10 +183,55 @@ export function CriminalProfileHeader({
     hour12: true,
   });
 
-  const aadharId = (demographics.aadharId as string) || "Not Enrolled";
-  const passportNo = (demographics.passportNo as string) || "Not Enrolled";
-  const drivingLicense = (demographics.drivingLicense as string) || "Not Documented";
-  const otherId = (demographics.otherId as string) || "—";
+  const rawAadhar =
+    (demographics.nationalId as string) ||
+    (demographics.aadharId as string) ||
+    (demographics.aadhaarNumber as string) ||
+    (demographics.aadharNumber as string) ||
+    (criminal as any).nationalId;
+
+  // Format 12-digit Aadhaar nicely: "XXXX XXXX XXXX" or keep clean string
+  const formatAadhaar = (val?: string) => {
+    if (!val || !val.trim()) return "Not Enrolled";
+    const cleaned = val.replace(/\s+/g, "");
+    if (/^\d{12}$/.test(cleaned)) {
+      return `${cleaned.slice(0, 4)} ${cleaned.slice(4, 8)} ${cleaned.slice(8, 12)}`;
+    }
+    return val;
+  };
+
+  const aadharId = formatAadhaar(rawAadhar);
+
+  const passportNo =
+    (demographics.passportNumber as string) ||
+    (demographics.passportNo as string) ||
+    (demographics.passport as string) ||
+    "Not Enrolled";
+
+  const rawDrivingLicense =
+    (demographics.drivingLicense as string) ||
+    (demographics.drivingLicenseNumber as string) ||
+    (demographics.dlNumber as string);
+
+  const drivingLicense = rawDrivingLicense?.trim() ? rawDrivingLicense.trim() : "Not Documented";
+
+  const rawOtherId = (demographics.otherId as string)?.trim();
+  // If otherId is equal to drivingLicense (due to the old bug) or empty, show "—"
+  const otherId =
+    rawOtherId && rawOtherId !== rawDrivingLicense?.trim()
+      ? rawOtherId
+      : "—";
+
+  const statePoliceId =
+    (demographics.statePoliceId as string) ||
+    (demographics.policeId as string) ||
+    "Not Documented";
+
+  const ncrbId =
+    (demographics.ncrbId as string) ||
+    (demographics.ncrbNumber as string) ||
+    "Not Registered";
+
   const riskLevel = (demographics.riskLevel as string) || criminal.riskLevel || "Medium";
   const threatAssessment =
     (demographics.threatAssessment as string) || (criminal.status === "WANTED" ? "High Priority Capture" : "Under Evaluation");
@@ -219,17 +274,24 @@ export function CriminalProfileHeader({
     try {
       const formData = new FormData();
       formData.append("file", newPhotoFile);
+      formData.append("criminalId", criminal.criminalId || criminal.id);
       const res = await updateCriminalPhoto(criminal.id, formData);
       if (res.error) {
         toast.error(res.error);
       } else {
         toast.success("Criminal booking photo updated and verified!");
+        if (res.storageKey) {
+          setCurrentMugshot(res.storageKey);
+          setPhotoLoadError(false);
+        }
         setIsChangePhotoOpen(false);
         setNewPhotoFile(null);
         setNewPhotoPreview(null);
+        router.refresh();
       }
-    } catch {
-      toast.error("Failed to upload photo to storage.");
+    } catch (err: any) {
+      console.error("Photo upload error:", err);
+      toast.error(err?.message || "Failed to upload photo to storage.");
     } finally {
       setIsUploadingPhoto(false);
     }
@@ -821,53 +883,107 @@ export function CriminalProfileHeader({
 
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-muted-foreground text-[11px]">Aadhaar ID</span>
-                  <span className="font-mono font-semibold text-foreground">
+                  <span
+                    className={cn(
+                      "font-mono font-semibold",
+                      aadharId !== "Not Enrolled"
+                        ? "text-foreground"
+                        : "text-muted-foreground/60 italic font-sans text-[11px]"
+                    )}
+                  >
                     {aadharId}
                   </span>
                 </div>
 
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-muted-foreground text-[11px]">Passport No.</span>
-                  <span className="font-mono font-semibold text-foreground">
+                  <span
+                    className={cn(
+                      "font-mono font-semibold",
+                      passportNo !== "Not Enrolled"
+                        ? "text-foreground"
+                        : "text-muted-foreground/60 italic font-sans text-[11px]"
+                    )}
+                  >
                     {passportNo}
                   </span>
                 </div>
 
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-muted-foreground text-[11px]">Driving License</span>
-                  <span className="font-mono font-semibold text-foreground">
+                  <span
+                    className={cn(
+                      "font-mono font-semibold",
+                      drivingLicense !== "Not Documented"
+                        ? "text-foreground"
+                        : "text-muted-foreground/60 italic font-sans text-[11px]"
+                    )}
+                  >
                     {drivingLicense}
                   </span>
                 </div>
 
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-muted-foreground text-[11px]">State Police ID</span>
-                  <span className="font-mono font-semibold text-foreground">
-                    {(demographics.statePoliceId as string) || "TN-CR-9921"}
+                  <span
+                    className={cn(
+                      "font-mono font-semibold",
+                      statePoliceId !== "Not Documented"
+                        ? "text-foreground"
+                        : "text-muted-foreground/60 italic font-sans text-[11px]"
+                    )}
+                  >
+                    {statePoliceId}
                   </span>
                 </div>
 
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-muted-foreground text-[11px]">National Crime Rec.</span>
-                  <span className="font-mono font-semibold text-foreground">
-                    {(demographics.ncrbId as string) || "NCRB-IN-8821"}
+                  <span
+                    className={cn(
+                      "font-mono font-semibold",
+                      ncrbId !== "Not Registered"
+                        ? "text-foreground"
+                        : "text-muted-foreground/60 italic font-sans text-[11px]"
+                    )}
+                  >
+                    {ncrbId}
                   </span>
                 </div>
 
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-muted-foreground text-[11px]">Other ID</span>
-                  <span className="font-mono font-semibold text-foreground">{otherId}</span>
+                  <span
+                    className={cn(
+                      "font-mono font-semibold",
+                      otherId !== "—" ? "text-foreground" : "text-muted-foreground/60"
+                    )}
+                  >
+                    {otherId}
+                  </span>
                 </div>
               </div>
             </div>
 
             {/* Verification Footer */}
             <div className="mt-3 pt-2.5 border-t border-border/40 flex items-center justify-between text-[11px]">
-              <span className="flex items-center gap-1.5 text-emerald-400">
-                <CheckCircle2 className="size-3 shrink-0" />
-                <span className="text-[10px] font-medium">Aadhaar & CCTNS Synced</span>
-              </span>
-              <span className="text-[10px] text-muted-foreground/80 font-mono">UIDAI Valid</span>
+              {rawAadhar ? (
+                <>
+                  <span className="flex items-center gap-1.5 text-emerald-400">
+                    <CheckCircle2 className="size-3 shrink-0" />
+                    <span className="text-[10px] font-medium">Aadhaar & CCTNS Synced</span>
+                  </span>
+                  <span className="text-[10px] text-muted-foreground/80 font-mono">UIDAI Valid</span>
+                </>
+              ) : (
+                <>
+                  <span className="flex items-center gap-1.5 text-amber-400/90">
+                    <Clock className="size-3 shrink-0" />
+                    <span className="text-[10px] font-medium">National ID Pending</span>
+                  </span>
+                  <span className="text-[10px] text-muted-foreground/60 font-mono">UIDAI Unenrolled</span>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -1035,8 +1151,8 @@ export function CriminalProfileHeader({
             onChange={(e) => {
               const file = e.target.files?.[0];
               if (file) {
-                if (file.size > 10 * 1024 * 1024) {
-                  toast.error("Image file size exceeds 10 MB limit");
+                if (file.size > 25 * 1024 * 1024) {
+                  toast.error("Image file size exceeds 25 MB limit");
                   return;
                 }
                 setNewPhotoFile(file);
@@ -1067,17 +1183,46 @@ export function CriminalProfileHeader({
           ) : (
             <div
               onClick={() => photoInputRef.current?.click()}
-              className="border-2 border-dashed border-border/70 rounded-xl p-8 flex flex-col items-center justify-center gap-3 text-center bg-muted/10 hover:bg-muted/20 transition-colors cursor-pointer"
+              onDragOver={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsPhotoDragOver(true);
+              }}
+              onDragLeave={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsPhotoDragOver(false);
+              }}
+              onDrop={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setIsPhotoDragOver(false);
+                const file = e.dataTransfer.files?.[0];
+                if (file) {
+                  if (file.size > 25 * 1024 * 1024) {
+                    toast.error("Image file size exceeds 25 MB limit");
+                    return;
+                  }
+                  setNewPhotoFile(file);
+                  setNewPhotoPreview(URL.createObjectURL(file));
+                }
+              }}
+              className={cn(
+                "border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center gap-3 text-center transition-colors cursor-pointer",
+                isPhotoDragOver
+                  ? "border-[#665AEF] bg-[#665AEF]/15 ring-2 ring-[#665AEF]/30"
+                  : "border-border/70 bg-muted/10 hover:bg-muted/20"
+              )}
             >
               <div className="flex size-12 items-center justify-center rounded-full bg-[#665AEF]/15 text-[#a594fd]">
                 <Upload className="size-6" />
               </div>
               <div>
                 <p className="text-sm font-semibold text-foreground">
-                  Click to select booking mugshot file
+                  Click or drag to select booking mugshot file
                 </p>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  PNG, JPG, or WEBP up to 10MB
+                  PNG, JPG, or WEBP up to 25MB
                 </p>
               </div>
             </div>
