@@ -274,34 +274,55 @@ export function CasesTable({ initialCases = [] }: CasesTableProps) {
   };
 
   // Status badge styling helper matching dashboard table
-  const renderStatusBadge = (status: CaseItem["status"]) => {
-    switch (status) {
-      case "Under Investigation":
-        return (
-          <span className="inline-flex items-center rounded-[4px] border-2 border-[#665AEF]/40 bg-[#665AEF]/15 px-2 py-0.5 text-[11px] font-medium text-[#a594fd] whitespace-nowrap">
-            Under Investigation
-          </span>
-        );
-      case "Open":
-        return (
-          <span className="inline-flex items-center rounded-[4px] border-2 border-blue-500/40 bg-blue-500/15 px-2 py-0.5 text-[11px] font-medium text-blue-400 whitespace-nowrap">
-            Open
-          </span>
-        );
-      case "Solved":
-        return (
-          <span className="inline-flex items-center rounded-[4px] border-2 border-emerald-500/40 bg-emerald-500/15 px-2 py-0.5 text-[11px] font-medium text-emerald-400 whitespace-nowrap">
-            Solved
-          </span>
-        );
-      case "Closed":
-      default:
-        return (
-          <span className="inline-flex items-center rounded-[4px] border-2 border-border/80 bg-muted/50 px-2 py-0.5 text-[11px] font-medium text-muted-foreground whitespace-nowrap">
-            {status}
-          </span>
-        );
+  const renderStatusBadge = (status: CaseItem["status"] | string) => {
+    const norm = (status || "").toLowerCase();
+    if (norm.includes("archive")) {
+      return (
+        <span className="inline-flex items-center rounded-[4px] border-2 border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-[11px] font-medium text-amber-400 whitespace-nowrap">
+          Archived
+        </span>
+      );
     }
+    if (norm.includes("investigat")) {
+      return (
+        <span className="inline-flex items-center rounded-[4px] border-2 border-[#665AEF]/40 bg-[#665AEF]/15 px-2 py-0.5 text-[11px] font-medium text-[#a594fd] whitespace-nowrap">
+          Under Investigation
+        </span>
+      );
+    }
+    if (norm === "open") {
+      return (
+        <span className="inline-flex items-center rounded-[4px] border-2 border-blue-500/40 bg-blue-500/15 px-2 py-0.5 text-[11px] font-medium text-blue-400 whitespace-nowrap">
+          Open
+        </span>
+      );
+    }
+    if (norm === "solved") {
+      return (
+        <span className="inline-flex items-center rounded-[4px] border-2 border-emerald-500/40 bg-emerald-500/15 px-2 py-0.5 text-[11px] font-medium text-emerald-400 whitespace-nowrap">
+          Solved
+        </span>
+      );
+    }
+    if (norm === "cold") {
+      return (
+        <span className="inline-flex items-center rounded-[4px] border-2 border-cyan-500/40 bg-cyan-500/15 px-2 py-0.5 text-[11px] font-medium text-cyan-400 whitespace-nowrap">
+          Cold
+        </span>
+      );
+    }
+    if (norm === "closed") {
+      return (
+        <span className="inline-flex items-center rounded-[4px] border-2 border-border/80 bg-muted/50 px-2 py-0.5 text-[11px] font-medium text-muted-foreground whitespace-nowrap">
+          Closed
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center rounded-[4px] border-2 border-border/80 bg-muted/50 px-2 py-0.5 text-[11px] font-medium text-muted-foreground whitespace-nowrap">
+        {status}
+      </span>
+    );
   };
 
   return (
@@ -362,6 +383,7 @@ export function CasesTable({ initialCases = [] }: CasesTableProps) {
                       "Under Investigation",
                       "Solved",
                       "Closed",
+                      "Archived",
                     ].map((status) => {
                       const isAll = status === "All Statuses";
                       return (
@@ -816,40 +838,55 @@ function CaseDetailsPreview({ caseItem, onMediaAdded }: CaseDetailsPreviewProps)
   };
 
   // Status text only (no badge) for the card
-  const renderStatusText = (status: CaseItem["status"]) => {
-    switch (status) {
-      case "Under Investigation":
-        return (
-          <span className="text-xs font-semibold text-[#a594fd] whitespace-nowrap">
-            Under Investigation
-          </span>
-        );
-      case "Open":
-        return (
-          <span className="text-xs font-semibold text-blue-400 whitespace-nowrap">
-            Open
-          </span>
-        );
-      case "Solved":
-        return (
-          <span className="text-xs font-semibold text-emerald-400 whitespace-nowrap">
-            Solved
-          </span>
-        );
-      case "Cold":
-        return (
-          <span className="text-xs font-semibold text-cyan-400 whitespace-nowrap">
-            Cold
-          </span>
-        );
-      case "Closed":
-      default:
-        return (
-          <span className="text-xs font-semibold text-muted-foreground whitespace-nowrap">
-            {status}
-          </span>
-        );
+  const renderStatusText = (status: CaseItem["status"] | string) => {
+    const norm = (status || "").toLowerCase();
+    if (norm.includes("archive")) {
+      return (
+        <span className="text-xs font-semibold text-amber-400 whitespace-nowrap">
+          Archived
+        </span>
+      );
     }
+    if (norm.includes("investigat")) {
+      return (
+        <span className="text-xs font-semibold text-[#a594fd] whitespace-nowrap">
+          Under Investigation
+        </span>
+      );
+    }
+    if (norm === "open") {
+      return (
+        <span className="text-xs font-semibold text-blue-400 whitespace-nowrap">
+          Open
+        </span>
+      );
+    }
+    if (norm === "solved") {
+      return (
+        <span className="text-xs font-semibold text-emerald-400 whitespace-nowrap">
+          Solved
+        </span>
+      );
+    }
+    if (norm === "cold") {
+      return (
+        <span className="text-xs font-semibold text-cyan-400 whitespace-nowrap">
+          Cold
+        </span>
+      );
+    }
+    if (norm === "closed") {
+      return (
+        <span className="text-xs font-semibold text-muted-foreground whitespace-nowrap">
+          Closed
+        </span>
+      );
+    }
+    return (
+      <span className="text-xs font-semibold text-muted-foreground whitespace-nowrap">
+        {status}
+      </span>
+    );
   };
 
   return (

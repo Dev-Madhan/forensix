@@ -58,6 +58,7 @@ import {
   linkCriminalToCase,
 } from "@/features/criminals/actions";
 import { getCriminalSlug } from "@/features/criminals/slug";
+import { formatCriminalDobWithAge } from "@/features/criminals/formatters";
 import { SuspectAvatar } from "@/features/criminals/components/suspect-avatar";
 import { LinkCriminalCaseDialog } from "@/features/criminals/components/link-criminal-case-dialog";
 import { getSafeStorageUrl } from "@/lib/storage-url";
@@ -161,17 +162,7 @@ export function CriminalProfileHeader({
       ? getSafeStorageUrl(criminal.mugshotUrl)
       : null;
 
-  const formattedDob = criminal.dateOfBirth
-    ? (() => {
-        const dob = new Date(criminal.dateOfBirth);
-        const age = Math.floor((Date.now() - dob.getTime()) / (365.25 * 24 * 60 * 60 * 1000));
-        return `${dob.toLocaleDateString("en-US", {
-          month: "short",
-          day: "numeric",
-          year: "numeric",
-        })} (${age} years)`;
-      })()
-    : "Not Documented";
+  const formattedDob = formatCriminalDobWithAge(criminal.dateOfBirth);
 
   const formattedUpdated = new Date(criminal.updatedAt).toLocaleString("en-US", {
     month: "short",
@@ -372,12 +363,15 @@ export function CriminalProfileHeader({
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
+      a.style.display = "none";
       a.href = url;
       a.download = `FORENSIX-DOSSIER-${fullName.replace(/\s+/g, "_")}-${criminal.criminalId}.pdf`;
       document.body.appendChild(a);
       a.click();
-      document.body.removeChild(a);
-      window.URL.revokeObjectURL(url);
+      setTimeout(() => {
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+      }, 2000);
       toast.success("Official Criminal Dossier downloaded successfully", { id: toastId });
     } catch (err: any) {
       console.error(err);

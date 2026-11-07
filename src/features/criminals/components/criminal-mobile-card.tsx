@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import { type CriminalItem } from "@/features/criminals/types";
 import { SuspectAvatar } from "./suspect-avatar";
 import { getCriminalSlug } from "@/features/criminals/slug";
+import { computeCriminalAge } from "@/features/criminals/formatters";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
 import {
@@ -285,7 +286,9 @@ export function CriminalMobileCard({
         <div className="flex items-center gap-1.5 text-muted-foreground truncate">
           <Calendar className="size-3 text-muted-foreground/70 shrink-0" />
           <span className="text-[11px] text-foreground/80 truncate">
-            {criminal.age ? `${criminal.age} yrs` : "Age N/A"}
+            {computeCriminalAge(criminal.dateOfBirth, criminal.age)
+              ? `${computeCriminalAge(criminal.dateOfBirth, criminal.age)} yrs`
+              : "Age N/A"}
             {criminal.gender ? ` • ${criminal.gender}` : ""}
           </span>
         </div>

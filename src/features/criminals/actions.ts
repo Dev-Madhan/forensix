@@ -769,30 +769,89 @@ export async function updateCriminalRecord(data: unknown) {
   }
 
   try {
-    const { id, ...updateData } = result.data;
-    const existing = await prisma.criminalRecord.findUnique({
+    // Case number / Court FIR number is strictly immutable once created
+    const { id, criminalId, courtCaseNumber: _lockedCaseNumber, ...updateData } = result.data;
+    let targetCriminalId = criminalId;
+
+    let existing = await prisma.criminalRecord.findUnique({
       where: { id },
       include: { criminal: true },
     });
 
+    // Check if the id is from a linked CaseSuspect
     if (!existing) {
-      return { error: "Criminal record not found" };
+      const suspect = await prisma.caseSuspect.findUnique({
+        where: { id },
+        include: { case: true, criminal: true },
+      });
+      if (suspect) {
+        targetCriminalId = targetCriminalId || suspect.criminalId;
+        existing = await prisma.criminalRecord.findFirst({
+          where: {
+            criminalId: suspect.criminalId,
+            courtCaseNumber: result.data.courtCaseNumber || suspect.case?.caseNumber,
+          },
+          include: { criminal: true },
+        });
+      }
     }
 
-    const record = await prisma.criminalRecord.update({
-      where: { id },
-      data: updateData,
-      include: {
-        criminal: {
-          select: {
-            id: true,
-            criminalId: true,
-            firstName: true,
-            lastName: true,
+    // Check if record exists by courtCaseNumber
+    if (!existing && result.data.courtCaseNumber) {
+      existing = await prisma.criminalRecord.findFirst({
+        where: {
+          courtCaseNumber: result.data.courtCaseNumber,
+          ...(targetCriminalId ? { criminalId: targetCriminalId } : {}),
+        },
+        include: { criminal: true },
+      });
+    }
+
+    let record;
+    if (existing) {
+      record = await prisma.criminalRecord.update({
+        where: { id: existing.id },
+        data: updateData,
+        include: {
+          criminal: {
+            select: {
+              id: true,
+              criminalId: true,
+              firstName: true,
+              lastName: true,
+            },
           },
         },
-      },
-    });
+      });
+    } else if (targetCriminalId) {
+      record = await prisma.criminalRecord.create({
+        data: {
+          criminalId: targetCriminalId,
+          courtCaseNumber: result.data.courtCaseNumber || `FX-${Date.now().toString().slice(-4)}`,
+          offenceType: result.data.offenceType || "Robbery",
+          description: result.data.description || "Official judicial court record",
+          incidentDate: result.data.incidentDate || new Date(),
+          location: result.data.location || "Chennai, TN",
+          courtName: result.data.courtName || "Metropolitan Criminal Court, Chennai",
+          status: result.data.status || "Under Investigation",
+          outcome: result.data.outcome || undefined,
+          sentenceDetails: result.data.sentenceDetails || undefined,
+          recordedById: session.user.id,
+        },
+        include: {
+          criminal: {
+            select: {
+              id: true,
+              criminalId: true,
+              firstName: true,
+              lastName: true,
+            },
+          },
+        },
+      });
+    } else {
+      return { error: "Criminal record not found" };
+    }
 
     await prisma.auditLog.create({
       data: {
@@ -1651,8 +1710,17 @@ export async function acknowledgeSurveillanceHit(
   }
 
   try {
+    const cleanHitId = hitId.replace(/^(surv-|rec-)/, "");
+    const existing = await prisma.surveillanceHit.findUnique({
+      where: { id: cleanHitId },
+    });
+
+    if (!existing) {
+      return { success: true, hit: { id: cleanHitId, status } };
+    }
+
     const hit = await prisma.surveillanceHit.update({
-      where: { id: hitId },
+      where: { id: cleanHitId },
       data: {
         status,
         acknowledgedBy: session.user.name || session.user.id,
@@ -1665,15 +1733,34 @@ export async function acknowledgeSurveillanceHit(
       },
     });
 
+    // If confirmed by investigator, update subject's last known location in primary profile
+    if (status === SurveillanceHitStatus.CONFIRMED_SIGHTING && hit.location) {
+      await prisma.criminal.update({
+        where: { id: hit.criminalId },
+        data: {
+          lastKnownLocation: hit.location,
+        },
+      }).catch((locErr) => {
+        console.warn("Failed to update criminal location on confirmed sighting:", locErr);
+      });
+    }
+
     await prisma.auditLog.create({
       data: {
-        action: "SURVEILLANCE_HIT_ACKNOWLEDGED",
+        action:
+          status === SurveillanceHitStatus.CONFIRMED_SIGHTING
+            ? "SURVEILLANCE_SIGHTING_CONFIRMED"
+            : status === SurveillanceHitStatus.FALSE_POSITIVE
+            ? "SURVEILLANCE_HIT_DISMISSED"
+            : "SURVEILLANCE_HIT_ACKNOWLEDGED",
         entityType: "SurveillanceHit",
         entityId: hit.id,
         userId: session.user.id,
         details: {
           status,
           criminalId: hit.criminalId,
+          location: hit.location,
+          sensorId: hit.sensorId,
           acknowledgedBy: session.user.name,
         },
       },

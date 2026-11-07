@@ -29,11 +29,11 @@ export function ActivityTimelineCard({ milestones, className }: ActivityTimeline
   };
 
   return (
-    <Card className={cn("border-2 border-border/80 bg-card/40 backdrop-blur-xs rounded-xl shadow-xs overflow-hidden", className)}>
-      <CardHeader className="pb-3.5 border-b-2 border-border/60">
+    <Card className={cn("border border-neutral-800 bg-[#0d0d0d] rounded-xl shadow-xs overflow-hidden", className)}>
+      <CardHeader className="pb-3.5 border-b border-neutral-800">
         <div className="flex items-center gap-2">
-          <Clock className="size-4 text-blue-400 shrink-0" />
-          <CardTitle className="text-sm sm:text-base font-bold font-heading text-foreground">
+          <Clock className="size-4 text-[#665AEF] shrink-0" />
+          <CardTitle className="text-sm sm:text-base font-bold font-heading text-white">
             Activity Timeline
           </CardTitle>
         </div>
@@ -52,7 +52,7 @@ export function ActivityTimelineCard({ milestones, className }: ActivityTimeline
                 {/* Connecting vertical line segment — strictly stops at the last dot */}
                 {!isLast && (
                   <div
-                    className="absolute left-[5.5px] top-3.5 bottom-0 w-0.5 bg-border/80"
+                    className="absolute left-[5.5px] top-3.5 bottom-0 w-0.5 bg-neutral-800"
                     aria-hidden="true"
                   />
                 )}
@@ -60,17 +60,17 @@ export function ActivityTimelineCard({ milestones, className }: ActivityTimeline
                 {/* Milestone colored dot */}
                 <div
                   className={cn(
-                    "relative z-10 size-3 rounded-full border-2 border-card mt-1 shrink-0 transition-transform hover:scale-125",
+                    "relative z-10 size-3 rounded-full border-2 border-[#0d0d0d] mt-1 shrink-0 transition-transform hover:scale-125",
                     getDotColor(milestone.dotColor)
                   )}
                 />
 
                 {/* Milestone Details: Title & Formatted Timestamp */}
                 <div className="space-y-0.5 min-w-0">
-                  <p className="font-semibold text-foreground text-xs sm:text-sm leading-tight">
+                  <p className="font-semibold text-white text-xs sm:text-sm leading-tight">
                     {milestone.title}
                   </p>
-                  <p className="text-[11px] sm:text-xs text-muted-foreground font-mono">
+                  <p className="text-[11px] sm:text-xs text-neutral-400 font-mono">
                     {milestone.formattedTime}
                   </p>
                 </div>

@@ -101,7 +101,8 @@ export function DashboardContent({
           if (c.id === update.id || c.caseId === update.caseNumber) {
             let mappedStatus: CaseItem["status"] = "Open";
             if (update.status === "UNDER_INVESTIGATION") mappedStatus = "Under Investigation";
-            else if (update.status === "CLOSED" || update.status === "ARCHIVED") mappedStatus = "Closed";
+            else if (update.status === "ARCHIVED") mappedStatus = "Archived";
+            else if (update.status === "CLOSED") mappedStatus = "Closed";
             else if (update.status === "COLD") mappedStatus = "Cold";
             else if (update.status === "SOLVED") mappedStatus = "Solved";
             return { ...c, status: mappedStatus };
@@ -161,8 +162,9 @@ export function DashboardContent({
     },
 
     onSketchesSync: (freshSketches) => {
-      if (freshSketches && freshSketches.length > 0) {
+      if (freshSketches && Array.isArray(freshSketches)) {
         setCurrentSketches((prev) => {
+          if (freshSketches.length === 0) return [];
           const prevKeys = prev.map((s) => `${s.id}-${s.imageUrl}`).join("|");
           const nextKeys = freshSketches.slice(0, 4).map((s) => `${s.id}-${s.imageUrl}`).join("|");
           if (prevKeys !== nextKeys) {

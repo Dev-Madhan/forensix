@@ -83,3 +83,67 @@ export interface CriminalDossierData {
     certifiedAt: string;
   };
 }
+
+export interface CriminalRapSheetData {
+  rapSheetNumber: string;
+  generatedAt: string;
+  generatedBy: {
+    name: string;
+    badgeId?: string;
+    role: string;
+  };
+  classification: string;
+  subject: {
+    id: string;
+    criminalId: string;
+    fullName: string;
+    firstName?: string;
+    lastName?: string;
+    aliases: string[];
+    mugshotUrl: string | null;
+    status: string;
+    riskLevel: string;
+    dateOfBirth: string | null;
+    age: number | string;
+    gender: string;
+    nationality: string;
+    lastKnownLocation: string;
+    address?: string;
+    demographics?: {
+      identifyingMarks?: string;
+      occupation?: string;
+      bloodGroup?: string;
+      height?: string;
+      weight?: string;
+    };
+    biometrics?: {
+      fingerprintStatus?: string;
+      dnaProfileCode?: string;
+      faceEmbeddingStatus?: string;
+    };
+  };
+  statistics: {
+    totalOffenses: number;
+    activeTrials: number;
+    convictions: number;
+    closedCases: number;
+  };
+  records: Array<{
+    caseId: string;
+    offenceType: string;
+    description: string;
+    date: string;
+    location: string;
+    courtName: string;
+    status: string;
+    outcome: string | null;
+    sentenceDetails: string | null;
+  }>;
+  custodyCertification: {
+    merkleRootHash: string;
+    totalSignedBlocks: number;
+    statutoryAct: string;
+    certifiedAt: string;
+  };
+}
+

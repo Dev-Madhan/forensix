@@ -71,10 +71,6 @@ export function EvidenceTabContent({
   const [isMediaModalOpen, setIsMediaModalOpen] = useState(false);
   const [activeModalItem, setActiveModalItem] = useState<EvidenceItem | null>(null);
 
-  // 7. Media frame index for the preview card (< > arrows)
-  const [mediaFrameIndex, setMediaFrameIndex] = useState(1);
-  const totalMediaFrames = 4;
-
   // Compute metric cards stats
   const totalCount = evidenceList.length;
   const verifiedCount = useMemo(
@@ -261,12 +257,47 @@ export function EvidenceTabContent({
     setIsMediaModalOpen(true);
   };
 
+  // Active evidence list for sequential inspection and cycling
+  const activeEvidenceList = useMemo(() => {
+    return filteredList.length > 0 ? filteredList : evidenceList;
+  }, [filteredList, evidenceList]);
+
+  // Current index within active evidence list
+  const currentEvidenceIndex = useMemo(() => {
+    if (!selectedEvidence) return 0;
+    const idx = activeEvidenceList.findIndex((e) => e.id === selectedEvidence.id);
+    return idx >= 0 ? idx : 0;
+  }, [activeEvidenceList, selectedEvidence]);
+
+  const totalMediaFrames = Math.max(1, activeEvidenceList.length);
+  const currentMediaFrameIndex = activeEvidenceList.length > 0 ? currentEvidenceIndex + 1 : 1;
+
   const handlePrevMedia = () => {
-    setMediaFrameIndex((prev) => (prev <= 1 ? totalMediaFrames : prev - 1));
+    if (activeEvidenceList.length <= 1) return;
+    const prevIdx =
+      currentEvidenceIndex <= 0 ? activeEvidenceList.length - 1 : currentEvidenceIndex - 1;
+    const prevItem = activeEvidenceList[prevIdx];
+    if (prevItem) {
+      setSelectedEvidenceId(prevItem.id);
+      const targetPage = Math.floor(prevIdx / pageSize) + 1;
+      if (targetPage !== currentPage) {
+        setCurrentPage(targetPage);
+      }
+    }
   };
 
   const handleNextMedia = () => {
-    setMediaFrameIndex((prev) => (prev >= totalMediaFrames ? 1 : prev + 1));
+    if (activeEvidenceList.length <= 1) return;
+    const nextIdx =
+      currentEvidenceIndex >= activeEvidenceList.length - 1 ? 0 : currentEvidenceIndex + 1;
+    const nextItem = activeEvidenceList[nextIdx];
+    if (nextItem) {
+      setSelectedEvidenceId(nextItem.id);
+      const targetPage = Math.floor(nextIdx / pageSize) + 1;
+      if (targetPage !== currentPage) {
+        setCurrentPage(targetPage);
+      }
+    }
   };
 
   return (
@@ -343,10 +374,10 @@ export function EvidenceTabContent({
           {/* 1. Evidence Preview Card */}
           <EvidencePreviewCard
             item={selectedEvidence}
-            mediaIndex={mediaFrameIndex}
+            mediaIndex={currentMediaFrameIndex}
             totalMedia={totalMediaFrames}
-            onPrevMedia={handlePrevMedia}
-            onNextMedia={handleNextMedia}
+            onPrevMedia={activeEvidenceList.length > 1 ? handlePrevMedia : undefined}
+            onNextMedia={activeEvidenceList.length > 1 ? handleNextMedia : undefined}
             onPlayMedia={handlePlayMedia}
           />
 

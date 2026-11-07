@@ -44,11 +44,12 @@ export const ACTIVITY_TYPE_OPTIONS: { id: string; label: string }[] = [
 ];
 
 export const DATE_RANGE_OPTIONS = [
-  "Oct 1, 2026 - Oct 5, 2026",
+  "All Time",
+  "Today",
   "Last 24 Hours",
   "Last 7 Days",
   "Last 30 Days",
-  "All Time",
+  "Last 90 Days",
 ];
 
 export const SORT_OPTIONS: { id: "LATEST_FIRST" | "OLDEST_FIRST"; label: string }[] = [
@@ -90,135 +91,183 @@ export function ActivityFiltersForm({
     <div className="space-y-4">
       {/* 1. Date Range */}
       <div className="space-y-1.5">
-        <label className="text-xs font-semibold text-muted-foreground">
+        <label className="text-xs font-semibold text-neutral-400">
           Date Range
         </label>
         <DropdownMenu>
           <DropdownMenuTrigger
-            className="w-full min-h-10.5 sm:min-h-9 flex items-center justify-between px-3 py-2 rounded-lg border-2 border-border/80 bg-card/70 hover:bg-card text-xs font-medium text-foreground transition-colors cursor-pointer shadow-2xs touch-manipulation"
+            className={cn(
+              "w-full min-h-10.5 sm:min-h-9 flex items-center justify-between px-3 py-2 rounded-lg border text-xs font-medium transition-colors cursor-pointer shadow-xs select-none",
+              filters.dateRange !== "All Time"
+                ? "border-[#665AEF]/50 bg-[#665AEF]/15 text-white font-semibold"
+                : "border-neutral-800 bg-[#0d0d0d] hover:bg-neutral-800/80 text-neutral-200"
+            )}
           >
             <div className="flex items-center gap-2 truncate">
-              <Calendar className="size-3.5 text-muted-foreground shrink-0" />
+              <Calendar
+                className={cn(
+                  "size-3.5 shrink-0",
+                  filters.dateRange !== "All Time" ? "text-[#665AEF]" : "text-neutral-400"
+                )}
+              />
               <span className="truncate">{filters.dateRange}</span>
             </div>
-            <ChevronDown className="size-3.5 text-muted-foreground shrink-0 ml-1.5" />
+            <ChevronDown className="size-3.5 text-neutral-400 shrink-0 ml-1.5" />
           </DropdownMenuTrigger>
           <DropdownMenuContent
             align="start"
-            className="w-56 bg-card/95 border-2 border-border/80 backdrop-blur-md shadow-xl z-100"
+            className="w-56 rounded-xl border border-neutral-800 bg-[#0d0d0d] text-neutral-200 shadow-2xl p-1 z-100"
           >
-            {DATE_RANGE_OPTIONS.map((range) => (
-              <DropdownMenuItem
-                key={range}
-                onClick={() => onDateRangeChange(range)}
-                className="flex items-center justify-between text-xs cursor-pointer py-2 sm:py-1.5"
-              >
-                <span>{range}</span>
-                {filters.dateRange === range && (
-                  <Check className="size-3.5 text-primary" />
-                )}
-              </DropdownMenuItem>
-            ))}
+            {DATE_RANGE_OPTIONS.map((range) => {
+              const isSelected = filters.dateRange === range;
+              return (
+                <DropdownMenuItem
+                  key={range}
+                  onClick={() => onDateRangeChange(range)}
+                  className={cn(
+                    "flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs cursor-pointer transition-colors",
+                    isSelected
+                      ? "bg-neutral-800/80 text-white font-semibold"
+                      : "text-neutral-300 hover:text-white hover:bg-neutral-800/50"
+                  )}
+                >
+                  <span>{range}</span>
+                  {isSelected && <Check className="size-3.5 text-[#665AEF]" />}
+                </DropdownMenuItem>
+              );
+            })}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
 
       {/* 2. Activity Type */}
       <div className="space-y-1.5">
-        <label className="text-xs font-semibold text-muted-foreground">
+        <label className="text-xs font-semibold text-neutral-400">
           Activity Type
         </label>
         <DropdownMenu>
           <DropdownMenuTrigger
-            className="w-full min-h-10.5 sm:min-h-9 flex items-center justify-between px-3 py-2 rounded-lg border-2 border-border/80 bg-card/70 hover:bg-card text-xs font-medium text-foreground transition-colors cursor-pointer shadow-2xs touch-manipulation"
+            className={cn(
+              "w-full min-h-10.5 sm:min-h-9 flex items-center justify-between px-3 py-2 rounded-lg border text-xs font-medium transition-colors cursor-pointer shadow-xs select-none",
+              filters.activityType !== "ALL"
+                ? "border-[#665AEF]/50 bg-[#665AEF]/15 text-white font-semibold"
+                : "border-neutral-800 bg-[#0d0d0d] hover:bg-neutral-800/80 text-neutral-200"
+            )}
           >
             <span className="truncate">{currentTypeLabel}</span>
-            <ChevronDown className="size-3.5 text-muted-foreground shrink-0 ml-1.5" />
+            <ChevronDown className="size-3.5 text-neutral-400 shrink-0 ml-1.5" />
           </DropdownMenuTrigger>
           <DropdownMenuContent
             align="start"
-            className="w-52 bg-card/95 border-2 border-border/80 backdrop-blur-md shadow-xl z-100"
+            className="w-56 rounded-xl border border-neutral-800 bg-[#0d0d0d] text-neutral-200 shadow-2xl p-1 z-100"
           >
-            {ACTIVITY_TYPE_OPTIONS.map((opt) => (
-              <DropdownMenuItem
-                key={opt.id}
-                onClick={() => onActivityTypeChange(opt.id)}
-                className="flex items-center justify-between text-xs cursor-pointer py-2 sm:py-1.5"
-              >
-                <span>{opt.label}</span>
-                {filters.activityType.toLowerCase() ===
-                  opt.id.toLowerCase() && (
-                  <Check className="size-3.5 text-primary" />
-                )}
-              </DropdownMenuItem>
-            ))}
+            {ACTIVITY_TYPE_OPTIONS.map((opt) => {
+              const isSelected = filters.activityType.toLowerCase() === opt.id.toLowerCase();
+              return (
+                <DropdownMenuItem
+                  key={opt.id}
+                  onClick={() => onActivityTypeChange(opt.id)}
+                  className={cn(
+                    "flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs cursor-pointer transition-colors",
+                    isSelected
+                      ? "bg-neutral-800/80 text-white font-semibold"
+                      : "text-neutral-300 hover:text-white hover:bg-neutral-800/50"
+                  )}
+                >
+                  <span>{opt.label}</span>
+                  {isSelected && <Check className="size-3.5 text-[#665AEF]" />}
+                </DropdownMenuItem>
+              );
+            })}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
 
       {/* 3. User */}
       <div className="space-y-1.5">
-        <label className="text-xs font-semibold text-muted-foreground">
+        <label className="text-xs font-semibold text-neutral-400">
           User
         </label>
         <DropdownMenu>
           <DropdownMenuTrigger
-            className="w-full min-h-10.5 sm:min-h-9 flex items-center justify-between px-3 py-2 rounded-lg border-2 border-border/80 bg-card/70 hover:bg-card text-xs font-medium text-foreground transition-colors cursor-pointer shadow-2xs touch-manipulation"
+            className={cn(
+              "w-full min-h-10.5 sm:min-h-9 flex items-center justify-between px-3 py-2 rounded-lg border text-xs font-medium transition-colors cursor-pointer shadow-xs select-none",
+              filters.userFilter !== "ALL"
+                ? "border-[#665AEF]/50 bg-[#665AEF]/15 text-white font-semibold"
+                : "border-neutral-800 bg-[#0d0d0d] hover:bg-neutral-800/80 text-neutral-200"
+            )}
           >
             <div className="flex items-center gap-1.5 truncate">
-              <User className="size-3.5 text-muted-foreground shrink-0" />
+              <User className="size-3.5 text-neutral-400 shrink-0" />
               <span className="truncate">{currentUserLabel}</span>
             </div>
-            <ChevronDown className="size-3.5 text-muted-foreground shrink-0 ml-1.5" />
+            <ChevronDown className="size-3.5 text-neutral-400 shrink-0 ml-1.5" />
           </DropdownMenuTrigger>
           <DropdownMenuContent
             align="start"
-            className="w-64 bg-card/95 border-2 border-border/80 backdrop-blur-md shadow-xl z-100"
+            className="w-64 rounded-xl border border-neutral-800 bg-[#0d0d0d] text-neutral-200 shadow-2xl p-1 z-100"
           >
-            {userOptions.map((opt) => (
-              <DropdownMenuItem
-                key={opt.id}
-                onClick={() => onUserFilterChange(opt.id)}
-                className="flex items-center justify-between text-xs cursor-pointer py-2 sm:py-1.5"
-              >
-                <span className="truncate">{opt.label}</span>
-                {filters.userFilter === opt.id && (
-                  <Check className="size-3.5 text-primary shrink-0 ml-2" />
-                )}
-              </DropdownMenuItem>
-            ))}
+            {userOptions.map((opt) => {
+              const isSelected = filters.userFilter === opt.id;
+              return (
+                <DropdownMenuItem
+                  key={opt.id}
+                  onClick={() => onUserFilterChange(opt.id)}
+                  className={cn(
+                    "flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs cursor-pointer transition-colors",
+                    isSelected
+                      ? "bg-neutral-800/80 text-white font-semibold"
+                      : "text-neutral-300 hover:text-white hover:bg-neutral-800/50"
+                  )}
+                >
+                  <span className="truncate">{opt.label}</span>
+                  {isSelected && <Check className="size-3.5 text-[#665AEF] shrink-0 ml-2" />}
+                </DropdownMenuItem>
+              );
+            })}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
 
       {/* 4. Sort By */}
       <div className="space-y-1.5">
-        <label className="text-xs font-semibold text-muted-foreground">
+        <label className="text-xs font-semibold text-neutral-400">
           Sort By
         </label>
         <DropdownMenu>
           <DropdownMenuTrigger
-            className="w-full min-h-10.5 sm:min-h-9 flex items-center justify-between px-3 py-2 rounded-lg border-2 border-border/80 bg-card/70 hover:bg-card text-xs font-medium text-foreground transition-colors cursor-pointer shadow-2xs touch-manipulation"
+            className={cn(
+              "w-full min-h-10.5 sm:min-h-9 flex items-center justify-between px-3 py-2 rounded-lg border text-xs font-medium transition-colors cursor-pointer shadow-xs select-none",
+              filters.sortBy !== "LATEST_FIRST"
+                ? "border-[#665AEF]/50 bg-[#665AEF]/15 text-white font-semibold"
+                : "border-neutral-800 bg-[#0d0d0d] hover:bg-neutral-800/80 text-neutral-200"
+            )}
           >
             <span className="truncate">{currentSortLabel}</span>
-            <ChevronDown className="size-3.5 text-muted-foreground shrink-0 ml-1.5" />
+            <ChevronDown className="size-3.5 text-neutral-400 shrink-0 ml-1.5" />
           </DropdownMenuTrigger>
           <DropdownMenuContent
             align="start"
-            className="w-48 bg-card/95 border-2 border-border/80 backdrop-blur-md shadow-xl z-100"
+            className="w-56 rounded-xl border border-neutral-800 bg-[#0d0d0d] text-neutral-200 shadow-2xl p-1 z-100"
           >
-            {SORT_OPTIONS.map((opt) => (
-              <DropdownMenuItem
-                key={opt.id}
-                onClick={() => onSortByChange(opt.id)}
-                className="flex items-center justify-between text-xs cursor-pointer py-2 sm:py-1.5"
-              >
-                <span>{opt.label}</span>
-                {filters.sortBy === opt.id && (
-                  <Check className="size-3.5 text-primary" />
-                )}
-              </DropdownMenuItem>
-            ))}
+            {SORT_OPTIONS.map((opt) => {
+              const isSelected = filters.sortBy === opt.id;
+              return (
+                <DropdownMenuItem
+                  key={opt.id}
+                  onClick={() => onSortByChange(opt.id)}
+                  className={cn(
+                    "flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs cursor-pointer transition-colors",
+                    isSelected
+                      ? "bg-neutral-800/80 text-white font-semibold"
+                      : "text-neutral-300 hover:text-white hover:bg-neutral-800/50"
+                  )}
+                >
+                  <span>{opt.label}</span>
+                  {isSelected && <Check className="size-3.5 text-[#665AEF]" />}
+                </DropdownMenuItem>
+              );
+            })}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -228,7 +277,7 @@ export function ActivityFiltersForm({
         <Button
           type="button"
           onClick={() => onCloseMobileSheet?.()}
-          className="w-full bg-[#1864e8] hover:bg-[#1556c7] text-white text-xs font-semibold h-10 sm:h-9 rounded-lg gap-1.5 cursor-pointer shadow-sm shadow-blue-500/20 active:scale-[0.98] touch-manipulation"
+          className="w-full bg-[#665AEF] hover:bg-[#5749DF] text-white text-xs font-semibold h-10 sm:h-9 rounded-lg gap-1.5 cursor-pointer shadow-xs shadow-[#665AEF]/25 active:scale-[0.98] touch-manipulation"
         >
           <Send className="size-3" />
           <span>Apply Filters</span>
@@ -239,7 +288,7 @@ export function ActivityFiltersForm({
           onClick={() => {
             onResetFilters();
           }}
-          className="w-full border-2 border-border/80 bg-card/60 hover:bg-card text-muted-foreground hover:text-foreground text-xs font-medium h-10 sm:h-9 rounded-lg gap-1.5 cursor-pointer active:scale-[0.98] touch-manipulation"
+          className="w-full border border-neutral-800 bg-neutral-900/60 hover:bg-neutral-800 text-neutral-300 hover:text-white text-xs font-medium h-10 sm:h-9 rounded-lg gap-1.5 cursor-pointer active:scale-[0.98] touch-manipulation"
         >
           <RotateCcw className="size-3" />
           <span>Reset</span>
@@ -251,11 +300,11 @@ export function ActivityFiltersForm({
 
 export function ActivityFiltersSidebar(props: ActivityFiltersFormProps) {
   return (
-    <Card className="border-2 border-border/80 bg-card/40 backdrop-blur-xs rounded-xl shadow-xs overflow-hidden">
-      <CardHeader className="pb-3.5 border-b-2 border-border/60">
+    <Card className="border border-neutral-800 bg-[#0d0d0d] rounded-xl shadow-xs overflow-hidden">
+      <CardHeader className="pb-3.5 border-b border-neutral-800">
         <div className="flex items-center gap-2">
-          <Filter className="size-4 text-blue-400 shrink-0" />
-          <CardTitle className="text-sm sm:text-base font-bold font-heading text-foreground">
+          <Filter className="size-4 text-[#665AEF] shrink-0" />
+          <CardTitle className="text-sm sm:text-base font-bold font-heading text-white">
             Activity Filters
           </CardTitle>
         </div>

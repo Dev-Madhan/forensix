@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { getSafeStorageUrl } from "@/lib/storage-url";
 
 export interface DashboardMetrics {
   totalCases: number;
@@ -24,7 +25,7 @@ export interface RecentCaseItem {
   caseId: string;
   title: string;
   date: string;
-  status: "Under Investigation" | "Open" | "Solved" | "Closed" | "Cold";
+  status: "Under Investigation" | "Open" | "Solved" | "Closed" | "Cold" | "Archived";
 }
 
 export interface RecentSketchItem {
@@ -228,9 +229,11 @@ export async function getRecentCases(limit = 5): Promise<RecentCaseItem[]> {
       let status: RecentCaseItem["status"] = "Open";
       if (c.status === "UNDER_INVESTIGATION") {
         status = "Under Investigation";
-      } else if (c.status === "CLOSED" || c.status === "ARCHIVED") {
+      } else if (c.status === "ARCHIVED") {
+        status = "Archived";
+      } else if (c.status === "CLOSED") {
         status = "Closed";
-      } else if (c.status === "COLD") {
+      } else if (c.status === "COLD" || c.status === "ON_HOLD") {
         status = "Cold";
       } else if (c.status === "OPEN") {
         status = "Open";
@@ -270,8 +273,9 @@ function formatPromptTitle(prompt?: string | null): string {
 
 export async function getRecentSketches(limit = 4): Promise<RecentSketchItem[]> {
   try {
-    const sketches = await prisma.sketch.findMany({
-      take: limit,
+    // 1. Fetch from Sketch model
+    const dbSketches = await prisma.sketch.findMany({
+      take: limit * 2,
       orderBy: { createdAt: "desc" },
       include: {
         case: {
@@ -283,39 +287,23 @@ export async function getRecentSketches(limit = 4): Promise<RecentSketchItem[]> 
       },
     });
 
-    if (sketches.length > 0) {
-      return sketches.map((s) => ({
-        id: s.id,
-        title: formatPromptTitle(s.description),
-        prompt: s.description || undefined,
-        date: new Date(s.createdAt).toLocaleDateString("en-US", {
-          month: "short",
-          day: "numeric",
-          year: "numeric",
-        }),
-        imageUrl: s.imageUrl,
-        caseNumber: s.case?.caseNumber || "FX-2026-185",
-        caseTitle: s.case?.title || "Operation Apex: Downtown Transit Incident",
-      }));
-    }
-
-    // Fallback: check completed generation jobs with valid image URLs
-    const jobs = await prisma.generationJob.findMany({
+    // 2. Fetch from GenerationJob model (completed jobs)
+    const dbJobs = await prisma.generationJob.findMany({
       where: {
         status: "COMPLETED",
         imageUrl: { not: null },
       },
-      take: limit,
+      take: limit * 2,
       orderBy: { createdAt: "desc" },
     });
 
-    // Check if any job's caseId matches an actual active case
-    const caseIds = jobs.map((j) => j.caseId).filter(Boolean) as string[];
+    // Resolve case metadata for jobs
+    const jobCaseIds = dbJobs.map((j) => j.caseId).filter(Boolean) as string[];
     const matchingCases =
-      caseIds.length > 0
+      jobCaseIds.length > 0
         ? await prisma.case.findMany({
             where: {
-              OR: [{ id: { in: caseIds } }, { caseNumber: { in: caseIds } }],
+              OR: [{ id: { in: jobCaseIds } }, { caseNumber: { in: jobCaseIds } }],
             },
             select: { id: true, caseNumber: true, title: true },
           }).catch(() => [])
@@ -327,9 +315,42 @@ export async function getRecentSketches(limit = 4): Promise<RecentSketchItem[]> 
       caseMap.set(c.caseNumber, { caseNumber: c.caseNumber, title: c.title });
     }
 
-    return jobs.map((j) => {
+    // Combine both sources
+    const combined: Array<{
+      id: string;
+      title: string;
+      prompt?: string;
+      date: string;
+      imageUrl: string;
+      caseNumber: string;
+      caseTitle: string;
+      createdAt: Date;
+    }> = [];
+
+    for (const s of dbSketches) {
+      combined.push({
+        id: s.id,
+        title: formatPromptTitle(s.description),
+        prompt: s.description || undefined,
+        date: new Date(s.createdAt).toLocaleDateString("en-US", {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        }),
+        imageUrl: getSafeStorageUrl(s.imageUrl, "/images/sketches/sketch-01.jpg") || s.imageUrl,
+        caseNumber: s.case?.caseNumber || "FX-2026-185",
+        caseTitle: s.case?.title || "Operation Apex: Downtown Transit Incident",
+        createdAt: s.createdAt,
+      });
+    }
+
+    for (const j of dbJobs) {
+      // Avoid duplicate if this job image was already in sketch table
+      if (combined.some((item) => item.imageUrl === j.imageUrl || item.id === j.id)) {
+        continue;
+      }
       const matched = j.caseId ? caseMap.get(j.caseId) : undefined;
-      return {
+      combined.push({
         id: j.id,
         title: formatPromptTitle(j.prompt),
         prompt: j.prompt || undefined,
@@ -338,11 +359,36 @@ export async function getRecentSketches(limit = 4): Promise<RecentSketchItem[]> 
           day: "numeric",
           year: "numeric",
         }),
-        imageUrl: j.imageUrl!,
+        imageUrl: getSafeStorageUrl(j.imageUrl!, "/images/sketches/sketch-01.jpg") || j.imageUrl!,
         caseNumber: matched?.caseNumber || "FX-2026-185",
         caseTitle: matched?.title || "Operation Apex: Downtown Transit Incident",
-      };
-    });
+        createdAt: j.createdAt,
+      });
+    }
+
+    // Sort descending by creation date
+    combined.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+
+    // Deduplicate by imageUrl
+    const seenUrls = new Set<string>();
+    const uniqueList: RecentSketchItem[] = [];
+    for (const item of combined) {
+      if (!seenUrls.has(item.imageUrl)) {
+        seenUrls.add(item.imageUrl);
+        uniqueList.push({
+          id: item.id,
+          title: item.title,
+          prompt: item.prompt,
+          date: item.date,
+          imageUrl: item.imageUrl,
+          caseNumber: item.caseNumber,
+          caseTitle: item.caseTitle,
+        });
+      }
+      if (uniqueList.length >= limit) break;
+    }
+
+    return uniqueList;
   } catch (error) {
     console.error("Error fetching recent sketches:", error);
     return [];

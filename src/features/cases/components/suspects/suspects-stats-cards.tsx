@@ -30,7 +30,7 @@ export function SuspectsStatsCards({
       label: "Total Suspects",
       count: total,
       icon: Users,
-      iconColor: "text-[#a594fd]",
+      iconColor: "text-neutral-300",
     },
     {
       id: "Primary Suspect" as const,
@@ -67,7 +67,7 @@ export function SuspectsStatsCards({
             onClick={() => onSelectStatusFilter(card.id)}
             className={cn(
               "group border-2 border-border/80 bg-card/40 backdrop-blur-xs hover:bg-card/70 hover:border-border transition-all p-3.5 sm:p-4 rounded-xl cursor-pointer shadow-xs flex flex-col justify-between select-none",
-              isActive && "ring-2 ring-[#665AEF]/60 bg-card/80 border-2 border-[#665AEF]/70"
+              isActive && "ring-2 ring-white/40 bg-card/80 border-2 border-white/50"
             )}
           >
             {/* Top row: Label on left, Standalone Icon on right */}

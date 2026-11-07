@@ -49,7 +49,9 @@ export function buildCaseReportData(
   const rawStatus = dbCase?.status || resolvedDetail?.rawStatus || "UNDER_INVESTIGATION";
 
   let displayStatus = "Under Investigation";
-  if (String(rawStatus).toUpperCase().includes("CLOSED") || String(rawStatus).toUpperCase().includes("SOLVED")) {
+  if (String(rawStatus).toUpperCase().includes("ARCHIVE")) {
+    displayStatus = "Archived";
+  } else if (String(rawStatus).toUpperCase().includes("CLOSED") || String(rawStatus).toUpperCase().includes("SOLVED")) {
     displayStatus = "Closed";
   } else if (String(rawStatus).toUpperCase().includes("OPEN")) {
     displayStatus = "Open";

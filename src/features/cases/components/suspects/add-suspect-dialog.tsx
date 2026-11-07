@@ -26,14 +26,15 @@ import {
   Check,
   Database,
   Search,
+  Plus,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import type { SuspectItem, SuspectStatus, SuspectRole } from "./types";
 import { SuspectAvatar } from "@/features/criminals/components/suspect-avatar";
 import { getSafeStorageUrl } from "@/lib/storage-url";
+import Link from "next/link";
 import {
-  MOCK_CASE_SKETCHES,
   type CaseSketchReference,
   type CaseSketchMatchCandidate,
 } from "./mock-case-sketches";
@@ -41,6 +42,10 @@ import {
   getAvailableCriminalsForCase,
   linkCriminalToCase,
 } from "@/features/criminals/actions";
+import {
+  getCaseSketchesWithBiometricMatches,
+  linkBiometricSuspectToCase,
+} from "@/features/cases/sketch-match-actions";
 
 interface AddSuspectDialogProps {
   isOpen: boolean;
@@ -99,13 +104,43 @@ export function AddSuspectDialog({
     };
   }, [isOpen, dbSearchTerm]);
 
-  // AI Match Tab State
-  const [selectedSketchId, setSelectedSketchId] = useState<string>(
-    MOCK_CASE_SKETCHES[0].id
-  );
+  // AI Match Tab State: Live Neon PostgreSQL & Case Sketches
+  const [caseSketches, setCaseSketches] = useState<CaseSketchReference[]>([]);
+  const [selectedSketchId, setSelectedSketchId] = useState<string>("");
+  const [isLoadingSketches, setIsLoadingSketches] = useState(false);
+  const [isLiveDatabaseSketches, setIsLiveDatabaseSketches] = useState(false);
+  const [linkingCandidateId, setLinkingCandidateId] = useState<string | null>(null);
   const [candidateRoles, setCandidateRoles] = useState<
     Record<string, { status: SuspectStatus; role: SuspectRole }>
   >({});
+
+  // Fetch real case sketches & live biometric vector matches
+  React.useEffect(() => {
+    if (!isOpen) return;
+    let active = true;
+    setIsLoadingSketches(true);
+    getCaseSketchesWithBiometricMatches(caseId || caseNumber)
+      .then((res) => {
+        if (!active) return;
+        if (res.success && res.sketches && res.sketches.length > 0) {
+          setCaseSketches(res.sketches);
+          setIsLiveDatabaseSketches(res.isLiveDatabase);
+          setSelectedSketchId((prev) => {
+            return res.sketches.some((s) => s.id === prev) ? prev : res.sketches[0].id;
+          });
+        }
+      })
+      .catch((err) => {
+        console.warn("Failed to fetch biometric case sketches:", err);
+      })
+      .finally(() => {
+        if (active) setIsLoadingSketches(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [isOpen, caseId, caseNumber]);
 
   // Manual Form State
   const [manualName, setManualName] = useState("");
@@ -168,9 +203,9 @@ export function AddSuspectDialog({
     ? Math.min(measuredHeight, Math.max(280, maxAllowedBodyHeight))
     : undefined;
 
-  const selectedSketch: CaseSketchReference =
-    MOCK_CASE_SKETCHES.find((s) => s.id === selectedSketchId) ||
-    MOCK_CASE_SKETCHES[0];
+  const selectedSketch: CaseSketchReference | undefined =
+    caseSketches.find((s) => s.id === selectedSketchId) ||
+    caseSketches[0];
 
   const isCandidateInCase = (candidateName: string) => {
     return existingSuspects.some(
@@ -178,23 +213,28 @@ export function AddSuspectDialog({
     );
   };
 
-  const handleLinkCandidate = (candidate: CaseSketchMatchCandidate) => {
+  const handleLinkCandidate = async (candidate: CaseSketchMatchCandidate) => {
     const customConfig = candidateRoles[candidate.id] || {
       status: candidate.recommendedStatus,
       role: candidate.recommendedRole,
     };
 
+    setLinkingCandidateId(candidate.id);
+    const resolvedCaseId = caseId || caseNumber || "FX-2026-001";
+
     const newSuspect: SuspectItem = {
-      id: `susp-${Date.now().toString().slice(-4)}`,
+      id: candidate.id || `susp-${Date.now().toString().slice(-4)}`,
+      criminalId: candidate.criminalId,
+      databaseId: candidate.id,
       numberIndex: String(nextIndexNumber).padStart(2, "0"),
       name: candidate.name,
-      alias: candidate.alias,
-      photo: candidate.photo,
+      alias: candidate.alias.startsWith("Alias:") ? candidate.alias : `Alias: ${candidate.alias}`,
+      photo: getSafeStorageUrl(candidate.photo) || candidate.photo || "/images/suspects/arun-prakash.jpg",
       status: customConfig.status,
       role: customConfig.role,
       matchConfidence: candidate.matchConfidence,
-      lastSeenDate: "Oct 4, 2026",
-      lastSeenTime: "09:14 PM",
+      lastSeenDate: "Today",
+      lastSeenTime: "04:30 PM",
       dob: candidate.dob,
       age: candidate.age,
       gender: candidate.gender,
@@ -209,12 +249,29 @@ export function AddSuspectDialog({
       hairColor: candidate.hairColor,
       eyeColor: candidate.eyeColor,
       identifyingMarks: candidate.identifyingMarks,
-      notes: `${candidate.llmReasoning} Matched from Composite ${selectedSketch.sketchNumber}.`,
+      notes: `${candidate.llmReasoning} Matched from Composite ${selectedSketch?.sketchNumber || "Composite"}.`,
     };
+
+    try {
+      await linkBiometricSuspectToCase({
+        caseId: resolvedCaseId,
+        criminalId: candidate.criminalId || candidate.id,
+        sketchId: selectedSketch?.id,
+        status: customConfig.status,
+        role: customConfig.role,
+        matchConfidence: candidate.matchConfidence,
+        rawCosineScore: candidate.rawCosineScore,
+        notes: newSuspect.notes,
+      });
+    } catch (linkErr) {
+      console.warn("Biometric link to case warning:", linkErr);
+    } finally {
+      setLinkingCandidateId(null);
+    }
 
     onAddSuspect(newSuspect);
     toast.success(
-      `Linked ${candidate.name} to case from ${selectedSketch.sketchNumber} (${candidate.matchConfidence}% confidence)`
+      `Linked ${candidate.name} to case from ${selectedSketch?.sketchNumber || "Composite"} (${candidate.matchConfidence}% confidence)`
     );
     onOpenChange(false);
   };
@@ -256,32 +313,32 @@ export function AddSuspectDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] sm:w-full sm:max-w-2xl lg:max-w-3xl xl:max-w-4xl max-h-[92dvh] sm:max-h-[90vh] overflow-hidden flex flex-col rounded-2xl border border-border/70 bg-card/95 backdrop-blur-2xl p-0 shadow-2xl min-w-0">
+      <DialogContent className="w-[calc(100vw-1rem)] max-w-[calc(100vw-1rem)] sm:w-full sm:max-w-2xl lg:max-w-3xl xl:max-w-4xl max-h-[92dvh] sm:max-h-[90vh] overflow-hidden flex flex-col rounded-2xl border border-neutral-800 bg-[#0a0a0a] text-neutral-100 p-0 shadow-2xl min-w-0">
 
-        {/* ── Fixed Dialog Header (Strictly responsive) ── */}
-        <div className="shrink-0 px-3.5 sm:px-6 pt-3.5 sm:pt-5 pb-3 border-b border-border/50 bg-muted/10 min-w-0">
+        {/* ── Fixed Dialog Header (Minimal, professional, obsidian theme) ── */}
+        <div className="shrink-0 px-4 sm:px-6 pt-4 sm:pt-5 pb-3.5 border-b border-neutral-800 bg-[#0d0d0d] min-w-0">
           <div className="pr-8 sm:pr-0 min-w-0">
             <DialogHeader className="space-y-0 text-left min-w-0">
-              <DialogTitle className="text-base sm:text-lg font-bold font-heading text-foreground tracking-tight truncate">
+              <DialogTitle className="text-base sm:text-lg font-semibold text-white tracking-tight truncate">
                 Add Suspect to Case
               </DialogTitle>
-              <DialogDescription className="text-[11px] sm:text-xs text-muted-foreground leading-relaxed mt-0.5 line-clamp-2 sm:line-clamp-none">
-                Review forensic biometric correlations against case composite sketches, or register a manual profile.
+              <DialogDescription className="text-xs text-neutral-400 leading-relaxed mt-0.5">
+                Search registered criminal database or correlate biometric sketches to link suspects.
               </DialogDescription>
             </DialogHeader>
           </div>
 
-          {/* Clean Segmented Tab Navigation: Equal columns on mobile, inline on desktop */}
-          <div className="pt-2.5 sm:pt-3 min-w-0">
-            <div className="grid grid-cols-3 sm:inline-flex items-center rounded-lg bg-muted/40 p-1 border border-border/50 gap-1 sm:gap-0 w-full sm:w-auto min-w-0">
+          {/* Clean Segmented Tab Navigation: Pure dark obsidian theme with purple action buttons */}
+          <div className="pt-3 min-w-0">
+            <div className="grid grid-cols-3 sm:inline-flex items-center rounded-lg bg-black/60 p-1 border border-neutral-800 gap-1 sm:gap-0 w-full sm:w-auto min-w-0">
               <button
                 type="button"
                 onClick={() => setActiveTab("database")}
                 className={cn(
-                  "flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer select-none text-center min-h-8.5 min-w-0",
+                  "flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer select-none text-center min-h-8.5 min-w-0",
                   activeTab === "database"
                     ? "bg-[#665AEF] text-white shadow-xs"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50 font-medium"
+                    : "text-neutral-400 hover:text-white hover:bg-neutral-800/50 font-medium"
                 )}
               >
                 <Database className="size-3.5 shrink-0" />
@@ -291,10 +348,10 @@ export function AddSuspectDialog({
                 type="button"
                 onClick={() => setActiveTab("ai-sketch")}
                 className={cn(
-                  "flex items-center justify-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer select-none text-center min-h-8.5 min-w-0",
+                  "flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer select-none text-center min-h-8.5 min-w-0",
                   activeTab === "ai-sketch"
                     ? "bg-[#665AEF] text-white shadow-xs"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50 font-medium"
+                    : "text-neutral-400 hover:text-white hover:bg-neutral-800/50 font-medium"
                 )}
               >
                 <Sparkles className="size-3.5 shrink-0" />
@@ -304,10 +361,10 @@ export function AddSuspectDialog({
                 type="button"
                 onClick={() => setActiveTab("manual")}
                 className={cn(
-                  "flex items-center justify-center gap-1.5 px-2.5 sm:px-3.5 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer select-none text-center min-h-8.5 min-w-0",
+                  "flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer select-none text-center min-h-8.5 min-w-0",
                   activeTab === "manual"
                     ? "bg-[#665AEF] text-white shadow-xs"
-                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50 font-medium"
+                    : "text-neutral-400 hover:text-white hover:bg-neutral-800/50 font-medium"
                 )}
               >
                 <UserPlus className="size-3.5 shrink-0" />
@@ -337,23 +394,23 @@ export function AddSuspectDialog({
                   animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
                   exit={{ opacity: 0, y: -6, filter: "blur(4px)" }}
                   transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-                  className="w-full min-w-0 px-3 sm:px-6 py-3 sm:py-4 space-y-3.5"
+                  className="w-full min-w-0 px-4 sm:px-6 py-4 space-y-3.5"
                 >
                   {/* Database Search Input */}
                   <div className="relative w-full">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none" />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-neutral-500 pointer-events-none" />
                     <Input
                       placeholder="Search registered criminal by name, alias, ID, location..."
                       value={dbSearchTerm}
                       onChange={(e) => setDbSearchTerm(e.target.value)}
-                      className="h-10 pl-9 rounded-lg border-2 border-border bg-card/60 text-xs sm:text-sm placeholder:text-muted-foreground/70 focus-visible:border-[#665AEF]"
+                      className="h-10 pl-9 rounded-lg border border-neutral-800 bg-black/60 text-xs sm:text-sm text-white placeholder:text-neutral-500 focus-visible:border-neutral-500 focus-visible:ring-0"
                     />
                   </div>
 
                   {/* Filtered Criminal List */}
                   <div className="space-y-2.5 max-h-[380px] overflow-y-auto pr-1">
                     {isLoadingCriminals && (
-                      <div className="text-center py-6 text-xs text-muted-foreground animate-pulse">
+                      <div className="text-center py-8 text-xs font-mono text-neutral-400 animate-pulse">
                         Querying central forensic criminal repository...
                       </div>
                     )}
@@ -368,10 +425,10 @@ export function AddSuspectDialog({
                         c.lastKnownLocation?.toLowerCase().includes(q)
                       );
                     }).length === 0 && (
-                      <div className="text-center py-8 px-4 rounded-lg border-2 border-dashed border-border/70 bg-muted/10">
-                        <Database className="size-8 text-muted-foreground/40 mx-auto mb-2" />
-                        <p className="text-xs font-semibold text-foreground">No criminal records found</p>
-                        <p className="text-[11px] text-muted-foreground mt-0.5">
+                      <div className="text-center py-10 px-4 rounded-xl border border-dashed border-neutral-800 bg-[#0d0d0d]">
+                        <Database className="size-8 text-neutral-600 mx-auto mb-2" />
+                        <p className="text-xs font-semibold text-neutral-200">No criminal records found</p>
+                        <p className="text-[11px] text-neutral-500 mt-0.5">
                           {dbSearchTerm ? "Try refining your search keyword." : "Central repository contains no registered subjects."}
                         </p>
                       </div>
@@ -397,10 +454,10 @@ export function AddSuspectDialog({
                       return (
                         <div
                           key={candidate.id}
-                          className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3 rounded-lg border-2 border-border/70 bg-card/60 hover:border-[#665AEF]/50 transition-colors"
+                          className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3 rounded-xl border border-neutral-800 bg-[#0d0d0d] hover:border-neutral-700 transition-colors"
                         >
                           <div className="flex items-center gap-3 min-w-0">
-                            <div className="size-11 rounded-lg overflow-hidden border border-border bg-muted/40 shrink-0 flex items-center justify-center">
+                            <div className="size-11 rounded-lg overflow-hidden border border-neutral-800 bg-black shrink-0 flex items-center justify-center">
                               {candidate.mugshotUrl && !candidate.mugshotUrl.includes("fly.storage.tigris.dev//") ? (
                                 <img
                                   src={getSafeStorageUrl(candidate.mugshotUrl) || candidate.mugshotUrl}
@@ -419,14 +476,14 @@ export function AddSuspectDialog({
                             </div>
                             <div className="min-w-0">
                               <div className="flex items-center gap-2">
-                                <span className="font-semibold text-xs sm:text-sm text-foreground truncate">
+                                <span className="font-semibold text-xs sm:text-sm text-white truncate">
                                   {candidateName}
                                 </span>
-                                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-border/60 bg-muted/40 text-muted-foreground">
+                                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border border-neutral-800 bg-black text-neutral-400">
                                   {candidate.criminalId}
                                 </span>
                               </div>
-                              <p className="text-[11px] text-muted-foreground truncate">
+                              <p className="text-[11px] text-neutral-400 truncate mt-0.5">
                                 Alias: {candidate.alias || "None"} • {candidate.lastKnownLocation || "Location uncataloged"}
                               </p>
                             </div>
@@ -434,7 +491,7 @@ export function AddSuspectDialog({
 
                           <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
                             {alreadyInCase ? (
-                              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border/80 bg-muted/40 text-muted-foreground text-xs font-medium">
+                              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-neutral-800 bg-black/60 text-neutral-400 text-xs font-mono select-none">
                                 <Check className="size-3 text-emerald-400" />
                                 <span>Already in Case</span>
                               </div>
@@ -480,8 +537,9 @@ export function AddSuspectDialog({
                                   toast.success(`Attached ${candidateName} to Case.`);
                                   onOpenChange(false);
                                 }}
-                                className="h-8.5 px-3 rounded-lg bg-[#665AEF] hover:bg-[#5749DF] text-white text-xs font-medium shadow-xs"
+                                className="h-8.5 px-3.5 rounded-lg bg-[#665AEF] hover:bg-[#584bd4] text-white text-xs font-semibold shadow-xs cursor-pointer gap-1.5 transition-colors"
                               >
+                                <Plus className="size-3.5" />
                                 <span>Attach to Case</span>
                               </Button>
                             )}
@@ -498,368 +556,477 @@ export function AddSuspectDialog({
                   animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
                   exit={{ opacity: 0, y: -6, filter: "blur(4px)" }}
                   transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
-                  className="w-full min-w-0 px-3 sm:px-6 py-3 sm:py-4 space-y-3 sm:space-y-4"
+                  className="w-full min-w-0 px-4 sm:px-6 py-4 space-y-3.5"
                 >
-
-                  {/* ── 1. Forensic Evidence Dossier Header ── */}
-                  <div className="w-full min-w-0 rounded-xl border border-border/60 bg-card/50 p-3 sm:p-3.5 space-y-2.5 sm:space-y-3">
-                    {/* Reference Thumbnail & Switcher Strip */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 min-w-0">
-                      <div className="flex items-center gap-2.5 min-w-0">
-                        {/* Composite thumbnail */}
-                        <div className="size-10 sm:size-11 rounded-lg border border-border/70 overflow-hidden bg-black shrink-0 shadow-inner">
-                          <img
-                            src={selectedSketch.sketchImageUrl}
-                            alt={selectedSketch.sketchNumber}
-                            className="size-full object-cover"
-                          />
-                        </div>
-                        <div className="min-w-0 flex-1 space-y-0.5">
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-[9px] font-mono font-semibold uppercase tracking-wider text-[#a594fd] shrink-0">
-                              Case Composite
-                            </span>
-                            <span className="text-xs sm:text-sm font-bold font-heading text-foreground truncate">
-                              {selectedSketch.sketchNumber}
-                            </span>
-                          </div>
-                          <p className="text-[10px] sm:text-[11px] text-muted-foreground truncate">
-                            Generated {selectedSketch.dateGenerated}
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Sketch Switcher Pills */}
-                      <div className="w-full sm:w-auto min-w-0 flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
-                        {MOCK_CASE_SKETCHES.map((sketch) => {
-                          const isSelected = sketch.id === selectedSketchId;
-                          return (
-                            <button
-                              key={sketch.id}
-                              type="button"
-                              onClick={() => setSelectedSketchId(sketch.id)}
-                              className={cn(
-                                "flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs transition-all cursor-pointer whitespace-nowrap shrink-0 min-h-8 select-none active:scale-98",
-                                isSelected
-                                  ? "bg-[#665AEF] text-white font-semibold shadow-xs"
-                                  : "bg-muted/40 text-muted-foreground hover:text-foreground hover:bg-muted/60 font-medium"
-                              )}
-                            >
-                              <span className="font-mono">{sketch.sketchNumber}</span>
-                              <span
-                                className={cn(
-                                  "text-[10px] px-1.5 py-0.5 rounded-full font-mono font-medium leading-none",
-                                  isSelected
-                                    ? "bg-white/20 text-white"
-                                    : "bg-background/60 text-muted-foreground"
-                                )}
-                              >
-                                {sketch.candidates.length} {sketch.candidates.length === 1 ? "match" : "matches"}
-                              </span>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-
-                    <Separator className="bg-border/30" />
-
-                    {/* Witness Statement */}
-                    <div className="border-l-2 border-[#665AEF] pl-2.5 sm:pl-3 py-1 bg-muted/15 rounded-r-md min-w-0">
-                      <p className="text-[11px] italic text-muted-foreground leading-relaxed wrap-break-word">
-                        &ldquo;{selectedSketch.witnessDescription}&rdquo;
-                      </p>
-                      <span className="text-[10px] text-muted-foreground/80 font-medium not-italic block mt-0.5 truncate">
-                        — {selectedSketch.witnessStatementRef}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* ── 2. Biometric Vector Matches Section Header ── */}
-                  <div className="space-y-2.5 sm:space-y-3 min-w-0">
-                    <div className="flex items-center justify-between gap-2 px-0.5 min-w-0">
-                      <div className="space-y-0.5 min-w-0">
-                        <h3 className="text-xs font-bold font-heading uppercase tracking-wider text-foreground truncate">
-                          Vector Biometric Matches
-                        </h3>
-                        <p className="text-[10px] sm:text-[11px] text-muted-foreground truncate">
-                          {selectedSketch.candidates.length} candidate profiles correlated by landmark analysis
+                  {isLoadingSketches ? (
+                    <div className="flex flex-col items-center justify-center py-16 px-4 text-center space-y-3 rounded-xl border border-neutral-800 bg-[#0d0d0d]">
+                      <div className="size-8 rounded-full border-2 border-neutral-800 border-t-[#665AEF] animate-spin" />
+                      <div className="space-y-1">
+                        <p className="text-xs font-semibold text-white">Querying Biometric Neural Engine...</p>
+                        <p className="text-[11px] text-neutral-400">
+                          Loading case composite sketches &amp; vector embeddings from PostgreSQL.
                         </p>
                       </div>
-                      <div className="inline-flex items-center gap-1.5 text-[10px] sm:text-[11px] font-medium text-emerald-400 shrink-0">
-                        <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-                        <span>Active</span>
+                    </div>
+                  ) : !selectedSketch || caseSketches.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-14 px-6 text-center space-y-4 rounded-xl border border-neutral-800 bg-[#0d0d0d]">
+                      <div className="size-12 rounded-xl bg-black border border-neutral-800 flex items-center justify-center text-neutral-400 shadow-inner">
+                        <Sparkles className="size-6 text-neutral-400" />
+                      </div>
+                      <div className="max-w-md space-y-1.5">
+                        <h3 className="text-sm font-bold text-white tracking-tight">
+                          No Biometric Sketches Linked to this Case
+                        </h3>
+                        <p className="text-xs text-neutral-400 leading-relaxed">
+                          This case currently has no eyewitness composite sketches generated. Create an official composite sketch in the Sketch Studio to initiate real-time AI vector facial recognition against the criminal registry.
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 pt-1 flex-wrap justify-center">
+                        <Link
+                          href={`/sketch?caseId=${encodeURIComponent(caseId || caseNumber || "")}&caseNumber=${encodeURIComponent(caseNumber || "")}`}
+                          className="inline-flex items-center justify-center h-8.5 px-4 rounded-lg bg-[#665AEF] hover:bg-[#584bd4] text-white text-xs font-semibold shadow-xs cursor-pointer gap-1.5 transition-colors"
+                        >
+                          <Sparkles className="size-3.5" />
+                          <span>Open Sketch Studio</span>
+                        </Link>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setActiveTab("database")}
+                          className="h-8.5 px-4 rounded-lg border-neutral-800 bg-black/60 hover:bg-neutral-800 text-neutral-300 text-xs font-medium cursor-pointer transition-colors"
+                        >
+                          <Database className="size-3.5" />
+                          <span>Browse Criminal Registry</span>
+                        </Button>
                       </div>
                     </div>
-
-                    {/* Candidate Profiles List */}
-                    <div className="space-y-3 sm:space-y-3.5 min-w-0">
-                      {selectedSketch.candidates.map((candidate, index) => {
-                        const inCase = isCandidateInCase(candidate.name);
-                        const config = candidateRoles[candidate.id] || {
-                          status: candidate.recommendedStatus,
-                          role: candidate.recommendedRole,
-                        };
-                        const isHighConfidence = candidate.matchConfidence >= 85;
-
-                        return (
-                          <div
-                            key={candidate.id}
-                            className={cn(
-                              "w-full min-w-0 rounded-xl border transition-all overflow-hidden bg-card/60 shadow-xs",
-                              inCase
-                                ? "border-border/40 opacity-80"
-                                : "border-border/70 hover:border-border"
-                            )}
-                          >
-                            {/* Candidate Header: Photo, Identification, Borderless Confidence Value */}
-                            <div className="p-3 sm:p-4 pb-2.5 sm:pb-3 flex items-start justify-between gap-2 border-b border-border/40 bg-muted/10 min-w-0">
-                              <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
-                                {/* Booking Mugshot */}
-                                <div className="relative size-11 sm:size-12 rounded-lg border border-border/70 overflow-hidden shrink-0 bg-black shadow-inner">
-                                  <img
-                                    src={candidate.photo}
-                                    alt={candidate.name}
-                                    className="size-full object-cover"
-                                  />
-                                  <span className="absolute bottom-0 inset-x-0 bg-black/85 text-[7px] font-mono text-center text-muted-foreground leading-tight py-px uppercase">
-                                    Mugshot
-                                  </span>
-                                </div>
-
-                                <div className="min-w-0 flex-1 space-y-0.5">
-                                  <div className="flex items-center gap-1.5 flex-wrap">
-                                    <h4 className="text-sm font-bold font-heading text-foreground truncate tracking-tight leading-tight">
-                                      {candidate.name}
-                                    </h4>
-                                    <span className="font-mono text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded bg-muted/60 text-muted-foreground font-normal leading-none shrink-0">
-                                      {candidate.criminalId}
-                                    </span>
-                                  </div>
-                                  <p className="text-[10px] sm:text-[11px] text-muted-foreground truncate">
-                                    <span>{candidate.alias}</span>
-                                    <span className="mx-1 text-muted-foreground/40">•</span>
-                                    <span>{candidate.priorCases}</span>
-                                  </p>
-                                </div>
-                              </div>
-
-                              {/* Confidence Metric - Clean Borderless Number Value */}
-                              <div className="flex flex-col items-end shrink-0 pl-1 text-right">
-                                <div className="flex items-baseline gap-1">
-                                  <span
-                                    className={cn(
-                                      "text-lg sm:text-2xl font-bold font-mono tracking-tight leading-none",
-                                      isHighConfidence ? "text-rose-400" : "text-amber-400"
-                                    )}
-                                  >
-                                    {candidate.matchConfidence}%
-                                  </span>
-                                  <span
-                                    className={cn(
-                                      "text-[10px] sm:text-xs font-semibold uppercase tracking-wider leading-none",
-                                      isHighConfidence ? "text-rose-400/80" : "text-amber-400/80"
-                                    )}
-                                  >
-                                    Match
-                                  </span>
-                                </div>
-                                <span className="text-[9px] sm:text-[10px] font-mono text-muted-foreground mt-0.5 whitespace-nowrap">
-                                  {isHighConfidence ? "Rank #1 · High" : `Rank #${index + 1} · Secondary`}
+                  ) : (
+                    <>
+                      {/* ── 1. Forensic Evidence Dossier Header ── */}
+                      <div className="w-full min-w-0 rounded-xl border border-neutral-800 bg-[#0d0d0d] p-3 sm:p-3.5 space-y-2.5 sm:space-y-3">
+                        {/* Reference Thumbnail & Switcher Strip */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 min-w-0">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            {/* Composite thumbnail */}
+                            <div className="size-10 sm:size-11 rounded-lg border border-neutral-800 overflow-hidden bg-black shrink-0 shadow-inner">
+                              <img
+                                src={selectedSketch.sketchImageUrl}
+                                alt={selectedSketch.sketchNumber}
+                                className="size-full object-cover"
+                              />
+                            </div>
+                            <div className="min-w-0 flex-1 space-y-0.5">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[9px] font-mono font-semibold uppercase tracking-wider text-emerald-400 shrink-0">
+                                  Case Composite
+                                </span>
+                                <span className="text-xs sm:text-sm font-bold text-white truncate">
+                                  {selectedSketch.sketchNumber}
                                 </span>
                               </div>
-                            </div>
-
-                            {/* Mid Section: Forensic Comparison Strip & Physical Traits */}
-                            <div className="p-3 sm:p-4 space-y-3 md:space-y-0 md:grid md:grid-cols-12 md:gap-3.5 md:items-center min-w-0">
-                              {/* Direct Biometric Comparison Strip */}
-                              <div className="md:col-span-5 flex items-center justify-between gap-2 p-2 rounded-lg bg-black/40 border border-border/40 min-w-0">
-                                {/* Case Composite Thumbnail */}
-                                <div className="flex flex-col items-center gap-1 shrink-0">
-                                  <div className="size-10 sm:size-11 rounded-md border border-border/60 overflow-hidden bg-black/80">
-                                    <img
-                                      src={selectedSketch.sketchImageUrl}
-                                      alt="Case Sketch"
-                                      className="size-full object-cover"
-                                    />
-                                  </div>
-                                  <span className="text-[7px] sm:text-[8px] font-mono text-muted-foreground uppercase">
-                                    Composite
-                                  </span>
-                                </div>
-
-                                {/* Vector Landmark Alignment Graphic */}
-                                <div className="flex-1 min-w-0 flex flex-col items-center justify-center px-1">
-                                  <span className="text-[9px] sm:text-[10px] font-mono font-bold text-[#a594fd] uppercase tracking-wider truncate">
-                                    {candidate.matchConfidence}% Vector
-                                  </span>
-                                  <div className="w-full flex items-center gap-1 my-0.5">
-                                    <div className="h-px flex-1 bg-linear-to-r from-border/60 to-[#665AEF]/70" />
-                                    <div className="size-1 rounded-full bg-[#665AEF] shrink-0" />
-                                    <div className="h-px flex-1 bg-linear-to-l from-border/60 to-[#665AEF]/70" />
-                                  </div>
-                                  <span className="text-[7px] sm:text-[8px] font-mono text-muted-foreground/70 truncate">
-                                    Facial Landmarks
-                                  </span>
-                                </div>
-
-                                {/* Database Record Photo */}
-                                <div className="flex flex-col items-center gap-1 shrink-0">
-                                  <div className="size-10 sm:size-11 rounded-md border border-border/60 overflow-hidden bg-black/80">
-                                    <img
-                                      src={candidate.photo}
-                                      alt="Record Mugshot"
-                                      className="size-full object-cover"
-                                    />
-                                  </div>
-                                  <span className="text-[7px] sm:text-[8px] font-mono text-muted-foreground uppercase">
-                                    Record
-                                  </span>
-                                </div>
-                              </div>
-
-                              {/* Physical Traits Matrix */}
-                              <div className="md:col-span-7 grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs min-w-0">
-                                <div className="space-y-0.5 min-w-0">
-                                  <span className="text-[9px] sm:text-[10px] text-muted-foreground uppercase tracking-wider block truncate">
-                                    Demographics
-                                  </span>
-                                  <span className="font-medium text-foreground text-[11px] sm:text-xs block truncate">
-                                    {candidate.gender}, {candidate.age} yrs
-                                  </span>
-                                </div>
-                                <div className="space-y-0.5 min-w-0">
-                                  <span className="text-[9px] sm:text-[10px] text-muted-foreground uppercase tracking-wider block truncate">
-                                    Height &amp; Build
-                                  </span>
-                                  <span className="font-medium text-foreground text-[11px] sm:text-xs block truncate">
-                                    {candidate.height} · {candidate.build}
-                                  </span>
-                                </div>
-                                <div className="space-y-0.5 min-w-0">
-                                  <span className="text-[9px] sm:text-[10px] text-muted-foreground uppercase tracking-wider block truncate">
-                                    Complexion
-                                  </span>
-                                  <span className="font-medium text-foreground text-[11px] sm:text-xs block truncate">
-                                    {candidate.complexion}
-                                  </span>
-                                </div>
-                                <div className="space-y-0.5 col-span-2 sm:col-span-2 min-w-0">
-                                  <span className="text-[9px] sm:text-[10px] text-muted-foreground uppercase tracking-wider block truncate">
-                                    Identifying Marks
-                                  </span>
-                                  <span className="font-medium text-foreground text-[11px] sm:text-xs truncate block">
-                                    {candidate.identifyingMarks || "None recorded"}
-                                  </span>
-                                </div>
-                                <div className="space-y-0.5 col-span-2 sm:col-span-1 min-w-0">
-                                  <span className="text-[9px] sm:text-[10px] text-muted-foreground uppercase tracking-wider block truncate">
-                                    Jurisdiction
-                                  </span>
-                                  <span className="font-medium text-foreground text-[11px] sm:text-xs truncate block">
-                                    {candidate.knownAddresses?.split(",")[0] || "Chennai, TN"}
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
-
-                            {/* AI Investigative Assessment Callout */}
-                            <div className="mx-3 sm:mx-4 mb-2.5 sm:mb-3 p-2.5 rounded-lg border-l-2 border-[#665AEF] bg-muted/20 text-xs min-w-0">
-                              <p className="text-[10px] sm:text-[11px] text-muted-foreground leading-relaxed wrap-break-word">
-                                <strong className="text-foreground font-semibold font-heading">
-                                  Forensic Intelligence Assessment:{" "}
-                                </strong>
-                                {candidate.llmReasoning}
+                              <p className="text-[10px] sm:text-[11px] text-neutral-400 truncate">
+                                Generated {selectedSketch.dateGenerated}
                               </p>
                             </div>
-
-                            {/* Disposition & Linking Toolbar */}
-                            <div className="px-3 sm:px-4 py-2.5 bg-muted/15 border-t border-border/40 flex flex-col sm:flex-row sm:items-center justify-between gap-2 min-w-0">
-                              <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-2 min-w-0 w-full sm:w-auto">
-                                {/* Case Status Selector */}
-                                <div className="min-w-0">
-                                  <Select
-                                    value={config.status}
-                                    onValueChange={(val) => {
-                                      if (!val) return;
-                                      setCandidateRoles((prev) => ({
-                                        ...prev,
-                                        [candidate.id]: {
-                                          status: val as SuspectStatus,
-                                          role: config.role,
-                                        },
-                                      }));
-                                    }}
-                                  >
-                                    <SelectTrigger className="h-8.5 sm:h-8 w-full sm:w-38 text-xs rounded-md bg-card/80 border-border/60 min-w-0">
-                                      <SelectValue placeholder="Status" />
-                                    </SelectTrigger>
-                                    <SelectContent className="rounded-md border border-border bg-card/95 backdrop-blur-xl">
-                                      <SelectItem value="Primary Suspect">Primary Suspect</SelectItem>
-                                      <SelectItem value="Person of Interest">Person of Interest</SelectItem>
-                                      <SelectItem value="Cleared">Cleared</SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-
-                                {/* Case Role Selector */}
-                                <div className="min-w-0">
-                                  <Select
-                                    value={config.role}
-                                    onValueChange={(val) => {
-                                      if (!val) return;
-                                      setCandidateRoles((prev) => ({
-                                        ...prev,
-                                        [candidate.id]: {
-                                          status: config.status,
-                                          role: val as SuspectRole,
-                                        },
-                                      }));
-                                    }}
-                                  >
-                                    <SelectTrigger className="h-8.5 sm:h-8 w-full sm:w-40 text-xs rounded-md bg-card/80 border-border/60 min-w-0">
-                                      <SelectValue placeholder="Role" />
-                                    </SelectTrigger>
-                                    <SelectContent className="rounded-md border border-border bg-card/95 backdrop-blur-xl">
-                                      <SelectItem value="Direct Involvement">Direct Involvement</SelectItem>
-                                      <SelectItem value="Possible Associate">Possible Associate</SelectItem>
-                                      <SelectItem value="Accomplice">Accomplice</SelectItem>
-                                      <SelectItem value="Informant">Informant</SelectItem>
-                                      <SelectItem value="Witness">Witness</SelectItem>
-                                      <SelectItem value="Under Investigation">Under Investigation</SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                              </div>
-
-                              {/* Action Link Control */}
-                              <div className="w-full sm:w-auto shrink-0 pt-0.5 sm:pt-0">
-                                {inCase ? (
-                                  <span className="inline-flex items-center justify-center gap-1.5 h-8.5 sm:h-8 px-3 text-xs font-medium text-emerald-400 bg-emerald-500/10 rounded-md select-none w-full sm:w-auto">
-                                    <Check className="size-3.5" />
-                                    Already Linked to Case
-                                  </span>
-                                ) : (
-                                  <Button
-                                    size="sm"
-                                    onClick={() => handleLinkCandidate(candidate)}
-                                    className="h-8.5 sm:h-8 px-4 text-xs font-semibold bg-[#665AEF] hover:bg-[#5749df] text-white shadow-xs cursor-pointer gap-1.5 w-full sm:w-auto min-h-8.5"
-                                  >
-                                    <UserPlus className="size-3.5" />
-                                    Link Suspect to Case
-                                  </Button>
-                                )}
-                              </div>
-                            </div>
                           </div>
-                        );
-                      })}
-                    </div>
-                  </div>
+
+                          {/* Sketch Switcher Pills */}
+                          <div className="w-full sm:w-auto min-w-0 flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
+                            {caseSketches.map((sketch) => {
+                              const isSelected = sketch.id === selectedSketchId;
+                              return (
+                                <button
+                                  key={sketch.id}
+                                  type="button"
+                                  onClick={() => setSelectedSketchId(sketch.id)}
+                                  className={cn(
+                                    "flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-lg text-xs transition-all cursor-pointer whitespace-nowrap shrink-0 min-h-8 select-none active:scale-98",
+                                    isSelected
+                                      ? "bg-[#665AEF] text-white font-semibold shadow-xs"
+                                      : "bg-black/60 text-neutral-400 hover:text-white hover:bg-neutral-800/60 font-medium border border-neutral-800"
+                                  )}
+                                >
+                                  <span className="font-mono">{sketch.sketchNumber}</span>
+                                  <span
+                                    className={cn(
+                                      "text-[10px] px-1.5 py-0.5 rounded-full font-mono font-medium leading-none",
+                                      isSelected
+                                        ? "bg-white/20 text-white"
+                                        : "bg-neutral-900 text-neutral-400"
+                                    )}
+                                  >
+                                    {sketch.candidates.length} {sketch.candidates.length === 1 ? "match" : "matches"}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        <Separator className="bg-neutral-800" />
+
+                        {/* Witness Statement */}
+                        <div className="border-l-2 border-neutral-700 pl-2.5 sm:pl-3 py-1 bg-black/40 rounded-r-md min-w-0">
+                          <p className="text-[11px] italic text-neutral-300 leading-relaxed wrap-break-word">
+                            &ldquo;{selectedSketch.witnessDescription}&rdquo;
+                          </p>
+                          <span className="text-[10px] text-neutral-500 font-medium not-italic block mt-0.5 truncate">
+                            — {selectedSketch.witnessStatementRef}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* ── 2. Biometric Vector Matches Section Header ── */}
+                      <div className="space-y-2.5 sm:space-y-3 min-w-0">
+                        <div className="flex items-center justify-between gap-2 px-0.5 min-w-0">
+                          <div className="space-y-0.5 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <h3 className="text-xs font-bold uppercase tracking-wider text-white truncate">
+                                Vector Biometric Matches
+                              </h3>
+                              {isLoadingSketches && (
+                                <div className="size-3 rounded-full border-2 border-emerald-500/30 border-t-emerald-400 animate-spin shrink-0" />
+                              )}
+                            </div>
+                            <p className="text-[10px] sm:text-[11px] text-neutral-400 truncate">
+                              {selectedSketch.candidates.length} candidate profiles correlated by ArcFace-r100 vector analysis
+                            </p>
+                          </div>
+                          <div className="inline-flex items-center gap-1.5 text-[10px] sm:text-[11px] font-medium text-emerald-400 shrink-0">
+                            <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                            <span>ArcFace-r100 · Neon pgvector</span>
+                          </div>
+                        </div>
+
+                        {/* Candidate Profiles List */}
+                        <div className="space-y-3 sm:space-y-3.5 min-w-0">
+                          {selectedSketch.candidates.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center py-12 px-6 text-center space-y-3 rounded-xl border border-neutral-800 bg-black/40">
+                              <div className="size-10 rounded-lg bg-black border border-neutral-800 flex items-center justify-center text-neutral-400">
+                                <Database className="size-5 text-neutral-500" />
+                              </div>
+                              <div className="max-w-sm space-y-1">
+                                <h4 className="text-xs font-bold text-white">No Biometric Matches Exceeding Threshold</h4>
+                                <p className="text-[11px] text-neutral-400">
+                                  No criminal profiles in the database reached the minimum forensic confidence threshold against {selectedSketch.sketchNumber}.
+                                </p>
+                              </div>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setActiveTab("database")}
+                                className="h-8 px-3 rounded-lg border-neutral-800 bg-black text-neutral-300 text-xs font-medium cursor-pointer"
+                              >
+                                Browse Criminal Registry
+                              </Button>
+                            </div>
+                          ) : (
+                            selectedSketch.candidates.map((candidate, index) => {
+                              const inCase = isCandidateInCase(candidate.name);
+                              const config = candidateRoles[candidate.id] || {
+                                status: candidate.recommendedStatus,
+                                role: candidate.recommendedRole,
+                              };
+                              const isHighConfidence = candidate.matchConfidence >= 85;
+
+                              return (
+                                <div
+                                  key={candidate.id}
+                                  className={cn(
+                                    "w-full min-w-0 rounded-xl border transition-all overflow-hidden bg-[#0d0d0d] shadow-xs",
+                                    inCase
+                                      ? "border-neutral-800/60 opacity-80"
+                                      : "border-neutral-800 hover:border-neutral-700"
+                                  )}
+                                >
+                                  {/* Candidate Header: Photo, Identification, Confidence Metric */}
+                                  <div className="p-3 sm:p-4 pb-2.5 sm:pb-3 flex items-start justify-between gap-2 border-b border-neutral-800 bg-black/40 min-w-0">
+                                    <div className="flex items-center gap-2.5 sm:gap-3 min-w-0 flex-1">
+                                      {/* Booking Mugshot */}
+                                      <div className="relative size-11 sm:size-12 rounded-lg border border-neutral-800 overflow-hidden shrink-0 bg-black shadow-inner">
+                                        {candidate.photo && !candidate.photo.includes("fly.storage.tigris.dev//") ? (
+                                          <img
+                                            src={getSafeStorageUrl(candidate.photo) || candidate.photo}
+                                            alt={candidate.name}
+                                            className="size-full object-cover"
+                                          />
+                                        ) : (
+                                          <SuspectAvatar
+                                            name={candidate.name}
+                                            size="sm"
+                                            className="rounded-none border-0"
+                                          />
+                                        )}
+                                        <span className="absolute bottom-0 inset-x-0 bg-black/85 text-[7px] font-mono text-center text-neutral-400 leading-tight py-px uppercase">
+                                          Mugshot
+                                        </span>
+                                      </div>
+
+                                      <div className="min-w-0 flex-1 space-y-0.5">
+                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                          <h4 className="text-sm font-bold text-white truncate tracking-tight leading-tight">
+                                            {candidate.name}
+                                          </h4>
+                                          <span className="font-mono text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded border border-neutral-800 bg-black text-neutral-400 font-normal leading-none shrink-0">
+                                            {candidate.criminalId}
+                                          </span>
+                                          {candidate.isLiveDatabaseRecord && (
+                                            <span className="text-[8px] font-mono font-semibold uppercase px-1.5 py-0.5 rounded border border-emerald-500/30 bg-emerald-950/40 text-emerald-400 leading-none">
+                                              Registry
+                                            </span>
+                                          )}
+                                        </div>
+                                        <p className="text-[10px] sm:text-[11px] text-neutral-400 truncate">
+                                          <span>{candidate.alias}</span>
+                                          <span className="mx-1 text-neutral-600">•</span>
+                                          <span>{candidate.priorCases}</span>
+                                        </p>
+                                      </div>
+                                    </div>
+
+                                    {/* Confidence Metric */}
+                                    <div className="flex flex-col items-end shrink-0 pl-1 text-right">
+                                      <div className="flex items-baseline gap-1">
+                                        <span
+                                          className={cn(
+                                            "text-lg sm:text-2xl font-bold font-mono tracking-tight leading-none",
+                                            isHighConfidence ? "text-emerald-400" : "text-amber-400"
+                                          )}
+                                        >
+                                          {candidate.matchConfidence}%
+                                        </span>
+                                        <span
+                                          className={cn(
+                                            "text-[10px] sm:text-xs font-semibold uppercase tracking-wider leading-none",
+                                            isHighConfidence ? "text-emerald-400/80" : "text-amber-400/80"
+                                          )}
+                                        >
+                                          Match
+                                        </span>
+                                      </div>
+                                      <span className="text-[9px] sm:text-[10px] font-mono text-neutral-500 mt-0.5 whitespace-nowrap">
+                                        {candidate.rawCosineScore
+                                          ? `Cosine ${candidate.rawCosineScore} · ${candidate.statisticalFar?.split(" ")[0] || "FAR<10⁻⁵"}`
+                                          : isHighConfidence
+                                          ? "Rank #1 · High"
+                                          : `Rank #${index + 1} · Secondary`}
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  {/* Mid Section: Direct Comparison Strip & Traits */}
+                                  <div className="p-3 sm:p-4 space-y-3 md:space-y-0 md:grid md:grid-cols-12 md:gap-3.5 md:items-center min-w-0">
+                                    {/* Direct Biometric Comparison Strip */}
+                                    <div className="md:col-span-5 flex items-center justify-between gap-2 p-2 rounded-lg bg-black/60 border border-neutral-800 min-w-0">
+                                      {/* Case Composite Thumbnail */}
+                                      <div className="flex flex-col items-center gap-1 shrink-0">
+                                        <div className="size-10 sm:size-11 rounded-md border border-neutral-800 overflow-hidden bg-black">
+                                          <img
+                                            src={selectedSketch.sketchImageUrl}
+                                            alt="Case Sketch"
+                                            className="size-full object-cover"
+                                          />
+                                        </div>
+                                        <span className="text-[7px] sm:text-[8px] font-mono text-neutral-500 uppercase">
+                                          Composite
+                                        </span>
+                                      </div>
+
+                                      {/* Vector Landmark Alignment Graphic */}
+                                      <div className="flex-1 min-w-0 flex flex-col items-center justify-center px-1">
+                                        <span className="text-[9px] sm:text-[10px] font-mono font-bold text-emerald-400 uppercase tracking-wider truncate">
+                                          {candidate.matchConfidence}% Vector
+                                        </span>
+                                        <div className="w-full flex items-center gap-1 my-0.5">
+                                          <div className="h-px flex-1 bg-linear-to-r from-neutral-800 to-emerald-500/70" />
+                                          <div className="size-1 rounded-full bg-emerald-400 shrink-0" />
+                                          <div className="h-px flex-1 bg-linear-to-l from-neutral-800 to-emerald-500/70" />
+                                        </div>
+                                        <span className="text-[7px] sm:text-[8px] font-mono text-neutral-500 truncate">
+                                          ArcFace 512D Landmarks
+                                        </span>
+                                      </div>
+
+                                      {/* Database Record Photo */}
+                                      <div className="flex flex-col items-center gap-1 shrink-0">
+                                        <div className="size-10 sm:size-11 rounded-md border border-neutral-800 overflow-hidden bg-black">
+                                          {candidate.photo && !candidate.photo.includes("fly.storage.tigris.dev//") ? (
+                                            <img
+                                              src={getSafeStorageUrl(candidate.photo) || candidate.photo}
+                                              alt="Record Mugshot"
+                                              className="size-full object-cover"
+                                            />
+                                          ) : (
+                                            <SuspectAvatar
+                                              name={candidate.name}
+                                              size="sm"
+                                              className="rounded-none border-0"
+                                            />
+                                          )}
+                                        </div>
+                                        <span className="text-[7px] sm:text-[8px] font-mono text-neutral-500 uppercase">
+                                          Record
+                                        </span>
+                                      </div>
+                                    </div>
+
+                                    {/* Physical Traits Matrix */}
+                                    <div className="md:col-span-7 grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs min-w-0">
+                                      <div className="space-y-0.5 min-w-0">
+                                        <span className="text-[9px] sm:text-[10px] text-neutral-500 uppercase tracking-wider block truncate">
+                                          Demographics
+                                        </span>
+                                        <span className="font-medium text-neutral-200 text-[11px] sm:text-xs block truncate">
+                                          {candidate.gender}, {candidate.age || 34} yrs
+                                        </span>
+                                      </div>
+                                      <div className="space-y-0.5 min-w-0">
+                                        <span className="text-[9px] sm:text-[10px] text-neutral-500 uppercase tracking-wider block truncate">
+                                          Height &amp; Build
+                                        </span>
+                                        <span className="font-medium text-neutral-200 text-[11px] sm:text-xs block truncate">
+                                          {candidate.height || "5'10\" (178 cm)"} · {candidate.build || "Medium"}
+                                        </span>
+                                      </div>
+                                      <div className="space-y-0.5 min-w-0">
+                                        <span className="text-[9px] sm:text-[10px] text-neutral-500 uppercase tracking-wider block truncate">
+                                          Complexion
+                                        </span>
+                                        <span className="font-medium text-neutral-200 text-[11px] sm:text-xs block truncate">
+                                          {candidate.complexion || "Wheatish"}
+                                        </span>
+                                      </div>
+                                      <div className="space-y-0.5 col-span-2 sm:col-span-2 min-w-0">
+                                        <span className="text-[9px] sm:text-[10px] text-neutral-500 uppercase tracking-wider block truncate">
+                                          Identifying Marks
+                                        </span>
+                                        <span className="font-medium text-neutral-200 text-[11px] sm:text-xs truncate block">
+                                          {candidate.identifyingMarks || "None recorded"}
+                                        </span>
+                                      </div>
+                                      <div className="space-y-0.5 col-span-2 sm:col-span-1 min-w-0">
+                                        <span className="text-[9px] sm:text-[10px] text-neutral-500 uppercase tracking-wider block truncate">
+                                          Jurisdiction
+                                        </span>
+                                        <span className="font-medium text-neutral-200 text-[11px] sm:text-xs truncate block">
+                                          {candidate.knownAddresses?.split(",")[0] || "Chennai, TN"}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* AI Investigative Assessment Callout */}
+                                  <div className="mx-3 sm:mx-4 mb-2.5 sm:mb-3 p-2.5 rounded-lg border-l-2 border-neutral-700 bg-black/40 text-xs min-w-0">
+                                    <p className="text-[10px] sm:text-[11px] text-neutral-300 leading-relaxed wrap-break-word">
+                                      <strong className="text-white font-semibold">
+                                        Forensic Intelligence Assessment:{" "}
+                                      </strong>
+                                      {candidate.llmReasoning}
+                                    </p>
+                                  </div>
+
+                                  {/* Disposition & Linking Toolbar */}
+                                  <div className="px-3 sm:px-4 py-2.5 bg-black/40 border-t border-neutral-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2 min-w-0">
+                                    <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-2 min-w-0 w-full sm:w-auto">
+                                      {/* Case Status Selector */}
+                                      <div className="min-w-0">
+                                        <Select
+                                          value={config.status}
+                                          onValueChange={(val) => {
+                                            if (!val) return;
+                                            setCandidateRoles((prev) => ({
+                                              ...prev,
+                                              [candidate.id]: {
+                                                status: val as SuspectStatus,
+                                                role: config.role,
+                                              },
+                                            }));
+                                          }}
+                                        >
+                                          <SelectTrigger className="h-8.5 sm:h-8 w-full sm:w-38 text-xs rounded-lg bg-black border border-neutral-800 text-neutral-200 focus:border-neutral-600 min-w-0">
+                                            <SelectValue placeholder="Status" />
+                                          </SelectTrigger>
+                                          <SelectContent className="rounded-lg border border-neutral-800 bg-[#0d0d0d] text-neutral-200">
+                                            <SelectItem value="Primary Suspect">Primary Suspect</SelectItem>
+                                            <SelectItem value="Person of Interest">Person of Interest</SelectItem>
+                                            <SelectItem value="Cleared">Cleared</SelectItem>
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
+
+                                      {/* Case Role Selector */}
+                                      <div className="min-w-0">
+                                        <Select
+                                          value={config.role}
+                                          onValueChange={(val) => {
+                                            if (!val) return;
+                                            setCandidateRoles((prev) => ({
+                                              ...prev,
+                                              [candidate.id]: {
+                                                status: config.status,
+                                                role: val as SuspectRole,
+                                              },
+                                            }));
+                                          }}
+                                        >
+                                          <SelectTrigger className="h-8.5 sm:h-8 w-full sm:w-40 text-xs rounded-lg bg-black border border-neutral-800 text-neutral-200 focus:border-neutral-600 min-w-0">
+                                            <SelectValue placeholder="Role" />
+                                          </SelectTrigger>
+                                          <SelectContent className="rounded-lg border border-neutral-800 bg-[#0d0d0d] text-neutral-200">
+                                            <SelectItem value="Direct Involvement">Direct Involvement</SelectItem>
+                                            <SelectItem value="Possible Associate">Possible Associate</SelectItem>
+                                            <SelectItem value="Accomplice">Accomplice</SelectItem>
+                                            <SelectItem value="Informant">Informant</SelectItem>
+                                            <SelectItem value="Witness">Witness</SelectItem>
+                                            <SelectItem value="Under Investigation">Under Investigation</SelectItem>
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
+                                    </div>
+
+                                    {/* Action Link Control */}
+                                    <div className="w-full sm:w-auto shrink-0 pt-0.5 sm:pt-0">
+                                      {inCase ? (
+                                        <span className="inline-flex items-center justify-center gap-1.5 h-8.5 sm:h-8 px-3 text-xs font-mono text-emerald-400 bg-emerald-950/30 border border-emerald-500/30 rounded-lg select-none w-full sm:w-auto">
+                                          <Check className="size-3.5" />
+                                          Already Linked to Case
+                                        </span>
+                                      ) : (
+                                        <Button
+                                          size="sm"
+                                          disabled={linkingCandidateId === candidate.id}
+                                          onClick={() => handleLinkCandidate(candidate)}
+                                          className="h-8.5 sm:h-8 px-4 text-xs font-semibold bg-[#665AEF] hover:bg-[#584bd4] text-white shadow-xs cursor-pointer gap-1.5 w-full sm:w-auto min-h-8.5 transition-colors"
+                                        >
+                                          {linkingCandidateId === candidate.id ? (
+                                            <>
+                                              <div className="size-3 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                                              <span>Linking...</span>
+                                            </>
+                                          ) : (
+                                            <>
+                                              <UserPlus className="size-3.5" />
+                                              <span>Link Suspect to Case</span>
+                                            </>
+                                          )}
+                                        </Button>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })
+                          )}
+                        </div>
+                      </div>
+                    </>
+                  )}
                 </motion.div>
 
               ) : (
-                /* ══ Tab 2: Manual Entry ══ */
+                /* ══ Tab 3: Manual Entry ══ */
                 <motion.div
                   key="tab-manual"
                   initial={{ opacity: 0, y: 8, filter: "blur(4px)" }}
@@ -867,10 +1034,10 @@ export function AddSuspectDialog({
                   exit={{ opacity: 0, y: -6, filter: "blur(4px)" }}
                   transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
                 >
-                  <form onSubmit={handleManualSubmit} className="w-full min-w-0 px-3.5 sm:px-6 py-3.5 sm:py-4 space-y-3 sm:space-y-4">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 min-w-0">
+                  <form onSubmit={handleManualSubmit} className="w-full min-w-0 px-4 sm:px-6 py-4 space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 sm:gap-4 min-w-0">
                       <div className="space-y-1.5 min-w-0">
-                        <Label htmlFor="suspect-name" className="text-xs font-semibold text-foreground">
+                        <Label htmlFor="suspect-name" className="text-xs font-medium text-neutral-300">
                           Full Name <span className="text-rose-400">*</span>
                         </Label>
                         <Input
@@ -879,12 +1046,12 @@ export function AddSuspectDialog({
                           onChange={(e) => setManualName(e.target.value)}
                           placeholder="e.g. Vikram Sharma"
                           required
-                          className="h-9 text-xs rounded-md bg-background/50 border border-border/70"
+                          className="h-9 text-xs rounded-lg bg-black/60 border border-neutral-800 text-white placeholder:text-neutral-500 focus-visible:border-neutral-500 focus-visible:ring-0"
                         />
                       </div>
 
                       <div className="space-y-1.5 min-w-0">
-                        <Label htmlFor="suspect-alias" className="text-xs font-semibold text-foreground">
+                        <Label htmlFor="suspect-alias" className="text-xs font-medium text-neutral-300">
                           Alias / Street Name
                         </Label>
                         <Input
@@ -892,12 +1059,12 @@ export function AddSuspectDialog({
                           value={manualAlias}
                           onChange={(e) => setManualAlias(e.target.value)}
                           placeholder="e.g. Rocky, Vicky"
-                          className="h-9 text-xs rounded-md bg-background/50 border border-border/70"
+                          className="h-9 text-xs rounded-lg bg-black/60 border border-neutral-800 text-white placeholder:text-neutral-500 focus-visible:border-neutral-500 focus-visible:ring-0"
                         />
                       </div>
 
                       <div className="space-y-1.5 min-w-0">
-                        <Label htmlFor="suspect-status" className="text-xs font-semibold text-foreground">
+                        <Label htmlFor="suspect-status" className="text-xs font-medium text-neutral-300">
                           Suspect Status
                         </Label>
                         <Select
@@ -906,10 +1073,10 @@ export function AddSuspectDialog({
                             if (val) setManualStatus(val as SuspectStatus);
                           }}
                         >
-                          <SelectTrigger id="suspect-status" className="h-9 w-full text-xs rounded-md bg-background/50 border border-border/70">
+                          <SelectTrigger id="suspect-status" className="h-9 w-full text-xs rounded-lg bg-black/60 border border-neutral-800 text-neutral-200 focus:border-neutral-500">
                             <SelectValue placeholder="Select Status" />
                           </SelectTrigger>
-                          <SelectContent className="rounded-md border border-border bg-card/95 backdrop-blur-xl min-w-[max(var(--anchor-width),13rem)]">
+                          <SelectContent className="rounded-lg border border-neutral-800 bg-[#0d0d0d] text-neutral-200 min-w-[max(var(--anchor-width),13rem)]">
                             <SelectItem value="Primary Suspect">Primary Suspect</SelectItem>
                             <SelectItem value="Person of Interest">Person of Interest</SelectItem>
                             <SelectItem value="Cleared">Cleared</SelectItem>
@@ -918,7 +1085,7 @@ export function AddSuspectDialog({
                       </div>
 
                       <div className="space-y-1.5 min-w-0">
-                        <Label htmlFor="suspect-role" className="text-xs font-semibold text-foreground">
+                        <Label htmlFor="suspect-role" className="text-xs font-medium text-neutral-300">
                           Investigative Role
                         </Label>
                         <Select
@@ -927,10 +1094,10 @@ export function AddSuspectDialog({
                             if (val) setManualRole(val as SuspectRole);
                           }}
                         >
-                          <SelectTrigger id="suspect-role" className="h-9 w-full text-xs rounded-md bg-background/50 border border-border/70">
+                          <SelectTrigger id="suspect-role" className="h-9 w-full text-xs rounded-lg bg-black/60 border border-neutral-800 text-neutral-200 focus:border-neutral-500">
                             <SelectValue placeholder="Select Role" />
                           </SelectTrigger>
-                          <SelectContent className="rounded-md border border-border bg-card/95 backdrop-blur-xl min-w-[max(var(--anchor-width),13rem)]">
+                          <SelectContent className="rounded-lg border border-neutral-800 bg-[#0d0d0d] text-neutral-200 min-w-[max(var(--anchor-width),13rem)]">
                             <SelectItem value="Direct Involvement">Direct Involvement</SelectItem>
                             <SelectItem value="Possible Associate">Possible Associate</SelectItem>
                             <SelectItem value="Accomplice">Accomplice</SelectItem>
@@ -942,7 +1109,7 @@ export function AddSuspectDialog({
                       </div>
 
                       <div className="space-y-1.5 min-w-0">
-                        <Label htmlFor="match-confidence" className="text-xs font-semibold text-foreground">
+                        <Label htmlFor="match-confidence" className="text-xs font-medium text-neutral-300">
                           Match Confidence (%)
                         </Label>
                         <Input
@@ -953,12 +1120,12 @@ export function AddSuspectDialog({
                           value={manualMatchConfidence}
                           onChange={(e) => setManualMatchConfidence(e.target.value)}
                           placeholder="e.g. 75"
-                          className="h-9 text-xs rounded-md bg-background/50 border border-border/70"
+                          className="h-9 text-xs rounded-lg bg-black/60 border border-neutral-800 text-white placeholder:text-neutral-500 focus-visible:border-neutral-500 focus-visible:ring-0"
                         />
                       </div>
 
                       <div className="space-y-1.5 min-w-0">
-                        <Label htmlFor="last-seen-date" className="text-xs font-semibold text-foreground">
+                        <Label htmlFor="last-seen-date" className="text-xs font-medium text-neutral-300">
                           Last Seen Date
                         </Label>
                         <Input
@@ -966,23 +1133,23 @@ export function AddSuspectDialog({
                           value={manualLastSeenDate}
                           onChange={(e) => setManualLastSeenDate(e.target.value)}
                           placeholder="Oct 5, 2026"
-                          className="h-9 text-xs rounded-md bg-background/50 border border-border/70"
+                          className="h-9 text-xs rounded-lg bg-black/60 border border-neutral-800 text-white placeholder:text-neutral-500 focus-visible:border-neutral-500 focus-visible:ring-0"
                         />
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 sm:flex sm:justify-end gap-2 pt-3 border-t border-border/40">
+                    <div className="grid grid-cols-2 sm:flex sm:justify-end gap-2 pt-3 border-t border-neutral-800">
                       <Button
                         type="button"
                         variant="ghost"
                         onClick={() => onOpenChange(false)}
-                        className="h-9 text-xs rounded-lg cursor-pointer"
+                        className="h-9 text-xs text-neutral-400 hover:text-white rounded-lg cursor-pointer"
                       >
                         Cancel
                       </Button>
                       <Button
                         type="submit"
-                        className="h-9 text-xs rounded-lg font-semibold bg-[#665AEF] hover:bg-[#5749df] text-white shadow-xs cursor-pointer"
+                        className="h-9 px-4 text-xs rounded-lg font-semibold bg-[#665AEF] hover:bg-[#584bd4] text-white shadow-xs cursor-pointer transition-colors"
                       >
                         Save Suspect
                       </Button>

@@ -4,6 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { type CriminalItem } from "@/features/criminals/types";
 import { getCriminalSlug } from "@/features/criminals/slug";
+import { formatCriminalDob, computeCriminalAge } from "@/features/criminals/formatters";
 import { SuspectAvatar } from "./suspect-avatar";
 import {
   Drawer,
@@ -160,7 +161,7 @@ export function CriminalProfileDrawer({
                 <span>Date of Birth</span>
               </span>
               <p className="font-medium text-foreground text-xs">
-                {criminal.dateOfBirth} ({criminal.age} yrs)
+                {formatCriminalDob(criminal.dateOfBirth)} ({computeCriminalAge(criminal.dateOfBirth, criminal.age)} yrs)
               </p>
             </div>
 

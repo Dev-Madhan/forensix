@@ -16,7 +16,7 @@ export function SuspectsHeader({
   return (
     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 sm:p-5 rounded-xl border-2 border-border/80 bg-card/40 backdrop-blur-xs shadow-xs">
       <div className="flex items-center gap-3">
-        <Users className="size-6 text-[#665AEF] shrink-0" />
+        <Users className="size-6 text-neutral-300 shrink-0" />
         <div>
           <h2 className="text-lg sm:text-xl font-bold font-heading text-foreground tracking-tight">
             Suspects
@@ -32,7 +32,7 @@ export function SuspectsHeader({
           type="button"
           size="sm"
           onClick={onAddClick}
-          className="h-9 px-4 gap-1.5 rounded-lg bg-[#665AEF] hover:bg-[#5749DF] text-white text-xs sm:text-sm font-medium cursor-pointer shadow-xs shadow-[#665AEF]/25 transition-colors"
+          className="h-9 px-4 gap-1.5 rounded-lg bg-[#665AEF] hover:bg-[#584bd4] text-white text-xs sm:text-sm font-semibold cursor-pointer shadow-xs transition-colors"
         >
           <Plus className="size-4" />
           <span>Add Suspect</span>

@@ -25,9 +25,18 @@ import {
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Label } from "@/components/ui/label";
+import {
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+} from "@/components/ui/popover";
+import { Calendar as CalendarPicker } from "@/components/ui/calendar";
+import { format } from "date-fns";
 import {
   Table,
   TableHeader,
@@ -95,6 +104,7 @@ import {
   Edit3,
   UserCheck,
   Unlink,
+  Loader2,
 } from "lucide-react";
 import { SuspectRole, SuspectCaseStatus, type Criminal } from "@prisma/client";
 import { toast } from "sonner";
@@ -241,6 +251,48 @@ export interface CriminalHistoryItem {
   slug?: string;
 }
 
+export const JUDICIAL_OFFENCE_OPTIONS = [
+  "Theft",
+  "Robbery",
+  "Armed Robbery",
+  "Burglary",
+  "Assault / Battery",
+  "Aggravated Assault",
+  "Vehicle Theft",
+  "Cyber Fraud",
+  "Cyber Crime",
+  "Homicide",
+  "Narcotics Distribution",
+  "Extortion",
+  "Transit Crime",
+  "Fraud / Embezzlement",
+  "Kidnapping",
+  "Money Laundering",
+  "Arson",
+];
+
+export const JUDICIAL_STATUS_OPTIONS = [
+  "Under Investigation",
+  "In Court",
+  "Trial",
+  "Solved",
+  "Closed",
+  "Appealed",
+  "Cold Case",
+];
+
+export const JUDICIAL_OUTCOME_OPTIONS = [
+  "Trial Ongoing",
+  "Convicted",
+  "Acquitted",
+  "Pending Verdict",
+  "Pending",
+  "Under Review",
+  "Charges Dropped",
+  "Dismissed",
+  "Plea Bargain",
+];
+
 
 
 function renderOffenceBadge(type: CriminalHistoryItem["offenceType"]) {
@@ -268,8 +320,8 @@ function renderOffenceBadge(type: CriminalHistoryItem["offenceType"]) {
       );
     case "Vehicle Theft":
       return (
-        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold border-2 border-purple-500/50 bg-purple-500/15 text-purple-400 whitespace-nowrap">
-          <Car className="size-3 text-purple-400 shrink-0" />
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-xs font-semibold border border-indigo-400/30 bg-indigo-500/10 text-indigo-300 whitespace-nowrap">
+          <Car className="size-3 text-indigo-300 shrink-0" />
           <span>Vehicle Theft</span>
         </span>
       );
@@ -293,7 +345,7 @@ function renderHistoryStatusBadge(status: CriminalHistoryItem["status"]) {
   switch (status) {
     case "Under Investigation":
       return (
-        <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-md text-[11px] font-semibold border-2 border-[#7E22CE]/60 bg-[#2D1B4E]/90 text-[#C084FC] whitespace-nowrap">
+        <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-md text-[11px] font-semibold border border-amber-500/40 bg-amber-500/10 text-amber-300 whitespace-nowrap">
           Under Investigation
         </span>
       );
@@ -441,6 +493,8 @@ export function CriminalProfileTabs({
   const [historySearchTerm, setHistorySearchTerm] = useState("");
   const [historyCurrentPage, setHistoryCurrentPage] = useState(1);
   const historyPageSize = 5;
+  const [isExportingRapSheet, setIsExportingRapSheet] = useState(false);
+  const [exportFormat, setExportFormat] = useState<"pdf" | "csv">("pdf");
 
   // Synchronize tab and selected record with URL query string
   React.useEffect(() => {
@@ -455,9 +509,12 @@ export function CriminalProfileTabs({
     window.history.replaceState(null, "", url.toString());
   }, [activeTab, selectedJudicialRecord]);
 
-  // Deep-link check on initial mount
+  // Deep-link check on initial mount only (prevent re-popping up on saves)
+  const hasInitializedDeepLink = React.useRef(false);
   React.useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (typeof window === "undefined" || hasInitializedDeepLink.current) return;
+    if (historyRecords.length === 0) return;
+    hasInitializedDeepLink.current = true;
     const p = new URLSearchParams(window.location.search);
     const recId = p.get("record");
     if (recId) {
@@ -616,6 +673,22 @@ export function CriminalProfileTabs({
     courtName: "",
     sentenceDetails: "",
   });
+  const [isNewDatePickerOpen, setIsNewDatePickerOpen] = useState(false);
+
+  const parsedNewIncidentDate = useMemo(() => {
+    if (!newRecordForm.date) return undefined;
+    const d = new Date(newRecordForm.date);
+    return isNaN(d.getTime()) ? undefined : d;
+  }, [newRecordForm.date]);
+
+  const formattedNewIncidentDate = useMemo(() => {
+    if (!parsedNewIncidentDate) return newRecordForm.date || "";
+    try {
+      return format(parsedNewIncidentDate, "MMM d, yyyy");
+    } catch {
+      return newRecordForm.date;
+    }
+  }, [parsedNewIncidentDate, newRecordForm.date]);
 
   const handleAddCriminalRecord = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -841,6 +914,47 @@ export function CriminalProfileTabs({
     sentenceDetails: "",
   });
   const [isSavingEditRecord, setIsSavingEditRecord] = useState(false);
+  const [isEditDatePickerOpen, setIsEditDatePickerOpen] = useState(false);
+
+  const parsedEditIncidentDate = useMemo(() => {
+    if (!editRecordForm.incidentDate) return undefined;
+    const d = new Date(editRecordForm.incidentDate);
+    return isNaN(d.getTime()) ? undefined : d;
+  }, [editRecordForm.incidentDate]);
+
+  const formattedEditIncidentDate = useMemo(() => {
+    if (!parsedEditIncidentDate) return editRecordForm.incidentDate || "";
+    try {
+      return format(parsedEditIncidentDate, "MMM d, yyyy");
+    } catch {
+      return editRecordForm.incidentDate;
+    }
+  }, [parsedEditIncidentDate, editRecordForm.incidentDate]);
+
+  const [hoveredEditOffence, setHoveredEditOffence] = useState<string | null>(null);
+  const [hoveredEditStatus, setHoveredEditStatus] = useState<string | null>(null);
+  const [hoveredEditOutcome, setHoveredEditOutcome] = useState<string | null>(null);
+
+  const editOffenceOptions = useMemo(() => {
+    if (editRecordForm.offenceType && !JUDICIAL_OFFENCE_OPTIONS.includes(editRecordForm.offenceType)) {
+      return [editRecordForm.offenceType, ...JUDICIAL_OFFENCE_OPTIONS];
+    }
+    return JUDICIAL_OFFENCE_OPTIONS;
+  }, [editRecordForm.offenceType]);
+
+  const editStatusOptions = useMemo(() => {
+    if (editRecordForm.status && !JUDICIAL_STATUS_OPTIONS.includes(editRecordForm.status)) {
+      return [editRecordForm.status, ...JUDICIAL_STATUS_OPTIONS];
+    }
+    return JUDICIAL_STATUS_OPTIONS;
+  }, [editRecordForm.status]);
+
+  const editOutcomeOptions = useMemo(() => {
+    if (editRecordForm.outcome && !JUDICIAL_OUTCOME_OPTIONS.includes(editRecordForm.outcome)) {
+      return [editRecordForm.outcome, ...JUDICIAL_OUTCOME_OPTIONS];
+    }
+    return JUDICIAL_OUTCOME_OPTIONS;
+  }, [editRecordForm.outcome]);
 
   const [recordToDelete, setRecordToDelete] = useState<CriminalHistoryItem | null>(null);
   const [isDeletingRecord, setIsDeletingRecord] = useState(false);
@@ -1170,6 +1284,7 @@ export function CriminalProfileTabs({
 
   const handleOpenEditRecord = (rec: CriminalHistoryItem) => {
     setRecordToEdit(rec);
+    setIsEditDatePickerOpen(false);
     setEditRecordForm({
       courtCaseNumber: rec.caseId,
       offenceType: rec.offenceType,
@@ -1189,12 +1304,14 @@ export function CriminalProfileTabs({
     if (!recordToEdit) return;
     setIsSavingEditRecord(true);
     try {
+      const dateToSave = parsedEditIncidentDate || undefined;
       const res = await updateCriminalRecord({
         id: recordToEdit.id,
-        courtCaseNumber: editRecordForm.courtCaseNumber,
+        criminalId: criminal.id,
+        courtCaseNumber: recordToEdit.caseId, // Case number is locked and immutable once created
         offenceType: editRecordForm.offenceType,
         description: editRecordForm.description,
-        incidentDate: editRecordForm.incidentDate ? new Date(editRecordForm.incidentDate) : undefined,
+        incidentDate: dateToSave,
         location: editRecordForm.location,
         courtName: editRecordForm.courtName || undefined,
         status: editRecordForm.status,
@@ -1204,15 +1321,17 @@ export function CriminalProfileTabs({
       if (res.error) {
         toast.error(res.error);
       } else {
+        const displayDate = formattedEditIncidentDate || editRecordForm.incidentDate || recordToEdit.date;
         setHistoryRecords((prev) =>
           prev.map((r) =>
             r.id === recordToEdit.id
               ? {
                   ...r,
-                  caseId: editRecordForm.courtCaseNumber,
+                  id: res.data?.id || r.id,
+                  caseId: recordToEdit.caseId, // Case number is locked and immutable once created
                   offenceType: editRecordForm.offenceType,
                   description: editRecordForm.description,
-                  date: editRecordForm.incidentDate || r.date,
+                  date: displayDate,
                   location: editRecordForm.location,
                   courtName: editRecordForm.courtName,
                   status: editRecordForm.status,
@@ -1224,6 +1343,13 @@ export function CriminalProfileTabs({
         );
         setIsEditRecordOpen(false);
         setRecordToEdit(null);
+        setSelectedJudicialRecord(null);
+        if (typeof window !== "undefined") {
+          const url = new URL(window.location.href);
+          url.searchParams.delete("record");
+          window.history.replaceState(null, "", url.toString());
+        }
+        router.refresh();
         toast.success("Judicial court record updated successfully.");
       }
     } catch {
@@ -1343,42 +1469,143 @@ export function CriminalProfileTabs({
     }
   };
 
-  const handleExportRapSheet = () => {
-    const lines = [
-      `========================================================================`,
-      `TAMIL NADU POLICE • CRIME RECORDS BUREAU • OFFICIAL RAP SHEET`,
-      `========================================================================`,
-      `SUBJECT: ${fullName.toUpperCase()}`,
-      `CRIMINAL ID: ${criminal.criminalId}`,
-      `DATE OF BIRTH: ${criminal.dateOfBirth ? new Date(criminal.dateOfBirth).toLocaleDateString() : "N/A"}`,
-      `GENDER: ${criminal.gender || "N/A"} | NATIONALITY: ${criminal.nationality || "INDIAN"}`,
-      `CLASSIFICATION: ${criminal.status} | RISK LEVEL: ${criminal.riskLevel}`,
-      `TOTAL RECORDED CHARGES: ${historyRecords.length}`,
-      `------------------------------------------------------------------------`,
-      `CHRONOLOGICAL JUDICIAL OFFENCE LEDGER:`,
-      ...historyRecords.map((r, idx) =>
-        `[${idx + 1}] CASE NO: ${r.caseId} | INCIDENT DATE: ${r.date} | STATUS: ${r.status}\n` +
-        `    COURT: ${r.courtName || "Magistrate Court"} | OFFENCE: ${r.offenceType}\n` +
-        `    DISPOSITION: ${r.outcome || "Pending"} | SENTENCE: ${r.sentenceDetails || "None"}\n` +
-        `    LOCATION: ${r.location}\n` +
-        `    DETAILS: ${r.description}\n`
-      ),
-      `------------------------------------------------------------------------`,
-      `GENERATED ON: ${new Date().toISOString()} BY INVESTIGATOR`,
-      `CRYPTOGRAPHIC AUTHENTICATION STAMP: SHA-256 VALIDATED`,
-      `========================================================================`,
-    ].join("\n");
+  const handleExportRapSheet = async (format: "pdf" | "csv" = "pdf") => {
+    if (isExportingRapSheet) return;
+    setIsExportingRapSheet(true);
+    setExportFormat(format);
 
-    const blob = new Blob([lines], { type: "text/plain;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `RAP-SHEET-${fullName.replace(/\s+/g, "_")}-${criminal.criminalId}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    toast.success("Official Judicial Rap Sheet exported successfully.");
+    const safeName = fullName.replace(/[^a-zA-Z0-9_-]/g, "_");
+    const toastId = toast.loading(
+      format === "pdf"
+        ? "Compiling official Judicial Rap Sheet (PDF)..."
+        : "Preparing Judicial Ledger (CSV)..."
+    );
+
+    try {
+      // 1. Try dedicated Rap Sheet API route with current visible records
+      const res = await fetch(`/api/criminals/${criminal.id}/rap-sheet`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          format,
+          fullName,
+          records: historyRecords,
+        }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.message || errData.error || "Server export failed");
+      }
+
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.style.display = "none";
+      a.href = url;
+      a.download = `RAP-SHEET-${safeName}-${criminal.criminalId}.${format}`;
+      document.body.appendChild(a);
+      a.click();
+
+      // Safe delayed cleanup ensures browser finishes spawning the download process
+      setTimeout(() => {
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+      }, 2000);
+
+      toast.success(
+        format === "pdf"
+          ? "Official Judicial Rap Sheet (PDF) downloaded successfully."
+          : "Judicial Ledger (CSV) downloaded successfully.",
+        { id: toastId }
+      );
+    } catch (err: any) {
+      console.warn("Server rap sheet generation fallback:", err);
+
+      // Fallback 1: Client-side CSV generation
+      if (format === "csv") {
+        try {
+          const csvHeaders = [
+            "Record #",
+            "Subject Full Name",
+            "Criminal ID",
+            "Case ID / FIR No",
+            "Offence Type",
+            "Incident Date",
+            "Location",
+            "Presiding Court",
+            "Legal Status",
+            "Court Disposition / Outcome",
+            "Sentence Details",
+            "Offence Particulars",
+          ];
+          const escapeCsv = (val: unknown) => `"${String(val ?? "").replace(/"/g, '""')}"`;
+          const rows = historyRecords.map((r, i) => [
+            escapeCsv(String(i + 1).padStart(2, "0")),
+            escapeCsv(fullName),
+            escapeCsv(criminal.criminalId),
+            escapeCsv(r.caseId),
+            escapeCsv(r.offenceType),
+            escapeCsv(r.date),
+            escapeCsv(r.location),
+            escapeCsv(r.courtName),
+            escapeCsv(r.status),
+            escapeCsv(r.outcome || "Pending"),
+            escapeCsv(r.sentenceDetails || "None"),
+            escapeCsv(r.description),
+          ]);
+          const csvContent = "\uFEFF" + [csvHeaders.join(","), ...rows.map((row) => row.join(","))].join("\r\n");
+          const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.style.display = "none";
+          a.href = url;
+          a.download = `RAP-SHEET-${safeName}-${criminal.criminalId}.csv`;
+          document.body.appendChild(a);
+          a.click();
+          setTimeout(() => {
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+          }, 2000);
+          toast.success("Judicial Ledger (CSV) downloaded successfully.", { id: toastId });
+          return;
+        } catch (csvErr) {
+          console.error("CSV client fallback failed:", csvErr);
+        }
+      }
+
+      // Fallback 2: Try GET request or Dossier endpoint
+      try {
+        const getRes = await fetch(`/api/criminals/${criminal.id}/rap-sheet?format=${format}`);
+        if (getRes.ok) {
+          const blob = await getRes.blob();
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.style.display = "none";
+          a.href = url;
+          a.download = `RAP-SHEET-${safeName}-${criminal.criminalId}.${format}`;
+          document.body.appendChild(a);
+          a.click();
+          setTimeout(() => {
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+          }, 2000);
+          toast.success(
+            format === "pdf"
+              ? "Official Judicial Rap Sheet (PDF) downloaded successfully."
+              : "Judicial Ledger (CSV) downloaded successfully.",
+            { id: toastId }
+          );
+          return;
+        }
+      } catch (getErr) {
+        console.error("GET fallback failed:", getErr);
+      }
+
+      toast.error(err?.message || "Failed to export Rap Sheet.", { id: toastId });
+    } finally {
+      setIsExportingRapSheet(false);
+    }
   };
 
   return (
@@ -1415,7 +1642,7 @@ export function CriminalProfileTabs({
                 {isActive && (
                   <motion.div
                     layoutId="criminal-profile-active-tab"
-                    className="absolute bottom-0 left-0 right-0 h-0.5 bg-[#665AEF] rounded-full z-10"
+                    className="absolute bottom-0 left-0 right-0 h-0.5 bg-white rounded-full z-10"
                     transition={{ type: "spring", stiffness: 450, damping: 35 }}
                   />
                 )}
@@ -2399,22 +2626,91 @@ export function CriminalProfileTabs({
                       </DropdownMenuContent>
                     </DropdownMenu>
 
-                    {/* Export Rap Sheet Button */}
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={handleExportRapSheet}
-                      className="h-9 px-3 text-xs font-medium rounded-lg border-2 border-border/80 bg-background/50 hover:bg-[#665AEF]/15 hover:border-[#665AEF]/50 text-foreground flex items-center gap-1.5 cursor-pointer shrink-0"
-                    >
-                      <Download className="size-3.5 text-[#a594fd]" />
-                      <span>Export Rap Sheet</span>
-                    </Button>
+                    {/* Export Rap Sheet Connected Button Group */}
+                    <div className="inline-flex items-center rounded-lg border-2 border-border/80 bg-background/50 hover:border-neutral-700 transition-colors shadow-xs shrink-0 overflow-hidden">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={() => handleExportRapSheet("pdf")}
+                        disabled={isExportingRapSheet}
+                        className="h-9 px-3 text-xs font-medium rounded-none hover:bg-neutral-800 text-foreground flex items-center gap-1.5 cursor-pointer transition-colors"
+                        title="Download Official Certified Rap Sheet (PDF)"
+                      >
+                        {isExportingRapSheet ? (
+                          <Loader2 className="size-3.5 animate-spin text-neutral-300" />
+                        ) : (
+                          <Download className="size-3.5 text-neutral-300" />
+                        )}
+                        <span>
+                          {isExportingRapSheet
+                            ? exportFormat === "pdf"
+                              ? "Compiling PDF..."
+                              : "Exporting CSV..."
+                            : "Export Rap Sheet"}
+                        </span>
+                      </Button>
+
+                      <div className="h-4 w-px bg-border/80" />
+
+                      <DropdownMenu>
+                        <DropdownMenuTrigger
+                          render={
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              disabled={isExportingRapSheet}
+                              className="h-9 w-7 px-0 rounded-none hover:bg-neutral-800 text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+                              title="Export options"
+                            >
+                              <ChevronDown className="size-3" />
+                            </Button>
+                          }
+                        />
+                        <DropdownMenuContent
+                          align="end"
+                          className="w-60 rounded-xl border-2 border-border/80 bg-[#0c0c12]/98 backdrop-blur-md shadow-2xl p-1 z-50 text-foreground"
+                        >
+                          <DropdownMenuItem
+                            onClick={() => handleExportRapSheet("pdf")}
+                            disabled={isExportingRapSheet}
+                            className="group flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-pointer hover:bg-neutral-800 hover:text-white transition-colors"
+                          >
+                            <FileText className="size-4 text-neutral-300 shrink-0" />
+                            <div className="flex flex-col">
+                              <span className="text-xs font-semibold flex items-center gap-1.5">
+                                Official Rap Sheet (PDF)
+                                <span className="text-[9px] px-1 py-0.5 rounded bg-neutral-800 text-neutral-300 font-medium leading-none">
+                                  Official
+                                </span>
+                              </span>
+                              <span className="text-[10px] text-muted-foreground">
+                                High-res certified police record
+                              </span>
+                            </div>
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={() => handleExportRapSheet("csv")}
+                            disabled={isExportingRapSheet}
+                            className="group flex items-center gap-2.5 px-3 py-2 rounded-lg cursor-pointer hover:bg-neutral-800 hover:text-white transition-colors"
+                          >
+                            <Download className="size-4 text-emerald-400 shrink-0" />
+                            <div className="flex flex-col">
+                              <span className="text-xs font-semibold">Judicial Ledger (CSV)</span>
+                              <span className="text-[10px] text-muted-foreground">
+                                Formatted tabular sheet for Excel
+                              </span>
+                            </div>
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
 
                     {/* Add Record Button */}
                     <Button
                       type="button"
                       onClick={() => setIsAddRecordOpen(true)}
-                      className="bg-[#665AEF] hover:bg-[#584bd4] text-white font-medium text-xs px-3.5 h-9 rounded-lg flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer shrink-0"
+                      className="bg-[#665AEF] hover:bg-[#584bd4] text-white font-semibold text-xs px-3.5 h-9 rounded-lg flex items-center gap-1.5 shadow-xs transition-colors cursor-pointer shrink-0"
                     >
                       <Plus className="size-3.5" />
                       <span>Add Record</span>
@@ -3968,7 +4264,10 @@ export function CriminalProfileTabs({
               TAB 5: ACTIVITY LOG (Real-Time Forensic Audit & Surveillance Ledger)
               ═══════════════════════════════════════════════════════════ */}
           {activeTab === "activity" && (
-            <CriminalActivityTab criminal={criminal} />
+            <CriminalActivityTab
+              criminal={criminal}
+              mugshotDisplayUrl={mugshotDisplayUrl}
+            />
           )}
         </motion.div>
       </AnimatePresence>
@@ -4055,7 +4354,7 @@ export function CriminalProfileTabs({
         isOpen={isAddRecordOpen}
         onClose={() => setIsAddRecordOpen(false)}
         maxWidth="max-w-2xl"
-        className="border-2 border-border/90 bg-[#0B0F17]/95 backdrop-blur-xl shadow-2xl rounded-lg"
+        className="border border-[#27272A] bg-[#0A0D14] shadow-2xl shadow-black rounded-2xl overflow-hidden [&_[data-modal-footer]]:bg-[#0A0D14] [&_[data-modal-footer]]:border-[#27272A] [&_div.border-b-2]:border-b [&_div.border-b-2]:border-[#27272A] [&_div.border-b-2]:bg-[#0E111A]/80"
         title={
           <div className="flex items-center gap-3">
             <div className="flex size-9 items-center justify-center rounded-md bg-[#665AEF]/20 text-[#a594fd] border-2 border-[#665AEF]/40 shadow-xs shadow-[#665AEF]/20 shrink-0">
@@ -4135,33 +4434,80 @@ export function CriminalProfileTabs({
 
             {/* Date */}
             <div className="space-y-1.5">
-              <div className="h-6 flex items-center justify-between">
-                <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-                  <Calendar className="size-3 text-[#a594fd]" />
-                  <span>Incident Date</span>
-                </label>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setNewRecordForm((prev) => ({
-                      ...prev,
-                      date: "Oct 21, 2026",
-                    }))
+              <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                <Calendar className="size-3 text-[#a594fd]" />
+                <span>Incident Date</span>
+              </label>
+              <Popover open={isNewDatePickerOpen} onOpenChange={setIsNewDatePickerOpen}>
+                <PopoverTrigger
+                  render={
+                    <button
+                      type="button"
+                      className="h-9 w-full flex items-center justify-between rounded-md border-2 border-border/80 bg-background/60 hover:bg-muted/50 px-3 text-xs text-foreground focus:outline-none focus:border-[#665AEF] focus:ring-1 focus:ring-[#665AEF] transition-colors cursor-pointer"
+                    />
                   }
-                  className="h-5 text-[10px] font-mono text-[#a594fd] hover:text-white bg-[#665AEF]/15 hover:bg-[#665AEF]/30 border-2 border-[#665AEF]/30 px-1.5 rounded-md transition cursor-pointer inline-flex items-center gap-1 shrink-0 select-none"
                 >
-                  <Clock className="size-2.5" />
-                  <span>Today</span>
-                </button>
-              </div>
-              <Input
-                placeholder="e.g. Oct 21, 2026"
-                value={newRecordForm.date}
-                onChange={(e) =>
-                  setNewRecordForm({ ...newRecordForm, date: e.target.value })
-                }
-                className="h-9 text-xs border-2 border-border/80 bg-background/60 focus-visible:border-[#665AEF] focus-visible:ring-1 focus-visible:ring-[#665AEF] rounded-md"
-              />
+                  <span className={cn("truncate", !newRecordForm.date && "text-muted-foreground/50")}>
+                    {formattedNewIncidentDate || "Select incident date"}
+                  </span>
+                  <Calendar className="size-3.5 text-[#a594fd] shrink-0 ml-2" />
+                </PopoverTrigger>
+                <PopoverContent
+                  align="start"
+                  side="bottom"
+                  sideOffset={6}
+                  className="w-auto p-2.5 rounded-2xl shadow-2xl bg-[#0B0D14] border border-white/10 text-white z-[100] backdrop-blur-2xl"
+                >
+                  <CalendarPicker
+                    mode="single"
+                    selected={parsedNewIncidentDate}
+                    defaultMonth={parsedNewIncidentDate || new Date()}
+                    onSelect={(date) => {
+                      if (date) {
+                        setNewRecordForm((prev) => ({
+                          ...prev,
+                          date: format(date, "MMM d, yyyy"),
+                        }));
+                        setIsNewDatePickerOpen(false);
+                      }
+                    }}
+                  />
+                  <div className="flex items-center justify-between pt-2 border-t border-white/10 mt-1 px-1">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="xs"
+                      className="text-xs h-7 px-2 text-muted-foreground hover:text-white cursor-pointer"
+                      onClick={() => {
+                        setNewRecordForm((prev) => ({
+                          ...prev,
+                          date: format(new Date(), "MMM d, yyyy"),
+                        }));
+                        setIsNewDatePickerOpen(false);
+                      }}
+                    >
+                      Today
+                    </Button>
+                    {newRecordForm.date && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="xs"
+                        className="text-xs h-7 px-2 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 cursor-pointer"
+                        onClick={() => {
+                          setNewRecordForm((prev) => ({
+                            ...prev,
+                            date: "",
+                          }));
+                          setIsNewDatePickerOpen(false);
+                        }}
+                      >
+                        Clear
+                      </Button>
+                    )}
+                  </div>
+                </PopoverContent>
+              </Popover>
             </div>
           </div>
 
@@ -4375,30 +4721,131 @@ export function CriminalProfileTabs({
       {/* ═══════════════════════════════════════════════════════════
           MODAL 1B: JUDICIAL RECORD INSPECTOR MODAL
           ═══════════════════════════════════════════════════════════ */}
-      <Modal
-        isOpen={selectedJudicialRecord !== null}
-        onClose={() => setSelectedJudicialRecord(null)}
-        maxWidth="max-w-2xl"
-        className="border-2 border-border/90 bg-[#0B0F17]/95 backdrop-blur-xl shadow-2xl rounded-lg"
-        title={
-          <div className="flex items-center gap-3">
-            <div className="flex size-9 items-center justify-center rounded-md bg-[#665AEF]/20 text-[#a594fd] border-2 border-[#665AEF]/40 shadow-xs shrink-0">
-              <Gavel className="size-5" />
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-base font-semibold text-foreground">Judicial Record Dossier</span>
-              <span className="font-mono text-xs font-semibold text-[#a594fd] px-2 py-0.5 rounded-md bg-[#665AEF]/15 border border-[#665AEF]/30">
-                {selectedJudicialRecord?.caseId}
-              </span>
+      <Dialog
+        open={selectedJudicialRecord !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedJudicialRecord(null);
+            if (typeof window !== "undefined") {
+              const url = new URL(window.location.href);
+              url.searchParams.delete("record");
+              window.history.replaceState(null, "", url.toString());
+            }
+          }
+        }}
+      >
+        <DialogContent
+          showCloseButton={false}
+          className="w-[calc(100vw-1.25rem)] sm:w-full sm:max-w-xl md:max-w-2xl max-h-[90vh] flex flex-col rounded-2xl border-2 border-border/80 bg-[#0c0c12]/98 backdrop-blur-2xl p-0 shadow-2xl gap-0 text-foreground overflow-hidden no-scrollbar scrollbar-none [&::-webkit-scrollbar]:hidden"
+        >
+          {/* Header */}
+          <div className="shrink-0 px-4 sm:px-6 pt-4 sm:pt-5 pb-3 border-b border-border/60 bg-muted/10">
+            <div className="flex items-center justify-between gap-2.5">
+              <div className="min-w-0">
+                <DialogTitle className="text-base sm:text-lg font-heading font-semibold text-foreground tracking-tight">
+                  Judicial Record Dossier
+                </DialogTitle>
+                <DialogDescription className="text-xs text-muted-foreground mt-0.5 truncate sm:whitespace-normal">
+                  Official judicial court record, charges, presiding bench, and final conviction disposition.
+                </DialogDescription>
+              </div>
+
+              {selectedJudicialRecord?.caseId && (
+                <span className="font-mono text-[11px] sm:text-xs px-2.5 sm:px-3 py-1 rounded-full bg-muted/30 text-[#a89dff] border border-border/80 shrink-0 font-medium">
+                  {selectedJudicialRecord.caseId}
+                </span>
+              )}
             </div>
           </div>
-        }
-        description="Official judicial court record, charges, presiding bench, and final conviction disposition."
-        footer={
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-2.5 w-full">
+
+          {/* Body */}
+          <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 space-y-4 text-xs no-scrollbar scrollbar-none [&::-webkit-scrollbar]:hidden">
+            {selectedJudicialRecord && (
+              <div className="space-y-4 pt-1 text-xs">
+                {/* Top Grid: Case Number, Offence, Status, Outcome */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-3 rounded-lg border-2 border-border/70 bg-card/60">
+                  <div>
+                    <span className="text-[10px] text-muted-foreground uppercase font-semibold">Docket Number</span>
+                    <p className="font-mono font-bold text-foreground text-xs mt-0.5">{selectedJudicialRecord.caseId}</p>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-muted-foreground uppercase font-semibold">Offence Type</span>
+                    <div className="mt-0.5">{renderOffenceBadge(selectedJudicialRecord.offenceType as any)}</div>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-muted-foreground uppercase font-semibold">Status</span>
+                    <div className="mt-0.5">{renderHistoryStatusBadge(selectedJudicialRecord.status as any)}</div>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-muted-foreground uppercase font-semibold">Disposition</span>
+                    <div className="mt-0.5">{renderOutcomeBadge(selectedJudicialRecord.outcome as any)}</div>
+                  </div>
+                </div>
+
+                {/* Middle Grid: Court Name, Sentence, Incident Date, Location */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 rounded-lg border border-border/60 bg-muted/20">
+                  <div>
+                    <span className="text-[10px] text-muted-foreground font-semibold flex items-center gap-1">
+                      <span>Presiding Court & Jurisdiction</span>
+                    </span>
+                    <p className="font-medium text-foreground text-xs mt-1">
+                      {selectedJudicialRecord.courtName || "Principal District & Sessions Court, Chennai"}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-muted-foreground font-semibold flex items-center gap-1">
+                      <span>Sentencing & Penalty</span>
+                    </span>
+                    <p className="font-medium text-foreground text-xs mt-1">
+                      {selectedJudicialRecord.sentenceDetails ||
+                        (selectedJudicialRecord.outcome === "Convicted"
+                          ? "Sentenced under provisions of Indian Penal Code"
+                          : "Pending final judicial pronouncement")}
+                    </p>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-muted-foreground font-semibold flex items-center gap-1">
+                      <span>Incident Date</span>
+                    </span>
+                    <p className="font-medium text-foreground text-xs mt-1">{selectedJudicialRecord.date}</p>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-muted-foreground font-semibold flex items-center gap-1">
+                      <span>Crime Scene Location</span>
+                    </span>
+                    <p className="font-medium text-foreground text-xs mt-1">{selectedJudicialRecord.location}</p>
+                  </div>
+                </div>
+
+                {/* Incident Narrative */}
+                <div className="space-y-1.5 p-3 rounded-lg border border-border/60 bg-muted/10">
+                  <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider block">
+                    Official Incident Summary & Judicial Narrative
+                  </span>
+                  <p className="text-foreground/90 text-xs leading-relaxed whitespace-pre-wrap">
+                    {selectedJudicialRecord.description}
+                  </p>
+                </div>
+
+                {/* Cryptographic Footnote */}
+                <div className="p-2.5 rounded-md border border-border/40 bg-muted/20 flex items-center justify-between text-[11px] text-muted-foreground">
+                  <div className="flex items-center gap-2">
+                    <Lock className="size-3.5 text-muted-foreground/70 shrink-0" />
+                    <span>Indexed in Tamil Nadu State Judicial Police Repository.</span>
+                  </div>
+                  <span className="font-mono text-[10px] text-muted-foreground bg-muted/40 px-1.5 py-0.5 rounded border border-border/40">
+                    VERIFIED-RECORD
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Footer */}
+          <div className="shrink-0 px-4 sm:px-6 py-3.5 border-t border-border/60 bg-muted/10 flex flex-col sm:flex-row items-center justify-between gap-2.5">
             <Link
               href={`/case-details/${selectedJudicialRecord?.caseId}`}
-              className="text-xs font-semibold text-[#a594fd] hover:text-[#c0b3ff] flex items-center gap-1.5"
+              className="text-xs font-semibold text-[#a89dff] hover:text-white flex items-center gap-1.5 transition-colors"
             >
               <span>Open Linked Case File</span>
               <ExternalLink className="size-3" />
@@ -4414,7 +4861,7 @@ export function CriminalProfileTabs({
                   );
                   toast.success("Record permalink copied to clipboard");
                 }}
-                className="h-8 px-3 text-xs font-semibold rounded-md border-2 border-border/80 bg-background/50 hover:bg-muted cursor-pointer"
+                className="h-9 px-3 text-xs font-medium rounded-lg border-2 border-border/80 bg-background/50 hover:bg-muted text-foreground cursor-pointer"
               >
                 <Copy className="size-3 text-muted-foreground mr-1" />
                 <span>Copy Permalink</span>
@@ -4422,99 +4869,22 @@ export function CriminalProfileTabs({
               <Button
                 type="button"
                 size="sm"
-                onClick={() => setSelectedJudicialRecord(null)}
-                className="h-8 px-4 text-xs font-semibold rounded-md bg-[#665AEF] hover:bg-[#5749DF] text-white cursor-pointer"
+                onClick={() => {
+                  setSelectedJudicialRecord(null);
+                  if (typeof window !== "undefined") {
+                    const url = new URL(window.location.href);
+                    url.searchParams.delete("record");
+                    window.history.replaceState(null, "", url.toString());
+                  }
+                }}
+                className="h-9 px-4 text-xs font-semibold rounded-lg bg-[#665AEF] hover:bg-[#5748e6] text-white cursor-pointer shadow-sm"
               >
                 Close
               </Button>
             </div>
           </div>
-        }
-      >
-        {selectedJudicialRecord && (
-          <div className="space-y-4 pt-1 text-xs">
-            {/* Top Grid: Case Number, Offence, Status, Outcome */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-3 rounded-lg border-2 border-border/70 bg-card/60">
-              <div>
-                <span className="text-[10px] text-muted-foreground uppercase font-semibold">Docket Number</span>
-                <p className="font-mono font-bold text-[#a594fd] text-xs mt-0.5">{selectedJudicialRecord.caseId}</p>
-              </div>
-              <div>
-                <span className="text-[10px] text-muted-foreground uppercase font-semibold">Offence Type</span>
-                <div className="mt-0.5">{renderOffenceBadge(selectedJudicialRecord.offenceType as any)}</div>
-              </div>
-              <div>
-                <span className="text-[10px] text-muted-foreground uppercase font-semibold">Status</span>
-                <div className="mt-0.5">{renderHistoryStatusBadge(selectedJudicialRecord.status as any)}</div>
-              </div>
-              <div>
-                <span className="text-[10px] text-muted-foreground uppercase font-semibold">Disposition</span>
-                <div className="mt-0.5">{renderOutcomeBadge(selectedJudicialRecord.outcome as any)}</div>
-              </div>
-            </div>
-
-            {/* Middle Grid: Court Name, Sentence, Incident Date, Location */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 rounded-lg border border-border/60 bg-muted/20">
-              <div>
-                <span className="text-[10px] text-muted-foreground font-semibold flex items-center gap-1">
-                  <Scale className="size-3 text-[#a594fd]" />
-                  <span>Presiding Court & Jurisdiction</span>
-                </span>
-                <p className="font-medium text-foreground text-xs mt-1">
-                  {selectedJudicialRecord.courtName || "Principal District & Sessions Court, Chennai"}
-                </p>
-              </div>
-              <div>
-                <span className="text-[10px] text-muted-foreground font-semibold flex items-center gap-1">
-                  <Gavel className="size-3 text-[#a594fd]" />
-                  <span>Sentencing & Penalty</span>
-                </span>
-                <p className="font-medium text-foreground text-xs mt-1">
-                  {selectedJudicialRecord.sentenceDetails ||
-                    (selectedJudicialRecord.outcome === "Convicted"
-                      ? "Sentenced under provisions of Indian Penal Code"
-                      : "Pending final judicial pronouncement")}
-                </p>
-              </div>
-              <div>
-                <span className="text-[10px] text-muted-foreground font-semibold flex items-center gap-1">
-                  <Calendar className="size-3 text-[#a594fd]" />
-                  <span>Incident Date</span>
-                </span>
-                <p className="font-medium text-foreground text-xs mt-1">{selectedJudicialRecord.date}</p>
-              </div>
-              <div>
-                <span className="text-[10px] text-muted-foreground font-semibold flex items-center gap-1">
-                  <MapPin className="size-3 text-[#a594fd]" />
-                  <span>Crime Scene Location</span>
-                </span>
-                <p className="font-medium text-foreground text-xs mt-1">{selectedJudicialRecord.location}</p>
-              </div>
-            </div>
-
-            {/* Incident Narrative */}
-            <div className="space-y-1.5 p-3 rounded-lg border border-border/60 bg-muted/10">
-              <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider block">
-                Official Incident Summary & Judicial Narrative
-              </span>
-              <p className="text-foreground/90 text-xs leading-relaxed whitespace-pre-wrap">
-                {selectedJudicialRecord.description}
-              </p>
-            </div>
-
-            {/* Cryptographic Footnote */}
-            <div className="p-2.5 rounded-md border border-border/40 bg-muted/20 flex items-center justify-between text-[11px] text-muted-foreground">
-              <div className="flex items-center gap-2">
-                <Lock className="size-3.5 text-[#a594fd] shrink-0" />
-                <span>Indexed in Tamil Nadu State Judicial Police Repository.</span>
-              </div>
-              <span className="font-mono text-[10px] text-[#a594fd] bg-muted/40 px-1.5 py-0.5 rounded border border-border/40">
-                VERIFIED-RECORD
-              </span>
-            </div>
-          </div>
-        )}
-      </Modal>
+        </DialogContent>
+      </Dialog>
 
       {/* ─────────────────────────────────────────────────────────────
           BIOMETRIC REFERENCE PHOTO DIALOG (CLEAN SHADCN COMPONENT)
@@ -5229,138 +5599,430 @@ export function CriminalProfileTabs({
       {/* ─────────────────────────────────────────────────────────────
           MODAL 8: EDIT JUDICIAL RECORD
           ───────────────────────────────────────────────────────────── */}
-      <Modal
-        isOpen={isEditRecordOpen}
-        onClose={() => setIsEditRecordOpen(false)}
-        maxWidth="max-w-2xl"
-        className="border-2 border-border/90 bg-[#0B0F17]/95 backdrop-blur-xl shadow-2xl rounded-xl"
-        title={
-          <div className="flex items-center gap-2.5">
-            <div className="flex size-8.5 items-center justify-center rounded-lg bg-[#665AEF]/20 text-[#a594fd] border border-[#665AEF]/30 shrink-0">
-              <FolderClock className="size-4" />
-            </div>
-            <div>
-              <span className="text-sm sm:text-base font-semibold text-foreground">
-                Edit Judicial Docket {recordToEdit?.caseId}
-              </span>
-              <p className="text-[11px] text-muted-foreground">
-                Update charges, court dispositions, or sentences
-              </p>
-            </div>
-          </div>
-        }
-        footer={
-          <div className="flex items-center justify-end gap-2 w-full">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setIsEditRecordOpen(false)}
-              className="h-8.5 px-3 text-xs"
-            >
-              Cancel
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              onClick={handleSaveEditRecord}
-              disabled={isSavingEditRecord}
-              className="h-8.5 px-4 text-xs bg-[#665AEF] hover:bg-[#5749DF] text-white font-semibold cursor-pointer"
-            >
-              {isSavingEditRecord ? "Saving..." : "Save Changes"}
-            </Button>
-          </div>
-        }
-      >
-        <div className="space-y-3.5 text-xs">
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <label className="text-[11px] font-medium text-muted-foreground">Court Case / FIR Number</label>
-              <Input
-                value={editRecordForm.courtCaseNumber}
-                onChange={(e) => setEditRecordForm({ ...editRecordForm, courtCaseNumber: e.target.value })}
-                className="h-8.5 text-xs font-mono bg-background/50 border-border/80"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-[11px] font-medium text-muted-foreground">Offence / Penal Section</label>
-              <Input
-                value={editRecordForm.offenceType}
-                onChange={(e) => setEditRecordForm({ ...editRecordForm, offenceType: e.target.value })}
-                className="h-8.5 text-xs bg-background/50 border-border/80"
-              />
-            </div>
-          </div>
+      <Dialog open={isEditRecordOpen} onOpenChange={setIsEditRecordOpen}>
+        <DialogContent
+          showCloseButton={false}
+          className="w-[calc(100vw-1.25rem)] sm:w-full sm:max-w-xl md:max-w-2xl max-h-[90vh] flex flex-col rounded-2xl border-2 border-border/80 bg-[#0c0c12]/98 backdrop-blur-2xl p-0 shadow-2xl gap-0 text-foreground overflow-hidden no-scrollbar scrollbar-none [&::-webkit-scrollbar]:hidden"
+        >
+          <form onSubmit={handleSaveEditRecord} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+            {/* Header: Clean, modern, typography-first, no purple icon card */}
+            <div className="shrink-0 px-4 sm:px-6 pt-4 sm:pt-5 pb-3 border-b border-border/60 bg-muted/10">
+              <div className="flex items-center justify-between gap-2.5">
+                <div className="min-w-0">
+                  <DialogTitle className="text-base sm:text-lg font-heading font-semibold text-foreground tracking-tight">
+                    Edit Judicial Docket
+                  </DialogTitle>
+                  <DialogDescription className="text-xs text-muted-foreground mt-0.5 truncate sm:whitespace-normal">
+                    Update charges, court dispositions, or sentences
+                  </DialogDescription>
+                </div>
 
-          <div className="grid grid-cols-3 gap-3">
-            <div className="space-y-1">
-              <label className="text-[11px] font-medium text-muted-foreground">Incident Date</label>
-              <Input
-                type="date"
-                value={editRecordForm.incidentDate}
-                onChange={(e) => setEditRecordForm({ ...editRecordForm, incidentDate: e.target.value })}
-                className="h-8.5 text-xs bg-background/50 border-border/80"
-              />
+                {recordToEdit?.caseId && (
+                  <span className="font-mono text-[11px] sm:text-xs px-2.5 sm:px-3 py-1 rounded-full bg-neutral-900 text-neutral-300 border border-neutral-700 shrink-0 font-medium">
+                    {recordToEdit.caseId}
+                  </span>
+                )}
+              </div>
             </div>
-            <div className="space-y-1">
-              <label className="text-[11px] font-medium text-muted-foreground">Status</label>
-              <Input
-                value={editRecordForm.status}
-                onChange={(e) => setEditRecordForm({ ...editRecordForm, status: e.target.value })}
-                className="h-8.5 text-xs bg-background/50 border-border/80"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-[11px] font-medium text-muted-foreground">Outcome</label>
-              <Input
-                value={editRecordForm.outcome}
-                onChange={(e) => setEditRecordForm({ ...editRecordForm, outcome: e.target.value })}
-                placeholder="Convicted / Trial / Acquitted"
-                className="h-8.5 text-xs bg-background/50 border-border/80"
-              />
-            </div>
-          </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <label className="text-[11px] font-medium text-muted-foreground">Location</label>
-              <Input
-                value={editRecordForm.location}
-                onChange={(e) => setEditRecordForm({ ...editRecordForm, location: e.target.value })}
-                className="h-8.5 text-xs bg-background/50 border-border/80"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-[11px] font-medium text-muted-foreground">Presiding Court</label>
-              <Input
-                value={editRecordForm.courtName}
-                onChange={(e) => setEditRecordForm({ ...editRecordForm, courtName: e.target.value })}
-                className="h-8.5 text-xs bg-background/50 border-border/80"
-              />
-            </div>
-          </div>
+            {/* Body: Responsive grid with scroll containment */}
+            <div className="flex-1 min-h-0 overflow-y-auto p-4 sm:p-6 space-y-4 text-xs no-scrollbar scrollbar-none [&::-webkit-scrollbar]:hidden">
+              {/* Row 1: Court Case / FIR Number & Offence / Penal Section */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-medium text-foreground">
+                      Court Case / FIR Number
+                    </Label>
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono text-muted-foreground bg-muted/40 border border-border/60">
+                      <Lock className="size-2.5 text-muted-foreground/70" />
+                      Locked
+                    </span>
+                  </div>
+                  <div className="relative">
+                    <Input
+                      value={recordToEdit?.caseId || editRecordForm.courtCaseNumber}
+                      readOnly
+                      disabled
+                      aria-readonly="true"
+                      title="Case number is immutable and locked once created"
+                      className="h-9.5 rounded-lg border-2 border-border/60 bg-muted/20 font-mono text-xs text-muted-foreground select-none cursor-not-allowed pr-8 opacity-80"
+                    />
+                    <Lock className="size-3.5 text-muted-foreground/50 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  </div>
+                </div>
 
-          <div className="space-y-1">
-            <label className="text-[11px] font-medium text-muted-foreground">Sentence Details / Order</label>
-            <Input
-              value={editRecordForm.sentenceDetails}
-              onChange={(e) => setEditRecordForm({ ...editRecordForm, sentenceDetails: e.target.value })}
-              placeholder="e.g. 5 Years Rigorous Imprisonment + ₹50,000 fine"
-              className="h-8.5 text-xs bg-background/50 border-border/80"
-            />
-          </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium text-foreground">
+                    Offence / Penal Section
+                  </Label>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger
+                      render={
+                        <button
+                          type="button"
+                          className="flex w-full items-center justify-between gap-1.5 h-9.5 px-3 rounded-lg border-2 border-border/80 bg-background/50 text-xs text-foreground cursor-pointer select-none outline-none transition-colors hover:bg-muted/30 focus-visible:border-[#665AEF] focus-visible:ring-1 focus-visible:ring-[#665AEF]"
+                        />
+                      }
+                    >
+                      <span className={cn("truncate font-medium", !editRecordForm.offenceType && "text-muted-foreground/50")}>
+                        {editRecordForm.offenceType || "Select Offence"}
+                      </span>
+                      <ChevronDown className="size-3.5 text-muted-foreground opacity-70 shrink-0 ml-1" />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent
+                      align="start"
+                      sideOffset={5}
+                      className="min-w-(--anchor-width) w-auto max-w-xs max-h-60 overflow-y-auto p-1 rounded-xl shadow-2xl bg-[#0c0c12]/98 backdrop-blur-2xl border-2 border-border/80 text-foreground z-[100] no-scrollbar scrollbar-none [&::-webkit-scrollbar]:hidden"
+                    >
+                      <DropdownMenuGroup
+                        className="space-y-0.5"
+                        onPointerLeave={() => setHoveredEditOffence(null)}
+                      >
+                        {editOffenceOptions.map((opt) => {
+                          const isSelected = editRecordForm.offenceType === opt;
+                          return (
+                            <DropdownMenuItem
+                              key={opt}
+                              onPointerEnter={() => setHoveredEditOffence(opt)}
+                              onClick={() => setEditRecordForm((prev) => ({ ...prev, offenceType: opt }))}
+                              className="relative z-0 group flex items-center justify-between gap-2.5 cursor-pointer px-2.5 py-1.5 rounded-md text-xs transition-colors focus:text-accent-foreground hover:text-accent-foreground bg-transparent! outline-none"
+                            >
+                              {hoveredEditOffence === opt && (
+                                <motion.div
+                                  layoutId="edit-offence-hover"
+                                  className="absolute inset-0 z-[-1] rounded-md bg-accent/80"
+                                  transition={{ type: "spring", bounce: 0.3, duration: 0.4 }}
+                                />
+                              )}
+                              <span
+                                className={cn(
+                                  "truncate",
+                                  isSelected
+                                    ? "font-semibold text-foreground"
+                                    : "text-muted-foreground group-hover:text-foreground"
+                                )}
+                              >
+                                {opt}
+                              </span>
+                              {isSelected && (
+                                <Check className="size-3.5 text-[#665AEF] shrink-0" />
+                              )}
+                            </DropdownMenuItem>
+                          );
+                        })}
+                      </DropdownMenuGroup>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </div>
 
-          <div className="space-y-1">
-            <label className="text-[11px] font-medium text-muted-foreground">Detailed Offence Description</label>
-            <textarea
-              rows={3}
-              value={editRecordForm.description}
-              onChange={(e) => setEditRecordForm({ ...editRecordForm, description: e.target.value })}
-              className="w-full px-3 py-2 rounded-lg bg-background/50 border border-border/80 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-[#665AEF]"
-            />
-          </div>
-        </div>
-      </Modal>
+              {/* Row 2: Incident Date (Calendar component), Status Dropdown, Outcome Dropdown */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium text-foreground">
+                    Incident Date
+                  </Label>
+                  <Popover open={isEditDatePickerOpen} onOpenChange={setIsEditDatePickerOpen}>
+                    <PopoverTrigger
+                      render={
+                        <button
+                          type="button"
+                          className="flex w-full items-center justify-between gap-1.5 h-9.5 px-3 rounded-lg border-2 border-border/80 bg-background/50 text-xs text-foreground cursor-pointer select-none outline-none transition-colors hover:bg-muted/30 focus-visible:border-[#665AEF] focus-visible:ring-1 focus-visible:ring-[#665AEF]"
+                        />
+                      }
+                    >
+                      <span className={cn("truncate font-medium", !editRecordForm.incidentDate && "text-muted-foreground/50")}>
+                        {formattedEditIncidentDate || "Select incident date"}
+                      </span>
+                      <Calendar className="size-3.5 text-muted-foreground opacity-70 shrink-0 ml-1" />
+                    </PopoverTrigger>
+                    <PopoverContent
+                      align="start"
+                      side="bottom"
+                      sideOffset={6}
+                      className="w-auto p-2.5 rounded-2xl shadow-2xl bg-[#0c0c12]/98 backdrop-blur-2xl border-2 border-border/80 text-foreground z-[100]"
+                    >
+                      <CalendarPicker
+                        mode="single"
+                        selected={parsedEditIncidentDate}
+                        defaultMonth={parsedEditIncidentDate || new Date()}
+                        onSelect={(date) => {
+                          if (date) {
+                            setEditRecordForm((prev) => ({
+                              ...prev,
+                              incidentDate: format(date, "MMM d, yyyy"),
+                            }));
+                            setIsEditDatePickerOpen(false);
+                          }
+                        }}
+                      />
+                      <div className="flex items-center justify-between pt-2 border-t border-border/60 mt-1 px-1">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="xs"
+                          className="text-xs h-7 px-2 text-muted-foreground hover:text-foreground cursor-pointer"
+                          onClick={() => {
+                            setEditRecordForm((prev) => ({
+                              ...prev,
+                              incidentDate: format(new Date(), "MMM d, yyyy"),
+                            }));
+                            setIsEditDatePickerOpen(false);
+                          }}
+                        >
+                          Today
+                        </Button>
+                        {editRecordForm.incidentDate && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="xs"
+                            className="text-xs h-7 px-2 text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 cursor-pointer"
+                            onClick={() => {
+                              setEditRecordForm((prev) => ({
+                                ...prev,
+                                incidentDate: "",
+                              }));
+                              setIsEditDatePickerOpen(false);
+                            }}
+                          >
+                            Clear
+                          </Button>
+                        )}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium text-foreground">
+                    Status
+                  </Label>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger
+                      render={
+                        <button
+                          type="button"
+                          className="flex w-full items-center justify-between gap-1.5 h-9.5 px-3 rounded-lg border-2 border-border/80 bg-background/50 text-xs text-foreground cursor-pointer select-none outline-none transition-colors hover:bg-muted/30 focus-visible:border-neutral-500 focus-visible:ring-1 focus-visible:ring-neutral-500"
+                        />
+                      }
+                    >
+                      <span className={cn("truncate font-medium", !editRecordForm.status && "text-muted-foreground/50")}>
+                        {editRecordForm.status || "Select Status"}
+                      </span>
+                      <ChevronDown className="size-3.5 text-muted-foreground opacity-70 shrink-0 ml-1" />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent
+                      align="start"
+                      sideOffset={5}
+                      className="min-w-(--anchor-width) w-auto max-w-xs max-h-60 overflow-y-auto p-1 rounded-xl shadow-2xl bg-[#0c0c12]/98 backdrop-blur-2xl border-2 border-border/80 text-foreground z-[100] no-scrollbar scrollbar-none [&::-webkit-scrollbar]:hidden"
+                    >
+                      <DropdownMenuGroup
+                        className="space-y-0.5"
+                        onPointerLeave={() => setHoveredEditStatus(null)}
+                      >
+                        {editStatusOptions.map((opt) => {
+                          const isSelected = editRecordForm.status === opt;
+                          return (
+                            <DropdownMenuItem
+                              key={opt}
+                              onPointerEnter={() => setHoveredEditStatus(opt)}
+                              onClick={() => setEditRecordForm((prev) => ({ ...prev, status: opt }))}
+                              className="relative z-0 group flex items-center justify-between gap-2.5 cursor-pointer px-2.5 py-1.5 rounded-md text-xs transition-colors focus:text-accent-foreground hover:text-accent-foreground bg-transparent! outline-none"
+                            >
+                              {hoveredEditStatus === opt && (
+                                <motion.div
+                                  layoutId="edit-status-hover"
+                                  className="absolute inset-0 z-[-1] rounded-md bg-accent/80"
+                                  transition={{ type: "spring", bounce: 0.3, duration: 0.4 }}
+                                />
+                              )}
+                              <span
+                                className={cn(
+                                  "truncate",
+                                  isSelected
+                                    ? "font-semibold text-foreground"
+                                    : "text-muted-foreground group-hover:text-foreground"
+                                )}
+                              >
+                                {opt}
+                              </span>
+                              {isSelected && (
+                                <Check className="size-3.5 text-emerald-400 shrink-0" />
+                              )}
+                            </DropdownMenuItem>
+                          );
+                        })}
+                      </DropdownMenuGroup>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium text-foreground">
+                    Outcome
+                  </Label>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger
+                      render={
+                        <button
+                          type="button"
+                          className="flex w-full items-center justify-between gap-1.5 h-9.5 px-3 rounded-lg border-2 border-border/80 bg-background/50 text-xs text-foreground cursor-pointer select-none outline-none transition-colors hover:bg-muted/30 focus-visible:border-neutral-500 focus-visible:ring-1 focus-visible:ring-neutral-500"
+                        />
+                      }
+                    >
+                      <span className={cn("truncate font-medium", !editRecordForm.outcome && "text-muted-foreground/50")}>
+                        {editRecordForm.outcome || "Select Outcome"}
+                      </span>
+                      <ChevronDown className="size-3.5 text-muted-foreground opacity-70 shrink-0 ml-1" />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent
+                      align="start"
+                      sideOffset={5}
+                      className="min-w-(--anchor-width) w-auto max-w-xs max-h-60 overflow-y-auto p-1 rounded-xl shadow-2xl bg-[#0c0c12]/98 backdrop-blur-2xl border-2 border-border/80 text-foreground z-[100] no-scrollbar scrollbar-none [&::-webkit-scrollbar]:hidden"
+                    >
+                      <DropdownMenuGroup
+                        className="space-y-0.5"
+                        onPointerLeave={() => setHoveredEditOutcome(null)}
+                      >
+                        {editOutcomeOptions.map((opt) => {
+                          const isSelected = editRecordForm.outcome === opt;
+                          return (
+                            <DropdownMenuItem
+                              key={opt}
+                              onPointerEnter={() => setHoveredEditOutcome(opt)}
+                              onClick={() => setEditRecordForm((prev) => ({ ...prev, outcome: opt }))}
+                              className="relative z-0 group flex items-center justify-between gap-2.5 cursor-pointer px-2.5 py-1.5 rounded-md text-xs transition-colors focus:text-accent-foreground hover:text-accent-foreground bg-transparent! outline-none"
+                            >
+                              {hoveredEditOutcome === opt && (
+                                <motion.div
+                                  layoutId="edit-outcome-hover"
+                                  className="absolute inset-0 z-[-1] rounded-md bg-accent/80"
+                                  transition={{ type: "spring", bounce: 0.3, duration: 0.4 }}
+                                />
+                              )}
+                              <span
+                                className={cn(
+                                  "truncate",
+                                  isSelected
+                                    ? "font-semibold text-foreground"
+                                    : "text-muted-foreground group-hover:text-foreground"
+                                )}
+                              >
+                                {opt}
+                              </span>
+                              {isSelected && (
+                                <Check className="size-3.5 text-emerald-400 shrink-0" />
+                              )}
+                            </DropdownMenuItem>
+                          );
+                        })}
+                      </DropdownMenuGroup>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </div>
+
+              {/* Row 3: Location & Presiding Court */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium text-foreground">
+                    Location
+                  </Label>
+                  <Input
+                    value={editRecordForm.location}
+                    onChange={(e) =>
+                      setEditRecordForm({ ...editRecordForm, location: e.target.value })
+                    }
+                    placeholder="e.g. Chennai, TN"
+                    className="h-9.5 rounded-lg border-2 border-border/80 bg-background/50 text-xs text-foreground focus-visible:border-neutral-500"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-medium text-foreground">
+                    Presiding Court
+                  </Label>
+                  <Input
+                    value={editRecordForm.courtName}
+                    onChange={(e) =>
+                      setEditRecordForm({ ...editRecordForm, courtName: e.target.value })
+                    }
+                    placeholder="e.g. Metropolitan Criminal Court, Chennai"
+                    className="h-9.5 rounded-lg border-2 border-border/80 bg-background/50 text-xs text-foreground focus-visible:border-neutral-500"
+                  />
+                </div>
+              </div>
+
+              {/* Row 4: Sentence Details / Order */}
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium text-foreground">
+                  Sentence Details / Order
+                </Label>
+                <Input
+                  value={editRecordForm.sentenceDetails}
+                  onChange={(e) =>
+                    setEditRecordForm({ ...editRecordForm, sentenceDetails: e.target.value })
+                  }
+                  placeholder="e.g. 5 Years Rigorous Imprisonment + ₹50,000 fine"
+                  className="h-9.5 rounded-lg border-2 border-border/80 bg-background/50 text-xs text-foreground focus-visible:border-neutral-500"
+                />
+              </div>
+
+              {/* Row 5: Detailed Offence Description */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-medium text-foreground">
+                    Detailed Offence Description
+                  </Label>
+                  <span className="text-[11px] text-muted-foreground font-mono">
+                    {editRecordForm.description.length} chars
+                  </span>
+                </div>
+                <textarea
+                  rows={3}
+                  value={editRecordForm.description}
+                  onChange={(e) =>
+                    setEditRecordForm({ ...editRecordForm, description: e.target.value })
+                  }
+                  placeholder="Enter detailed incident summary, facts, or charges..."
+                  className="w-full rounded-lg border-2 border-border/80 bg-background/50 p-3 text-xs text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:border-neutral-500 focus:ring-1 focus:ring-neutral-500 resize-none leading-relaxed transition-colors"
+                />
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="shrink-0 px-4 sm:px-6 py-3.5 border-t border-border/60 bg-muted/10 flex items-center justify-between gap-3">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setIsEditRecordOpen(false)}
+                className="h-9 px-3 text-xs font-medium text-muted-foreground hover:text-foreground cursor-pointer"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                disabled={isSavingEditRecord}
+                className="h-9 px-5 text-xs font-semibold rounded-lg bg-[#665AEF] hover:bg-[#584bd4] text-white cursor-pointer shadow-sm flex items-center gap-2 transition-colors"
+              >
+                {isSavingEditRecord ? (
+                  <>
+                    <Loader2 className="size-3.5 animate-spin" />
+                    <span>Saving...</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className="size-3.5" />
+                    <span>Save Changes</span>
+                  </>
+                )}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* ─────────────────────────────────────────────────────────────
           MODAL 9: DELETE JUDICIAL RECORD CONFIRMATION

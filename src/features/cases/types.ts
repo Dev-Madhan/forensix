@@ -25,7 +25,7 @@ export interface CaseItem {
   location: string;
   date: string;
   timestamp?: string;
-  status: "Under Investigation" | "Open" | "Solved" | "Closed" | "Cold";
+  status: "Under Investigation" | "Open" | "Solved" | "Closed" | "Cold" | "Archived";
   closedDate?: string;
   description?: string;
   assignedTo?: string;

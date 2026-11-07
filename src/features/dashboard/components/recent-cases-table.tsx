@@ -33,48 +33,58 @@ export interface CaseItem {
   caseId: string;
   title: string;
   date: string;
-  status: "Under Investigation" | "Open" | "Solved" | "Closed" | "Cold";
+  status: "Under Investigation" | "Open" | "Solved" | "Closed" | "Cold" | "Archived";
 }
 
-function getStatusBadge(status: CaseItem["status"]) {
-  switch (status) {
-    case "Under Investigation":
-      return (
-        <span className="inline-flex items-center rounded-md border border-[#665AEF]/40 bg-[#665AEF]/15 px-2 py-0.5 text-[10px] sm:text-[11px] font-medium text-[#a594fd] whitespace-nowrap">
-          Under Investigation
-        </span>
-      );
-    case "Open":
-      return (
-        <span className="inline-flex items-center rounded-md border border-blue-500/40 bg-blue-500/15 px-2 py-0.5 text-[10px] sm:text-[11px] font-medium text-blue-400 whitespace-nowrap">
-          Open
-        </span>
-      );
-    case "Solved":
-      return (
-        <span className="inline-flex items-center rounded-md border border-emerald-500/40 bg-emerald-500/15 px-2 py-0.5 text-[10px] sm:text-[11px] font-medium text-emerald-400 whitespace-nowrap">
-          Solved
-        </span>
-      );
-    case "Cold":
-      return (
-        <span className="inline-flex items-center rounded-md border border-cyan-500/40 bg-cyan-500/15 px-2 py-0.5 text-[10px] sm:text-[11px] font-medium text-cyan-300 whitespace-nowrap">
-          Cold
-        </span>
-      );
-    case "Closed":
-      return (
-        <span className="inline-flex items-center rounded-md border border-zinc-600/40 bg-zinc-800/40 px-2 py-0.5 text-[10px] sm:text-[11px] font-medium text-zinc-300 whitespace-nowrap">
-          Closed
-        </span>
-      );
-    default:
-      return (
-        <span className="inline-flex items-center rounded-md border border-border bg-muted/50 px-2 py-0.5 text-[10px] sm:text-[11px] font-medium text-muted-foreground whitespace-nowrap">
-          {status}
-        </span>
-      );
+function getStatusBadge(status: CaseItem["status"] | string) {
+  const norm = (status || "").toLowerCase();
+  if (norm.includes("archive")) {
+    return (
+      <span className="inline-flex items-center rounded-md border border-amber-500/40 bg-amber-500/15 px-2 py-0.5 text-[10px] sm:text-[11px] font-medium text-amber-400 whitespace-nowrap">
+        Archived
+      </span>
+    );
   }
+  if (norm.includes("investigat")) {
+    return (
+      <span className="inline-flex items-center rounded-md border border-[#665AEF]/40 bg-[#665AEF]/15 px-2 py-0.5 text-[10px] sm:text-[11px] font-medium text-[#a594fd] whitespace-nowrap">
+        Under Investigation
+      </span>
+    );
+  }
+  if (norm === "open") {
+    return (
+      <span className="inline-flex items-center rounded-md border border-blue-500/40 bg-blue-500/15 px-2 py-0.5 text-[10px] sm:text-[11px] font-medium text-blue-400 whitespace-nowrap">
+        Open
+      </span>
+    );
+  }
+  if (norm === "solved") {
+    return (
+      <span className="inline-flex items-center rounded-md border border-emerald-500/40 bg-emerald-500/15 px-2 py-0.5 text-[10px] sm:text-[11px] font-medium text-emerald-400 whitespace-nowrap">
+        Solved
+      </span>
+    );
+  }
+  if (norm === "cold") {
+    return (
+      <span className="inline-flex items-center rounded-md border border-cyan-500/40 bg-cyan-500/15 px-2 py-0.5 text-[10px] sm:text-[11px] font-medium text-cyan-300 whitespace-nowrap">
+        Cold
+      </span>
+    );
+  }
+  if (norm === "closed") {
+    return (
+      <span className="inline-flex items-center rounded-md border border-zinc-600/40 bg-zinc-800/40 px-2 py-0.5 text-[10px] sm:text-[11px] font-medium text-zinc-300 whitespace-nowrap">
+        Closed
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center rounded-md border border-border bg-muted/50 px-2 py-0.5 text-[10px] sm:text-[11px] font-medium text-muted-foreground whitespace-nowrap">
+      {status}
+    </span>
+  );
 }
 
 interface RecentCasesTableProps {

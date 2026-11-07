@@ -199,8 +199,9 @@ export default async function CasesPage() {
 
       let mappedStatus: CaseItem["status"] = "Open";
       if (c.status === "UNDER_INVESTIGATION") mappedStatus = "Under Investigation";
-      else if (c.status === "CLOSED" || c.status === "ARCHIVED") mappedStatus = "Closed";
-      else if (c.status === "COLD") mappedStatus = "Cold";
+      else if (c.status === "ARCHIVED") mappedStatus = "Archived";
+      else if (c.status === "CLOSED") mappedStatus = "Closed";
+      else if (c.status === "COLD" || c.status === "ON_HOLD") mappedStatus = "Cold";
 
       return {
         id: c.id,

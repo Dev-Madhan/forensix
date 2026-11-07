@@ -10,7 +10,7 @@ interface UseDashboardRealtimeOptions {
     caseId: string;
     title: string;
     date: string;
-    status: "Under Investigation" | "Open" | "Solved" | "Closed" | "Cold";
+    status: "Under Investigation" | "Open" | "Solved" | "Closed" | "Cold" | "Archived";
   }) => void;
   onCaseStatusChanged?: (caseUpdate: {
     id: string;
@@ -87,9 +87,11 @@ export function useDashboardRealtime(options: UseDashboardRealtimeOptions = {}) 
                   createdAt?: string;
                 };
 
-                let mappedStatus: "Under Investigation" | "Open" | "Solved" | "Closed" | "Cold" = "Open";
+                let mappedStatus: "Under Investigation" | "Open" | "Solved" | "Closed" | "Cold" | "Archived" = "Open";
                 if (c.status === "UNDER_INVESTIGATION") mappedStatus = "Under Investigation";
-                else if (c.status === "CLOSED" || c.status === "ARCHIVED") mappedStatus = "Closed";
+                else if (c.status === "ARCHIVED") mappedStatus = "Archived";
+                else if (c.status === "CLOSED") mappedStatus = "Closed";
+                else if (c.status === "SOLVED") mappedStatus = "Solved";
                 else if (c.status === "COLD") mappedStatus = "Cold";
 
                 toast.info(`New Case Logged: ${c.caseNumber}`, {
@@ -137,6 +139,11 @@ export function useDashboardRealtime(options: UseDashboardRealtimeOptions = {}) 
               }
 
               case "SKETCH_GENERATED": {
+                if ((payload.data as any)?.isCleared) {
+                  optionsRef.current.onSketchesSync?.([]);
+                  break;
+                }
+
                 const sk = payload.data as {
                   id: string;
                   imageUrl: string;
@@ -222,6 +229,34 @@ export function useDashboardRealtime(options: UseDashboardRealtimeOptions = {}) 
       // BroadcastChannel unavailable
     }
 
+    // ── Window Custom Event & LocalStorage Sync Fallbacks ──
+    const handleSketchCustomEvent = (event: Event) => {
+      if (!mounted) return;
+      const customEvent = event as CustomEvent;
+      if (customEvent.detail) {
+        optionsRef.current.onSketchGenerated?.(customEvent.detail);
+      }
+    };
+
+    const handleStorageEvent = (event: StorageEvent) => {
+      if (!mounted) return;
+      if (event.key === "forensix:recent-sketch-sync" && event.newValue) {
+        try {
+          const parsed = JSON.parse(event.newValue);
+          if (parsed && parsed.imageUrl) {
+            optionsRef.current.onSketchGenerated?.(parsed);
+          }
+        } catch {
+          // ignore
+        }
+      }
+    };
+
+    if (typeof window !== "undefined") {
+      window.addEventListener("forensix:sketch-created", handleSketchCustomEvent);
+      window.addEventListener("storage", handleStorageEvent);
+    }
+
     // ── Continuous Background Sync (Every 6 seconds + Tab Focus) ──
     async function syncSketches() {
       if (!mounted) return;
@@ -256,6 +291,8 @@ export function useDashboardRealtime(options: UseDashboardRealtimeOptions = {}) 
       clearInterval(syncInterval);
       window.removeEventListener("focus", handleFocus);
       document.removeEventListener("visibilitychange", handleFocus);
+      window.removeEventListener("forensix:sketch-created", handleSketchCustomEvent);
+      window.removeEventListener("storage", handleStorageEvent);
 
       if (bc) {
         bc.close();

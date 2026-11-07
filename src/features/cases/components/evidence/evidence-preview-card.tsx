@@ -173,9 +173,12 @@ export function EvidencePreviewCard({
           {onPrevMedia && (
             <button
               type="button"
-              onClick={onPrevMedia}
+              onClick={(e) => {
+                e.stopPropagation();
+                onPrevMedia();
+              }}
               aria-label="Previous preview frame"
-              className="absolute left-2.5 top-1/2 -translate-y-1/2 size-7 rounded-full bg-black/60 hover:bg-black/85 text-white/90 hover:text-white backdrop-blur-xs border border-white/20 flex items-center justify-center transition-all cursor-pointer shadow-md"
+              className="absolute left-2.5 top-1/2 -translate-y-1/2 size-7 rounded-full bg-black/60 hover:bg-black/85 text-white/90 hover:text-white backdrop-blur-xs border border-white/20 flex items-center justify-center transition-all cursor-pointer shadow-md z-10"
             >
               <ChevronLeft className="size-4" />
             </button>
@@ -184,9 +187,12 @@ export function EvidencePreviewCard({
           {onNextMedia && (
             <button
               type="button"
-              onClick={onNextMedia}
+              onClick={(e) => {
+                e.stopPropagation();
+                onNextMedia();
+              }}
               aria-label="Next preview frame"
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 size-7 rounded-full bg-black/60 hover:bg-black/85 text-white/90 hover:text-white backdrop-blur-xs border border-white/20 flex items-center justify-center transition-all cursor-pointer shadow-md"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 size-7 rounded-full bg-black/60 hover:bg-black/85 text-white/90 hover:text-white backdrop-blur-xs border border-white/20 flex items-center justify-center transition-all cursor-pointer shadow-md z-10"
             >
               <ChevronRight className="size-4" />
             </button>

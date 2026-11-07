@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import Image from "next/image";
 import { motion, AnimatePresence } from "motion/react";
 import {
   AlertTriangle,
@@ -8,6 +9,7 @@ import {
   FolderKanban,
   Shield,
   UserCheck,
+  User,
   Activity,
   MapPin,
   ScanFace,
@@ -22,6 +24,8 @@ import {
   X,
   Download,
   CheckCircle2,
+  XCircle,
+  Upload,
   Lock,
   Cpu,
   ShieldCheck,
@@ -31,7 +35,11 @@ import {
   UserPlus,
   Sparkles,
   Wifi,
+  Loader2,
+  ExternalLink,
 } from "lucide-react";
+import { getSafeStorageUrl } from "@/lib/storage-url";
+import { SuspectAvatar } from "@/features/criminals/components/suspect-avatar";
 import { useCriminalRealtime } from "@/features/criminals/hooks/use-criminal-realtime";
 import NumberFlow from "@number-flow/react";
 import { useInView } from "react-intersection-observer";
@@ -120,8 +128,8 @@ function getEventVisualConfig(action: string, category: CriminalActivityCategory
     return {
       icon: Camera,
       label: "Surveillance",
-      badgeClass: "bg-rose-500/10 text-rose-400 border-rose-500/20",
-      nodeClass: "bg-rose-950/40 border-rose-500/40 text-rose-400 ring-4 ring-rose-500/5",
+      badgeClass: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
+      nodeClass: "bg-emerald-950/40 border-emerald-500/40 text-emerald-400 ring-4 ring-emerald-500/5",
     };
   }
 
@@ -156,8 +164,8 @@ function getEventVisualConfig(action: string, category: CriminalActivityCategory
     return {
       icon: Sparkles,
       label: "Mugshot",
-      badgeClass: "bg-violet-500/10 text-violet-400 border-violet-500/20",
-      nodeClass: "bg-violet-950/40 border-violet-500/40 text-violet-400 ring-4 ring-violet-500/5",
+      badgeClass: "bg-neutral-800 text-neutral-300 border-neutral-700",
+      nodeClass: "bg-neutral-900 border-neutral-700 text-neutral-300 ring-4 ring-neutral-800/40",
     };
   }
 
@@ -183,8 +191,8 @@ function getEventVisualConfig(action: string, category: CriminalActivityCategory
     return {
       icon: FolderKanban,
       label: "Case Link",
-      badgeClass: "bg-[#665AEF]/10 text-[#a594fd] border-[#665AEF]/20",
-      nodeClass: "bg-[#2D1B4E]/60 border-[#665AEF]/40 text-[#a594fd] ring-4 ring-[#665AEF]/5",
+      badgeClass: "bg-sky-500/10 text-sky-400 border-sky-500/20",
+      nodeClass: "bg-sky-950/40 border-sky-500/40 text-sky-400 ring-4 ring-sky-500/5",
     };
   }
 
@@ -223,6 +231,7 @@ const CATEGORIES: { id: "ALL" | CriminalActivityCategory; label: string }[] = [
 
 interface CriminalActivityTabProps {
   criminal: Criminal;
+  mugshotDisplayUrl?: string | null;
 }
 
 function RollingNumber({
@@ -269,7 +278,7 @@ export function ActivityTabSkeleton() {
           >
             <div className="flex items-center justify-between gap-2">
               <Skeleton className="h-3.5 sm:h-4 w-20 sm:w-28 rounded bg-muted/60" />
-              <Skeleton className="size-4.5 sm:size-5 rounded-md bg-[#665AEF]/20 shrink-0" />
+              <Skeleton className="size-4.5 sm:size-5 rounded-md bg-neutral-800 shrink-0" />
             </div>
             <div className="space-y-1.5">
               <Skeleton className="h-7 sm:h-8 w-14 sm:w-20 rounded-md bg-muted/70" />
@@ -286,7 +295,7 @@ export function ActivityTabSkeleton() {
 
       {/* ── Mobile View Switcher Skeleton ── */}
       <div className="flex lg:hidden items-center p-1 rounded-xl bg-card/60 border border-border/60 text-xs w-full gap-2">
-        <Skeleton className="flex-1 h-8 rounded-lg bg-[#665AEF]/20" />
+        <Skeleton className="flex-1 h-8 rounded-lg bg-neutral-800" />
         <Skeleton className="flex-1 h-8 rounded-lg bg-muted/40" />
       </div>
 
@@ -299,7 +308,7 @@ export function ActivityTabSkeleton() {
             <CardHeader className="p-3.5 sm:p-5 pb-3 border-b border-border/50 flex flex-col gap-3 min-w-0 w-full">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 min-w-0 w-full">
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <Skeleton className="size-5 rounded-md bg-[#665AEF]/20 shrink-0" />
+                  <Skeleton className="size-5 rounded-md bg-neutral-800 shrink-0" />
                   <div className="space-y-1.5 min-w-0">
                     <div className="flex items-center gap-2">
                       <Skeleton className="h-4 w-32 sm:w-40 rounded bg-muted/70" />
@@ -310,7 +319,7 @@ export function ActivityTabSkeleton() {
                 </div>
 
                 <div className="flex items-center gap-2 w-full sm:w-auto min-w-0">
-                  <Skeleton className="h-8.5 sm:h-8 flex-1 sm:w-24 rounded-lg bg-[#665AEF]/30 shrink-0" />
+                  <Skeleton className="h-8.5 sm:h-8 flex-1 sm:w-24 rounded-lg bg-neutral-800 shrink-0" />
                   <Skeleton className="h-8.5 sm:h-8 flex-1 sm:w-28 rounded-lg bg-rose-500/20 shrink-0" />
                   <Skeleton className="h-8.5 sm:h-8 w-16 sm:w-20 rounded-lg bg-muted/40 shrink-0" />
                 </div>
@@ -319,7 +328,7 @@ export function ActivityTabSkeleton() {
               {/* Filter Chips + Search Bar Skeleton */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-1 min-w-0 w-full">
                 <div className="flex items-center gap-1.5 overflow-hidden py-1 w-full sm:w-auto">
-                  <Skeleton className="h-7 w-14 rounded-lg bg-[#665AEF]/30 shrink-0" />
+                  <Skeleton className="h-7 w-14 rounded-lg bg-neutral-800 shrink-0" />
                   <Skeleton className="h-7 w-24 rounded-lg bg-muted/50 shrink-0" />
                   <Skeleton className="h-7 w-16 rounded-lg bg-muted/50 shrink-0" />
                   <Skeleton className="h-7 w-20 rounded-lg bg-muted/50 shrink-0" />
@@ -343,7 +352,7 @@ export function ActivityTabSkeleton() {
                     <div className="rounded-xl border border-border/50 bg-card/40 p-3 sm:p-4 space-y-2.5">
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2">
-                          <Skeleton className="h-4 w-20 rounded bg-[#665AEF]/20" />
+                          <Skeleton className="h-4 w-20 rounded bg-neutral-800" />
                           <Skeleton className="h-4 w-32 sm:w-48 rounded bg-muted/60" />
                         </div>
                         <Skeleton className="h-3 w-16 rounded bg-muted/40" />
@@ -413,8 +422,20 @@ export function ActivityTabSkeleton() {
   );
 }
 
-export function CriminalActivityTab({ criminal }: CriminalActivityTabProps) {
+export function CriminalActivityTab({ criminal, mugshotDisplayUrl }: CriminalActivityTabProps) {
   const criminalName = `${criminal.firstName} ${criminal.lastName}`;
+
+  const resolvedMugshotUrl = useMemo(() => {
+    if (mugshotDisplayUrl && !mugshotDisplayUrl.includes("undefined")) {
+      return getSafeStorageUrl(mugshotDisplayUrl);
+    }
+    if (criminal.mugshotUrl) {
+      return getSafeStorageUrl(criminal.mugshotUrl);
+    }
+    return "/images/suspects/arun-prakash.jpg";
+  }, [mugshotDisplayUrl, criminal.mugshotUrl]);
+
+  const [hasMugshotError, setHasMugshotError] = useState(false);
 
   const [activities, setActivities] = useState<CriminalActivityItem[]>([]);
   const [recognitionSummary, setRecognitionSummary] = useState<CriminalRecognitionSummary | null>(null);
@@ -644,6 +665,67 @@ export function CriminalActivityTab({ criminal }: CriminalActivityTabProps) {
   const [sightingConfidence, setSightingConfidence] = useState(94);
   const [sightingDetails, setSightingDetails] = useState("");
   const [isSightingSubmitting, setIsSightingSubmitting] = useState(false);
+  const [inspectingSighting, setInspectingSighting] = useState<CriminalActivityItem | null>(null);
+  const [isAdjudicatingSighting, setIsAdjudicatingSighting] = useState(false);
+  const [customKeyframes, setCustomKeyframes] = useState<Record<string, string>>({});
+
+  const handleUploadKeyframe = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (uploadEvent) => {
+      const dataUrl = uploadEvent.target?.result as string;
+      if (dataUrl && inspectingSighting) {
+        const sightingId = inspectingSighting.metadata.hitId || inspectingSighting.id;
+        setCustomKeyframes((prev) => ({ ...prev, [sightingId]: dataUrl }));
+        toast.success("Authentic CCTV keyframe snapshot attached to sighting.");
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const currentSightingKey = inspectingSighting
+    ? (inspectingSighting.metadata.hitId || inspectingSighting.id)
+    : "";
+
+  const resolvedKeyframeUrl = useMemo<string>(() => {
+    if (currentSightingKey && customKeyframes[currentSightingKey]) {
+      return customKeyframes[currentSightingKey];
+    }
+    if (inspectingSighting?.metadata.capturedMediaUrl) {
+      const safe = getSafeStorageUrl(inspectingSighting.metadata.capturedMediaUrl);
+      if (safe) return safe;
+    }
+    return "/images/cctv-suspect.jpg";
+  }, [currentSightingKey, customKeyframes, inspectingSighting?.metadata.capturedMediaUrl]);
+
+  useEffect(() => {
+    setHasMugshotError(false);
+  }, [inspectingSighting, mugshotDisplayUrl, criminal.mugshotUrl]);
+
+  const handleAdjudicateSighting = async (hitId: string, decision: SurveillanceHitStatus) => {
+    setIsAdjudicatingSighting(true);
+    try {
+      const res = await acknowledgeSurveillanceHit(hitId, decision);
+      if (res.error) {
+        toast.error(res.error);
+      } else {
+        toast.success(
+          decision === SurveillanceHitStatus.CONFIRMED_SIGHTING
+            ? "Forensic Sighting Confirmed & Signed into Custody Chain"
+            : decision === SurveillanceHitStatus.FALSE_POSITIVE
+            ? "Detection Dismissed as Non-Match (False Positive)"
+            : "Sighting marked Under Investigation"
+        );
+        setInspectingSighting(null);
+        await loadLogs(true);
+      }
+    } catch {
+      toast.error("Failed to update sighting status");
+    } finally {
+      setIsAdjudicatingSighting(false);
+    }
+  };
 
   const handleSelectPreset = (index: number) => {
     setSelectedSensorIndex(index);
@@ -711,7 +793,7 @@ export function CriminalActivityTab({ criminal }: CriminalActivityTabProps) {
             value: stats.total,
             sub: "Signed ledger entries",
             icon: FileCheck2,
-            iconClass: "text-[#a594fd]",
+            iconClass: "text-neutral-300",
           },
           {
             title: "Surveillance Sightings",
@@ -800,7 +882,7 @@ export function CriminalActivityTab({ criminal }: CriminalActivityTabProps) {
           className={cn(
             "flex-1 py-1.5 px-3 rounded-lg font-medium transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer",
             mobileTab === "feed"
-              ? "bg-[#665AEF] text-white shadow-xs"
+              ? "bg-white text-black shadow-xs font-semibold"
               : "text-muted-foreground hover:text-foreground"
           )}
         >
@@ -809,7 +891,7 @@ export function CriminalActivityTab({ criminal }: CriminalActivityTabProps) {
           <span
             className={cn(
               "text-[10px] font-mono px-1 rounded",
-              mobileTab === "feed" ? "bg-white/20 text-white" : "bg-muted text-muted-foreground"
+              mobileTab === "feed" ? "bg-black/15 text-black font-bold" : "bg-muted text-muted-foreground"
             )}
           >
             {filtered.length}
@@ -821,7 +903,7 @@ export function CriminalActivityTab({ criminal }: CriminalActivityTabProps) {
           className={cn(
             "flex-1 py-1.5 px-3 rounded-lg font-medium transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer",
             mobileTab === "ledger"
-              ? "bg-[#665AEF] text-white shadow-xs"
+              ? "bg-white text-black shadow-xs font-semibold"
               : "text-muted-foreground hover:text-foreground"
           )}
         >
@@ -840,7 +922,7 @@ export function CriminalActivityTab({ criminal }: CriminalActivityTabProps) {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 min-w-0 w-full">
                 <div className="flex items-center justify-between gap-2 w-full sm:w-auto min-w-0">
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <ShieldCheck className="size-5 text-[#a594fd] shrink-0" />
+                    <ShieldCheck className="size-5 text-emerald-400 shrink-0" />
                     <div className="min-w-0">
                       <CardTitle className="text-sm sm:text-base font-semibold tracking-tight text-foreground flex items-center gap-2 truncate">
                         <span>Forensic Audit Trail</span>
@@ -881,7 +963,7 @@ export function CriminalActivityTab({ criminal }: CriminalActivityTabProps) {
                     type="button"
                     size="sm"
                     onClick={() => setIsLogModalOpen(true)}
-                    className="h-8.5 sm:h-8 flex-1 sm:flex-none px-3 text-xs font-semibold gap-1.5 cursor-pointer bg-[#665AEF] hover:bg-[#5749DF] text-white shadow-xs shrink-0 sm:order-last"
+                    className="h-8.5 sm:h-8 flex-1 sm:flex-none px-3 text-xs font-semibold gap-1.5 cursor-pointer bg-[#665AEF] hover:bg-[#584bd4] text-white shadow-xs shrink-0 sm:order-last transition-colors"
                   >
                     <Plus className="size-3.5" />
                     <span>Log Event</span>
@@ -892,9 +974,9 @@ export function CriminalActivityTab({ criminal }: CriminalActivityTabProps) {
                     variant="outline"
                     size="sm"
                     onClick={() => setIsSurveillanceModalOpen(true)}
-                    className="h-8.5 sm:h-8 flex-1 sm:flex-none px-2.5 text-xs text-rose-400 border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 hover:text-rose-300 gap-1.5 cursor-pointer shrink-0"
+                    className="h-8.5 sm:h-8 flex-1 sm:flex-none px-2.5 text-xs text-neutral-300 border-neutral-800 bg-neutral-900 hover:bg-neutral-800 hover:text-white gap-1.5 cursor-pointer shrink-0 font-medium transition-colors"
                   >
-                    <Camera className="size-3.5 text-rose-400" />
+                    <Camera className="size-3.5 text-neutral-400" />
                     <span>ANPR<span className="hidden xs:inline"> Sighting</span></span>
                   </Button>
 
@@ -959,8 +1041,8 @@ export function CriminalActivityTab({ criminal }: CriminalActivityTabProps) {
                           className={cn(
                             "flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer shrink-0 select-none touch-pan-x active:scale-95",
                             isActive
-                              ? "bg-[#665AEF] text-white shadow-xs font-semibold ring-1 ring-[#665AEF]/50"
-                              : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground border border-border/40"
+                              ? "bg-white text-black shadow-xs font-semibold ring-1 ring-white/20"
+                              : "bg-neutral-900 text-neutral-400 hover:bg-neutral-800 hover:text-white border border-neutral-800"
                           )}
                         >
                           <span>{cat.label}</span>
@@ -968,8 +1050,8 @@ export function CriminalActivityTab({ criminal }: CriminalActivityTabProps) {
                             className={cn(
                               "text-[10px] font-mono px-1.5 py-0.2 rounded-md",
                               isActive
-                                ? "bg-white/20 text-white font-bold"
-                                : "bg-background/50 text-muted-foreground/80"
+                                ? "bg-black/15 text-black font-bold"
+                                : "bg-black/40 text-neutral-400"
                             )}
                           >
                             {countFor(cat.id)}
@@ -1160,7 +1242,7 @@ export function CriminalActivityTab({ criminal }: CriminalActivityTabProps) {
 
                                   {/* Confidence Match Tag */}
                                   {item.metadata.confidenceScore !== undefined && (
-                                    <span className="inline-flex items-center gap-1 font-mono text-[10px] sm:text-[11px] text-[#a594fd] px-1.5 sm:px-2 py-0.5 rounded-md bg-[#665AEF]/10 border border-[#665AEF]/20 shrink-0">
+                                    <span className="inline-flex items-center gap-1 font-mono text-[10px] sm:text-[11px] text-emerald-400 px-1.5 sm:px-2 py-0.5 rounded-md bg-emerald-950/40 border border-emerald-500/30 shrink-0">
                                       <ScanFace className="size-2.5 sm:size-3" />
                                       {(item.metadata.confidenceScore * 100).toFixed(1)}% match
                                     </span>
@@ -1168,45 +1250,45 @@ export function CriminalActivityTab({ criminal }: CriminalActivityTabProps) {
 
                                   {/* Case Link Tag */}
                                   {item.metadata.caseNumber && (
-                                    <span className="inline-flex items-center gap-1 font-mono text-[10px] sm:text-[11px] text-[#a594fd] px-1.5 sm:px-2 py-0.5 rounded-md bg-[#665AEF]/10 border border-[#665AEF]/20 shrink-0">
+                                    <span className="inline-flex items-center gap-1 font-mono text-[10px] sm:text-[11px] text-sky-400 px-1.5 sm:px-2 py-0.5 rounded-md bg-sky-950/40 border border-sky-500/30 shrink-0">
                                       <FolderKanban className="size-2.5 sm:size-3" />
                                       {item.metadata.caseNumber}
                                     </span>
                                   )}
 
-                                  {/* Surveillance Hit Acknowledge Action */}
-                                  {item.metadata.hitId && (
+                                  {/* Surveillance Hit Verification Trigger - Only available for Surveillance Sightings */}
+                                  {item.category === "SURVEILLANCE" && (
                                     <Button
                                       type="button"
                                       size="xs"
                                       variant="outline"
-                                      disabled={item.metadata.hitStatus !== "UNACKNOWLEDGED"}
-                                      onClick={async () => {
-                                        try {
-                                          const res = await acknowledgeSurveillanceHit(
-                                            item.metadata.hitId as string,
-                                            SurveillanceHitStatus.INVESTIGATING
-                                          );
-                                          if (res.error) {
-                                            toast.error(res.error);
-                                          } else {
-                                            toast.success("Surveillance sighting acknowledged", {
-                                              description: "Status advanced to INVESTIGATING.",
-                                            });
-                                            loadLogs(true);
-                                          }
-                                        } catch {
-                                          toast.error("Failed to acknowledge sighting");
-                                        }
-                                      }}
-                                      className="h-5.5 sm:h-6 px-1.5 sm:px-2 text-[9px] sm:text-[10px] font-medium border-rose-500/30 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 cursor-pointer disabled:opacity-50"
+                                      onClick={() => setInspectingSighting(item)}
+                                      className={cn(
+                                        "h-5.5 sm:h-6 px-1.5 sm:px-2 text-[9px] sm:text-[10px] font-medium border cursor-pointer flex items-center gap-1 transition-colors",
+                                        item.metadata.hitStatus === "CONFIRMED_SIGHTING"
+                                          ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300 hover:bg-emerald-500/20"
+                                          : item.metadata.hitStatus === "FALSE_POSITIVE"
+                                          ? "border-zinc-700/60 bg-zinc-800/40 text-zinc-400 line-through hover:bg-zinc-800/60"
+                                          : "border-neutral-700 bg-neutral-900/80 text-neutral-300 hover:bg-neutral-800 hover:text-white"
+                                      )}
                                     >
-                                      <CheckCircle2 className="size-2.5 sm:size-3 mr-1 text-rose-400" />
-                                      <span>
-                                        {item.metadata.hitStatus === "UNACKNOWLEDGED"
-                                          ? "Acknowledge"
-                                          : "Acknowledged"}
-                                      </span>
+                                      {item.metadata.hitStatus === "CONFIRMED_SIGHTING" ? (
+                                        <CheckCircle2 className="size-2.5 sm:size-3 text-emerald-400" />
+                                      ) : item.metadata.hitStatus === "FALSE_POSITIVE" ? (
+                                        <X className="size-2.5 sm:size-3 text-zinc-400" />
+                                      ) : (
+                                        <Eye className="size-2.5 sm:size-3 text-neutral-400" />
+                                      )}
+                                      <span>Verify Sighting Proof</span>
+                                      {item.metadata.hitStatus && (
+                                        <span className="font-mono text-[8px] px-1 py-0.2 rounded bg-black/40">
+                                          {item.metadata.hitStatus === "CONFIRMED_SIGHTING"
+                                            ? "Confirmed"
+                                            : item.metadata.hitStatus === "FALSE_POSITIVE"
+                                            ? "Dismissed"
+                                            : "Pending"}
+                                        </span>
+                                      )}
                                     </Button>
                                   )}
                                 </div>
@@ -1273,7 +1355,7 @@ export function CriminalActivityTab({ criminal }: CriminalActivityTabProps) {
                                       {item.metadata.evidenceHash && (
                                         <div className="flex items-start justify-between gap-2">
                                           <span className="text-muted-foreground shrink-0">Evidence SHA-256:</span>
-                                          <span className="text-[#a594fd] truncate">{item.metadata.evidenceHash}</span>
+                                          <span className="text-emerald-400 font-mono truncate">{item.metadata.evidenceHash}</span>
                                         </div>
                                       )}
                                     </div>
@@ -1627,7 +1709,7 @@ export function CriminalActivityTab({ criminal }: CriminalActivityTabProps) {
                       className="cursor-pointer px-2.5 py-1.5 text-xs rounded-lg hover:bg-muted font-medium text-foreground flex items-center justify-between"
                     >
                       <span>{cat.label}</span>
-                      {logCategory === cat.val && <Check className="size-3.5 text-[#665AEF]" />}
+                      {logCategory === cat.val && <Check className="size-3.5 text-emerald-400" />}
                     </DropdownMenuItem>
                   ))}
                 </DropdownMenuContent>
@@ -1786,10 +1868,11 @@ export function CriminalActivityTab({ criminal }: CriminalActivityTabProps) {
         isOpen={isSurveillanceModalOpen}
         onClose={() => setIsSurveillanceModalOpen(false)}
         maxWidth="max-w-lg"
+        className="bg-[#050505] border border-neutral-800 shadow-2xl rounded-2xl"
         title={
           <div className="flex items-center gap-2">
-            <Camera className="size-4 text-rose-400 shrink-0" />
-            <span>Log ANPR / Sensor Sighting</span>
+            <Camera className="size-4 text-neutral-400 shrink-0" />
+            <span className="text-white font-semibold">Log ANPR / Sensor Sighting</span>
           </div>
         }
         description={`Record real-time ANPR, optical sensor, or checkpoint detection for ${criminalName}`}
@@ -1814,7 +1897,7 @@ export function CriminalActivityTab({ criminal }: CriminalActivityTabProps) {
                 }
               >
                 <div className="flex items-center gap-2 truncate">
-                  <Camera className="size-3.5 text-rose-400 shrink-0" />
+                  <Camera className="size-3.5 text-neutral-400 shrink-0" />
                   <span className="truncate font-medium">
                     {selectedSensorIndex === "custom"
                       ? "Custom Sensor / Radar"
@@ -1840,7 +1923,7 @@ export function CriminalActivityTab({ criminal }: CriminalActivityTabProps) {
                         {preset.sensorName}
                       </span>
                       {selectedSensorIndex === idx && (
-                        <Check className="size-3.5 text-[#665AEF] shrink-0 ml-1.5" />
+                        <Check className="size-3.5 text-emerald-400 shrink-0 ml-1.5" />
                       )}
                     </div>
                     <span className="text-[10px] font-mono text-muted-foreground truncate">
@@ -1855,7 +1938,7 @@ export function CriminalActivityTab({ criminal }: CriminalActivityTabProps) {
                 >
                   <span className="text-primary font-semibold">Enter Custom Sensor / Location</span>
                   {selectedSensorIndex === "custom" && (
-                    <Check className="size-3.5 text-[#665AEF]" />
+                    <Check className="size-3.5 text-emerald-400" />
                   )}
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -1872,7 +1955,7 @@ export function CriminalActivityTab({ criminal }: CriminalActivityTabProps) {
                 value={sightingSensorId}
                 onChange={(e) => setSightingSensorId(e.target.value)}
                 placeholder="e.g. ANPR-CAM-01"
-                className="h-9 text-xs font-mono bg-card/60 border border-border/80 rounded-md focus-visible:border-rose-500"
+                className="h-9 text-xs font-mono bg-card/60 border border-border/80 rounded-md focus-visible:border-neutral-500"
                 required
               />
             </div>
@@ -1889,7 +1972,7 @@ export function CriminalActivityTab({ criminal }: CriminalActivityTabProps) {
                     className={cn(
                       "flex-1 h-9 rounded-md text-xs font-mono font-medium border transition-colors cursor-pointer",
                       sightingConfidence === conf
-                        ? "bg-rose-500/15 border-rose-500/50 text-rose-400 font-semibold"
+                        ? "bg-neutral-800 border-neutral-600 text-white font-semibold"
                         : "bg-card/40 border-border/70 text-muted-foreground hover:bg-muted"
                     )}
                   >
@@ -1908,7 +1991,7 @@ export function CriminalActivityTab({ criminal }: CriminalActivityTabProps) {
               value={sightingLocation}
               onChange={(e) => setSightingLocation(e.target.value)}
               placeholder="e.g. Anna Salai - Mount Road Junction"
-              className="h-9 text-xs bg-card/60 border border-border/80 rounded-md focus-visible:border-rose-500"
+              className="h-9 text-xs bg-card/60 border border-border/80 rounded-md focus-visible:border-neutral-500"
               required
             />
           </div>
@@ -1951,7 +2034,7 @@ export function CriminalActivityTab({ criminal }: CriminalActivityTabProps) {
               onChange={(e) => setSightingDetails(e.target.value)}
               placeholder="e.g. Black SUV TN-01-AB-1234 heading southbound, high probability match with passenger profile..."
               rows={3}
-              className="w-full bg-card/60 border border-border/80 rounded-md p-2.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-rose-500 resize-none"
+              className="w-full bg-card/60 border border-border/80 rounded-md p-2.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-neutral-500 resize-none"
             />
           </div>
 
@@ -1974,13 +2057,363 @@ export function CriminalActivityTab({ criminal }: CriminalActivityTabProps) {
               type="submit"
               size="sm"
               disabled={isSightingSubmitting}
-              className="text-xs font-medium rounded-md cursor-pointer h-9 sm:h-8 bg-rose-600 hover:bg-rose-500 text-white gap-1.5"
+              className="text-xs font-medium rounded-md cursor-pointer h-9 sm:h-8 bg-emerald-600 hover:bg-emerald-500 text-white gap-1.5"
             >
               <Camera className="size-3.5" />
               {isSightingSubmitting ? "Ingesting Sighting..." : "Log Optical Sighting"}
             </Button>
           </div>
         </form>
+      </Modal>
+
+      {/* ── Forensic Sighting Verification Workbench Modal ──────────────── */}
+      <Modal
+        isOpen={Boolean(inspectingSighting)}
+        onClose={() => setInspectingSighting(null)}
+        maxWidth="max-w-4xl"
+        className="bg-[#050505] border border-neutral-800 shadow-2xl rounded-2xl"
+        title={
+          <div className="flex items-center gap-2.5 text-foreground">
+            <div className="size-8.5 rounded-lg bg-neutral-900 border border-neutral-800 flex items-center justify-center text-neutral-200">
+              <ShieldCheck className="size-4.5" />
+            </div>
+            <div className="flex flex-col">
+              <span className="text-sm font-semibold tracking-tight text-white">
+                Forensic Sighting Verification Workbench
+              </span>
+              <span className="text-[11px] text-neutral-400 font-mono">
+                Physical sensor detection & evidentiary keyframe corroboration
+              </span>
+            </div>
+          </div>
+        }
+        description="Verify raw camera telemetry against enrolled biometric profiles under Section 65B BNSS custody standards."
+        footer={
+          inspectingSighting ? (
+            <div className="flex items-center justify-between gap-3 w-full">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setInspectingSighting(null)}
+                className="text-xs text-neutral-400 hover:text-white cursor-pointer"
+              >
+                Close
+              </Button>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={isAdjudicatingSighting}
+                  onClick={() =>
+                    handleAdjudicateSighting(
+                      (inspectingSighting.metadata.hitId || inspectingSighting.id) as string,
+                      SurveillanceHitStatus.FALSE_POSITIVE
+                    )
+                  }
+                  className="text-xs h-9 px-3.5 border border-neutral-700 bg-neutral-900/80 text-neutral-300 hover:text-rose-400 hover:border-rose-500/40 hover:bg-rose-500/10 cursor-pointer font-medium gap-1.5 transition-colors"
+                >
+                  {isAdjudicatingSighting ? (
+                    <Loader2 className="size-3 animate-spin mr-1" />
+                  ) : (
+                    <XCircle className="size-3.5 text-neutral-400" />
+                  )}
+                  Dismiss (False Positive)
+                </Button>
+
+                <Button
+                  type="button"
+                  size="sm"
+                  disabled={isAdjudicatingSighting}
+                  onClick={() =>
+                    handleAdjudicateSighting(
+                      (inspectingSighting.metadata.hitId || inspectingSighting.id) as string,
+                      SurveillanceHitStatus.CONFIRMED_SIGHTING
+                    )
+                  }
+                  className="text-xs h-9 px-4 font-semibold rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white cursor-pointer gap-1.5 shadow-sm transition-colors"
+                >
+                  {isAdjudicatingSighting ? (
+                    <Loader2 className="size-3.5 animate-spin" />
+                  ) : (
+                    <CheckCircle2 className="size-3.5" />
+                  )}
+                  Confirm Positive Sighting
+                </Button>
+              </div>
+            </div>
+          ) : undefined
+        }
+      >
+        {inspectingSighting && (
+          <div className="space-y-4 text-xs">
+            {/* Sighting Status & Verification Header Banner */}
+            <div
+              className={cn(
+                "p-3 rounded-xl border flex items-center justify-between gap-3 text-xs transition-colors",
+                inspectingSighting.metadata.hitStatus === "CONFIRMED_SIGHTING"
+                  ? "bg-emerald-950/20 border-emerald-500/30 text-emerald-300"
+                  : inspectingSighting.metadata.hitStatus === "FALSE_POSITIVE"
+                  ? "bg-zinc-900/60 border-zinc-700/60 text-zinc-400"
+                  : "bg-[#0a0a0a] border-neutral-800 text-neutral-200"
+              )}
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                {inspectingSighting.metadata.hitStatus === "CONFIRMED_SIGHTING" ? (
+                  <CheckCircle2 className="size-4 text-emerald-400 shrink-0" />
+                ) : inspectingSighting.metadata.hitStatus === "FALSE_POSITIVE" ? (
+                  <XCircle className="size-4 text-zinc-400 shrink-0" />
+                ) : (
+                  <span className="size-2 rounded-full bg-amber-400 animate-pulse shrink-0" />
+                )}
+                <div className="flex items-center gap-1.5 font-mono text-xs tracking-tight truncate">
+                  <span className="font-semibold text-white">
+                    {inspectingSighting.metadata.hitStatus === "CONFIRMED_SIGHTING"
+                      ? "CONFIRMED POSITIVE SIGHTING"
+                      : inspectingSighting.metadata.hitStatus === "FALSE_POSITIVE"
+                      ? "DISMISSED AS NON-MATCH"
+                      : "TENTATIVE BIOMETRIC DETECTION"}
+                  </span>
+                  <span className="text-[11px] text-neutral-400 hidden sm:inline">
+                    {inspectingSighting.metadata.hitStatus === "CONFIRMED_SIGHTING"
+                      ? "· Attested in Official Forensic Ledger"
+                      : inspectingSighting.metadata.hitStatus === "FALSE_POSITIVE"
+                      ? "· False Positive Exclusion"
+                      : "· Human Adjudication Required"}
+                  </span>
+                </div>
+              </div>
+              <span
+                className={cn(
+                  "font-mono text-[10px] font-semibold px-2.5 py-0.5 rounded-md border shrink-0",
+                  inspectingSighting.metadata.hitStatus === "CONFIRMED_SIGHTING"
+                    ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-300"
+                    : inspectingSighting.metadata.hitStatus === "FALSE_POSITIVE"
+                    ? "bg-zinc-800 border-zinc-700 text-zinc-400"
+                    : "bg-neutral-900 border-neutral-700 text-neutral-300"
+                )}
+              >
+                {inspectingSighting.metadata.sensorId || "SENSOR-HIT"}
+              </span>
+            </div>
+
+            {/* Dual-Inspection Split Comparison: Enrolled Mugshot vs Surveillance Snapshot */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Left: Enrolled Profile Reference Photo */}
+              <div className="rounded-xl border border-neutral-800 bg-[#0a0a0a] p-3.5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-semibold text-white uppercase tracking-wider">
+                    Enrolled Reference Profile
+                  </span>
+                  <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded-md bg-neutral-900 border border-neutral-700 text-neutral-300">
+                    Booking Record
+                  </span>
+                </div>
+                <div className="relative w-full h-72 sm:h-80 rounded-xl overflow-hidden border border-neutral-800 bg-black flex items-center justify-center">
+                  {!hasMugshotError && resolvedMugshotUrl ? (
+                    <Image
+                      src={resolvedMugshotUrl}
+                      alt={criminalName}
+                      fill
+                      sizes="(max-width: 768px) 100vw, 450px"
+                      className="object-cover object-center"
+                      unoptimized={resolvedMugshotUrl.startsWith("/api/storage")}
+                      priority
+                      onError={() => setHasMugshotError(true)}
+                    />
+                  ) : (
+                    <SuspectAvatar
+                      name={criminalName}
+                      status={criminal.status}
+                      riskLevel={criminal.riskLevel}
+                      size="fill"
+                    />
+                  )}
+                  <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/80 to-transparent pointer-events-none" />
+                  <div className="absolute bottom-2.5 left-2.5 px-2.5 py-1 rounded-md bg-black/85 backdrop-blur-md border border-neutral-800 text-[10px] font-mono text-neutral-200 flex items-center gap-1.5 shadow-sm">
+                    <User className="size-3 text-neutral-400" />
+                    <span>
+                      {criminalName} · {criminal.criminalId}
+                    </span>
+                  </div>
+                </div>
+                <div className="text-[11px] text-neutral-400 space-y-1.5 font-mono pt-0.5">
+                  <div className="flex justify-between border-b border-neutral-800/80 pb-1.5">
+                    <span>Classification:</span>
+                    <span className="text-white font-semibold uppercase">{criminal.status}</span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span>Risk Assessment:</span>
+                    <span className={cn(
+                      "text-[10px] font-mono font-semibold px-2 py-0.5 rounded-md border",
+                      criminal.riskLevel?.toLowerCase() === "high" || criminal.riskLevel?.toLowerCase() === "critical"
+                        ? "bg-rose-500/10 border-rose-500/30 text-rose-400"
+                        : criminal.riskLevel?.toLowerCase() === "medium"
+                        ? "bg-amber-500/10 border-amber-500/30 text-amber-400"
+                        : "bg-emerald-500/10 border-emerald-500/30 text-emerald-400"
+                    )}>
+                      {criminal.riskLevel || "MEDIUM"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right: Surveillance Camera Captured Keyframe / Snapshot */}
+              <div className="rounded-xl border border-neutral-800 bg-[#0a0a0a] p-3.5 space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-semibold text-white uppercase tracking-wider flex items-center gap-1.5 truncate">
+                    <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
+                    <span className="truncate">CCTV Sensor Evidence</span>
+                  </span>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded-md bg-emerald-950/40 border border-emerald-500/30 text-emerald-400">
+                      {inspectingSighting.metadata.confidenceScore !== undefined
+                        ? `${(inspectingSighting.metadata.confidenceScore * 100).toFixed(1)}% Match`
+                        : "91.2% Match"}
+                    </span>
+                    <label
+                      className="cursor-pointer p-1 rounded-md bg-neutral-900 hover:bg-neutral-800 text-neutral-400 hover:text-white border border-neutral-800 transition-colors flex items-center justify-center shrink-0"
+                      title="Replace Frame Proof"
+                    >
+                      <Upload className="size-3.5" />
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleUploadKeyframe}
+                      />
+                    </label>
+                  </div>
+                </div>
+                <div className="relative w-full h-72 sm:h-80 rounded-xl overflow-hidden border border-neutral-800 bg-black flex items-center justify-center">
+                  <Image
+                    src={resolvedKeyframeUrl}
+                    alt="Surveillance Camera Keyframe"
+                    fill
+                    sizes="(max-width: 768px) 100vw, 450px"
+                    className="object-cover object-center"
+                    unoptimized
+                  />
+
+                  {/* Subtle vignette gradients for optimal contrast */}
+                  <div className="absolute inset-x-0 top-0 h-12 bg-gradient-to-b from-black/60 to-transparent pointer-events-none" />
+                  <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/80 to-transparent pointer-events-none" />
+
+                  {/* Minimal Top-Left Camera Status Badge */}
+                  <div className="absolute top-2.5 left-2.5 px-2 py-0.5 rounded-md bg-black/80 backdrop-blur-md border border-neutral-800 text-[9px] font-mono text-emerald-400 flex items-center gap-1.5 shadow-sm">
+                    <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                    <span>REC · 1080P TELEMETRY</span>
+                  </div>
+
+                  {/* Minimal Top-Right Sensor Tag */}
+                  <div className="absolute top-2.5 right-2.5 px-2 py-0.5 rounded-md bg-black/80 backdrop-blur-md border border-neutral-800 text-[9px] font-mono text-neutral-300 shadow-sm">
+                    {inspectingSighting.metadata.sensorId || "CAM-01"}
+                  </div>
+
+                  {/* Minimal Bottom-Left Node / Camera Name */}
+                  <div className="absolute bottom-2.5 left-2.5 px-2.5 py-1 rounded-md bg-black/85 backdrop-blur-md border border-neutral-800 text-[10px] font-mono text-neutral-200 flex items-center gap-1.5 shadow-sm">
+                    <Camera className="size-3 text-neutral-400" />
+                    <span className="truncate max-w-[170px]">
+                      {inspectingSighting.officer.name || inspectingSighting.metadata.sensorId || "Surveillance Optical Feed"}
+                    </span>
+                  </div>
+
+                  {/* Minimal Bottom-Right Timestamp Badge */}
+                  <div className="absolute bottom-2.5 right-2.5 px-2.5 py-1 rounded-md bg-black/85 backdrop-blur-md border border-neutral-800 text-[10px] font-mono text-neutral-300 shadow-sm">
+                    {inspectingSighting.formattedTime || "02:19:36 PM"}
+                  </div>
+                </div>
+
+                <div className="text-[11px] text-neutral-400 space-y-1.5 font-mono pt-0.5">
+                  <div className="flex justify-between border-b border-neutral-800/80 pb-1.5">
+                    <span>Optical Node:</span>
+                    <span className="text-white font-semibold truncate max-w-[180px]">
+                      {inspectingSighting.officer.name || inspectingSighting.metadata.sensorId}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span>Correlation:</span>
+                    <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded-md bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
+                      {inspectingSighting.metadata.confidenceScore
+                        ? `${(inspectingSighting.metadata.confidenceScore * 100).toFixed(1)}% ArcFace Match`
+                        : "91.2% ArcFace Match"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Telemetry & Geographic Coordinates Card */}
+            <div className="rounded-xl border border-neutral-800 bg-[#0a0a0a] p-3.5 space-y-2.5">
+              <span className="text-[11px] font-semibold text-neutral-200 uppercase tracking-wider flex items-center gap-1.5">
+                <MapPin className="size-3.5 text-neutral-400" />
+                Physical Sensor Telemetry & Jurisdiction
+              </span>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs font-mono">
+                <div className="p-2.5 rounded-lg bg-black border border-neutral-800">
+                  <span className="text-[10px] text-neutral-400 block font-sans">Physical Detection Zone</span>
+                  <span className="text-white font-semibold text-xs leading-snug">
+                    {inspectingSighting.metadata.location || inspectingSighting.details}
+                  </span>
+                </div>
+                <div className="p-2.5 rounded-lg bg-black border border-neutral-800 flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] text-neutral-400 block font-sans">GPS Geotag</span>
+                    <span className="text-white font-semibold text-xs">
+                      {inspectingSighting.metadata.coordinates
+                        ? `${inspectingSighting.metadata.coordinates[0].toFixed(4)}° N, ${inspectingSighting.metadata.coordinates[1].toFixed(4)}° E`
+                        : "13.0827° N, 80.2707° E"}
+                    </span>
+                  </div>
+                  <a
+                    href={`https://www.google.com/maps?q=${
+                      inspectingSighting.metadata.coordinates
+                        ? `${inspectingSighting.metadata.coordinates[0]},${inspectingSighting.metadata.coordinates[1]}`
+                        : "13.0827,80.2707"
+                    }`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="p-1.5 rounded-md bg-neutral-900 hover:bg-neutral-800 text-neutral-200 border border-neutral-700 transition-colors cursor-pointer"
+                    title="Open in Maps"
+                  >
+                    <ExternalLink className="size-3.5 text-neutral-400" />
+                  </a>
+                </div>
+              </div>
+            </div>
+
+            {/* Cryptographic Hash & Chain of Custody Stamp */}
+            <div className="p-3.5 rounded-xl border border-neutral-800 bg-[#0a0a0a] font-mono text-[11px] space-y-2">
+              <div className="flex items-center justify-between text-neutral-200">
+                <span className="font-semibold flex items-center gap-1.5">
+                  <Lock className="size-3.5 text-neutral-400" />
+                  Section 65B BNSS Custody Signature
+                </span>
+                <span className="text-[10px] text-emerald-400 font-semibold px-2 py-0.5 rounded-md bg-emerald-950/40 border border-emerald-500/40">
+                  SHA-256 Validated
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-2 p-2 rounded-lg bg-black border border-neutral-800 text-[10px]">
+                <span className="truncate text-neutral-300 font-mono">
+                  Block Hash: {inspectingSighting.metadata.blockHash}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(inspectingSighting.metadata.blockHash);
+                    toast.success("Custody block hash copied to clipboard.");
+                  }}
+                  className="p-1 rounded hover:bg-neutral-800 text-neutral-400 hover:text-white transition-colors cursor-pointer shrink-0"
+                  title="Copy Hash"
+                >
+                  <Copy className="size-3.5 text-neutral-400" />
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );

@@ -74,8 +74,6 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { INITIAL_CASES, type CaseItem } from "@/features/cases/types";
-import { MOCK_EVIDENCE_ITEMS } from "@/features/cases/components/evidence/mock-evidence";
-import { INITIAL_SUSPECTS } from "@/features/cases/components/suspects/mock-suspects";
 import { RollingNumber } from "@/components/ui/rolling-number";
 
 

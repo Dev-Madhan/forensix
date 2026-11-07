@@ -83,6 +83,7 @@ import { type CriminalItem } from "@/features/criminals/types";
 import { getSafeStorageUrl } from "@/lib/storage-url";
 import { SuspectAvatar } from "./suspect-avatar";
 import { getCriminalSlug } from "@/features/criminals/slug";
+import { formatCriminalDob, computeCriminalAge } from "@/features/criminals/formatters";
 export { type CriminalItem };
 
 /**
@@ -124,7 +125,7 @@ function exportCriminalsToCSV(
     escapeCSV(c.lastName),
     escapeCSV(c.alias || ""),
     escapeCSV((c.aliases || []).join("; ")),
-    escapeCSV(c.dateOfBirth),
+    escapeCSV(formatCriminalDob(c.dateOfBirth)),
     escapeCSV(c.status),
     escapeCSV(c.riskLevel),
     escapeCSV(c.crimeCategories.join("; ")),
@@ -618,7 +619,9 @@ export function CriminalsTable({
       } else if (sortKey === "id") {
         cmp = a.criminalId.localeCompare(b.criminalId);
       } else if (sortKey === "dob") {
-        cmp = (a.dateOfBirth || "").localeCompare(b.dateOfBirth || "");
+        const timeA = a.dateOfBirth ? new Date(a.dateOfBirth).getTime() : 0;
+        const timeB = b.dateOfBirth ? new Date(b.dateOfBirth).getTime() : 0;
+        cmp = timeA - timeB;
       } else if (sortKey === "risk") {
         const order: Record<string, number> = { High: 3, Medium: 2, Low: 1 };
         cmp = (order[a.riskLevel] || 0) - (order[b.riskLevel] || 0);
@@ -1554,11 +1557,11 @@ export function CriminalsTable({
                         {/* DOB + Age */}
                         <TableCell className="px-2.5 py-3 whitespace-nowrap">
                           <div className="flex flex-col gap-0.5">
-                            <span className="text-xs text-foreground/90">
-                              {c.dateOfBirth}
+                            <span className="text-xs text-foreground/90 font-medium">
+                              {formatCriminalDob(c.dateOfBirth)}
                             </span>
-                            <span className="text-[11px] text-muted-foreground">
-                              ({c.age} years)
+                            <span className="text-[11px] text-muted-foreground font-mono">
+                              ({computeCriminalAge(c.dateOfBirth, c.age)} years)
                             </span>
                           </div>
                         </TableCell>
@@ -2391,7 +2394,7 @@ function CriminalProfilePreview({
                     <span>Date of Birth</span>
                   </div>
                   <p className="pl-5 text-xs font-medium text-foreground">
-                    {criminal.dateOfBirth} ({criminal.age} years)
+                    {formatCriminalDob(criminal.dateOfBirth)} ({computeCriminalAge(criminal.dateOfBirth, criminal.age)} years)
                   </p>
                 </div>
 

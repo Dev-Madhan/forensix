@@ -212,18 +212,33 @@ export async function POST(request: NextRequest) {
         }
       });
 
-      // Broadcast unified forensic event for real-time dashboard updates
+      // Broadcast unified forensic event for real-time dashboard updates & dual-persist Sketch
+      let caseNumber = "FX-2026-185";
+      let caseTitle = "Operation Apex: Downtown Transit Incident";
+      let targetCaseId: string | null = null;
+
       try {
-        let caseNumber = "FX-2026-185";
-        let caseTitle = "Operation Apex: Downtown Transit Incident";
         if (caseId) {
           const c = await prisma.case.findFirst({
             where: { OR: [{ id: caseId }, { caseNumber: caseId }] },
-            select: { caseNumber: true, title: true },
+            select: { id: true, caseNumber: true, title: true },
           }).catch(() => null);
           if (c) {
+            targetCaseId = c.id;
             caseNumber = c.caseNumber;
             caseTitle = c.title;
+          }
+        }
+
+        if (!targetCaseId) {
+          const latestCase = await prisma.case.findFirst({
+            orderBy: { createdAt: "desc" },
+            select: { id: true, caseNumber: true, title: true },
+          }).catch(() => null);
+          if (latestCase) {
+            targetCaseId = latestCase.id;
+            caseNumber = latestCase.caseNumber;
+            caseTitle = latestCase.title;
           }
         }
 
@@ -237,6 +252,19 @@ export async function POST(request: NextRequest) {
             : `${genderLabel} • ~${ageMatch[1]} Yrs`
           : `${genderLabel} • Composite`;
 
+        // Persist into permanent Sketch entity if valid case exists
+        if (targetCaseId && finalImageUrl) {
+          await prisma.sketch.create({
+            data: {
+              id: job.id,
+              caseId: targetCaseId,
+              witnessId: witnessId || null,
+              imageUrl: finalImageUrl,
+              description: title,
+            },
+          }).catch(() => {});
+        }
+
         broadcastForensicEvent({
           type: "SKETCH_GENERATED",
           data: {
@@ -244,7 +272,7 @@ export async function POST(request: NextRequest) {
             imageUrl: finalImageUrl,
             title,
             prompt: promptText,
-            caseId,
+            caseId: targetCaseId || undefined,
             caseNumber,
             caseTitle,
             createdAt: new Date().toISOString(),

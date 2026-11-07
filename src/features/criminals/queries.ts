@@ -4,6 +4,7 @@ import { headers } from "next/headers";
 import { CriminalRiskLevel, CriminalStatus, Prisma } from "@prisma/client";
 import { type CriminalItem } from "@/features/criminals/types";
 import { getSafeStorageUrl } from "@/lib/storage-url";
+import { formatCriminalDob, computeCriminalAge } from "@/features/criminals/formatters";
 
 export interface GetCriminalsFilters {
   status?: CriminalStatus | string;
@@ -164,31 +165,55 @@ export async function getCriminalsForTable(
           LOW: "Low",
         };
 
-        const age =
-          demo.age ||
-          (c.dateOfBirth
-            ? new Date().getFullYear() - new Date(c.dateOfBirth).getFullYear()
-            : 32);
-        const crimeCategories = demo.secondaryCategories
-          ? [demo.primaryCategory || "Robbery", String(demo.secondaryCategories)]
-          : [demo.primaryCategory || "Robbery / Theft"];
+        const age = computeCriminalAge(c.dateOfBirth, demo.age);
+        const formattedDob = formatCriminalDob(c.dateOfBirth);
+
+        // Normalize crime categories (support both demo.secondaryCategory and demo.secondaryCategories)
+        const primaryCat = demo.primaryCategory || demo.category || "General Offense";
+        const secondaryCat = demo.secondaryCategory || demo.secondaryCategories;
+        const secondaryList = Array.isArray(secondaryCat)
+          ? secondaryCat
+          : typeof secondaryCat === "string" && secondaryCat.trim()
+          ? secondaryCat.split(",").map((s: string) => s.trim()).filter(Boolean)
+          : [];
+        const crimeCategories = Array.from(new Set([primaryCat, ...secondaryList].filter(Boolean)));
+        if (crimeCategories.length === 0) {
+          crimeCategories.push("General Offense");
+        }
+
+        // Normalize aliases from DB column and demographic metadata
+        const rawAliases = [
+          ...(Array.isArray(demo.aliases) ? demo.aliases : demo.aliases ? [demo.aliases] : []),
+          ...(demo.knownAs ? [demo.knownAs] : []),
+          ...(c.alias ? [c.alias] : []),
+        ].filter(Boolean);
+        const aliases = Array.from(new Set(rawAliases));
+        const primaryAlias = c.alias || demo.knownAs || (aliases.length > 0 ? aliases[0] : "—");
 
         // Resolve raw storage keys or Tigris URLs to permanent safe proxy endpoint
         const resolvedMugshot =
           getSafeStorageUrl(c.mugshotUrl) || "/images/suspects/arun-prakash.jpg";
+
+        // Fallback location matching profile resolution
+        const resolvedLocation =
+          c.lastKnownLocation ||
+          c.address ||
+          demo.knownAddresses ||
+          demo.placeOfBirth ||
+          "Location Not Disclosed";
 
         return {
           id: c.id,
           criminalId: c.criminalId,
           firstName: c.firstName,
           lastName: c.lastName,
-          alias: c.alias || "—",
-          aliases: demo.aliases || (c.alias ? [c.alias] : []),
-          gender: c.gender || "Male",
-          nationality: c.nationality || "Indian",
+          alias: primaryAlias,
+          aliases: aliases.length > 0 ? aliases : (primaryAlias !== "—" ? [primaryAlias] : []),
+          gender: c.gender || demo.gender || "Male",
+          nationality: c.nationality || demo.nationality || "Indian",
           riskLevel: riskMap[c.riskLevel] || "Medium",
           status: statusMap[c.status] || "Active",
-          lastKnownLocation: c.lastKnownLocation || "Location Not Disclosed",
+          lastKnownLocation: resolvedLocation,
           mugshotUrl: resolvedMugshot || null,
           height: demo.height || "—",
           weight: demo.weight || "—",
@@ -196,8 +221,8 @@ export async function getCriminalsForTable(
           complexion: demo.complexion || "—",
           eyeColor: demo.eyeColor || "—",
           hairColor: demo.hairColor || "—",
-          distinctiveMarks: demo.distinctiveMarks || "None documented",
-          dateOfBirth: c.dateOfBirth?.toISOString().split("T")[0] || "—",
+          distinctiveMarks: demo.distinctiveMarks || demo.tattoos || "None documented",
+          dateOfBirth: formattedDob,
           age,
           crimeCategories,
           linkedCases: c._count.caseLinks || demo.totalCasesCount || 0,

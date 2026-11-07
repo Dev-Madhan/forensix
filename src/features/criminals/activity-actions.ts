@@ -40,6 +40,7 @@ export interface CriminalActivityItem {
     evidenceHash?: string;
     hitId?: string;
     hitStatus?: string;
+    capturedMediaUrl?: string;
     blockHash: string;
     previousBlockHash: string;
   };
@@ -389,6 +390,8 @@ export async function fetchCriminalActivityLogs(criminalId: string): Promise<Cri
       confidenceScore?: number;
       hitId?: string;
       hitStatus?: string;
+      coordinates?: [number, number];
+      capturedMediaUrl?: string;
     }> = [];
 
     for (const log of dbLogs) {
@@ -398,7 +401,17 @@ export async function fetchCriminalActivityLogs(criminalId: string): Promise<Cri
       let category: CriminalActivityCategory = "PROFILE_UPDATE";
       let severity: "critical" | "warning" | "info" | "success" = "info";
 
-      if (actionRaw.includes("SURVEILLANCE") || actionRaw.includes("ANPR") || actionRaw.includes("CAMERA") || actionRaw.includes("MATCH")) {
+      if (actionRaw.includes("FLAG") || actionRaw.includes("WATCHLIST")) {
+        category = "PROFILE_UPDATE";
+        severity = "info";
+      } else if (
+        actionRaw.includes("SURVEILLANCE_DETECTION") ||
+        actionRaw.includes("SURVEILLANCE_HIT") ||
+        actionRaw.includes("ANPR") ||
+        actionRaw.includes("CAMERA") ||
+        actionRaw.includes("SIGHTING") ||
+        actionRaw.includes("FACIAL_MATCH")
+      ) {
         category = "SURVEILLANCE";
         severity = "critical";
       } else if (actionRaw.includes("EVIDENCE") || actionRaw.includes("PRESERVATION")) {
@@ -433,6 +446,15 @@ export async function fetchCriminalActivityLogs(criminalId: string): Promise<Cri
         caseNumber: typeof detailsObj.caseNumber === "string" ? detailsObj.caseNumber : undefined,
         evidenceHash: typeof detailsObj.evidenceHash === "string" ? detailsObj.evidenceHash : undefined,
         confidenceScore: typeof detailsObj.confidenceScore === "number" ? detailsObj.confidenceScore : undefined,
+        hitId: (category === "SURVEILLANCE" || typeof detailsObj.hitId === "string")
+          ? (typeof detailsObj.hitId === "string" ? detailsObj.hitId : log.id)
+          : undefined,
+        hitStatus: (category === "SURVEILLANCE" || typeof detailsObj.hitId === "string")
+          ? (typeof detailsObj.hitStatus === "string" ? detailsObj.hitStatus : "UNACKNOWLEDGED")
+          : undefined,
+        capturedMediaUrl: (category === "SURVEILLANCE" || typeof detailsObj.hitId === "string")
+          ? (typeof detailsObj.capturedMediaUrl === "string" ? detailsObj.capturedMediaUrl : "/images/cctv-suspect.jpg")
+          : undefined,
       });
     }
 
@@ -454,7 +476,10 @@ export async function fetchCriminalActivityLogs(criminalId: string): Promise<Cri
         location: "Central Forensics Processing Hub",
         confidenceScore: rec.matchScore,
         sensorId: "DEEPFACE-V2",
+        hitId: rec.id,
+        hitStatus: rec.status,
         caseNumber: rec.sketch?.case?.caseNumber || rec.sketch?.caseId,
+        capturedMediaUrl: "/images/cctv-suspect.jpg",
       });
     }
 
@@ -480,6 +505,8 @@ export async function fetchCriminalActivityLogs(criminalId: string): Promise<Cri
         confidenceScore: hit.confidenceScore,
         hitId: hit.id,
         hitStatus: hit.status,
+        coordinates: [hit.latitude, hit.longitude] as [number, number],
+        capturedMediaUrl: hit.capturedMediaUrl || "/images/cctv-suspect.jpg",
       });
     }
 
@@ -517,12 +544,14 @@ export async function fetchCriminalActivityLogs(criminalId: string): Promise<Cri
         details: item.details,
         metadata: {
           location: item.location,
+          coordinates: (item as any).coordinates,
           confidenceScore: item.confidenceScore,
           sensorId: item.sensorId,
           caseNumber: item.caseNumber,
           evidenceHash: item.evidenceHash,
           hitId: (item as any).hitId,
           hitStatus: (item as any).hitStatus,
+          capturedMediaUrl: (item as any).capturedMediaUrl,
           blockHash,
           previousBlockHash: prevHash,
         },

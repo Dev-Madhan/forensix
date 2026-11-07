@@ -48,7 +48,7 @@ export function SuspectsFilterToolbar({
           placeholder="Search suspects by name, alias, or keyword..."
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
-          className="h-9.5 pl-8.5 pr-7 text-xs rounded-lg border-2 border-border bg-card/60 text-foreground placeholder:text-muted-foreground/70 focus-visible:ring-1 focus-visible:ring-[#665AEF]"
+          className="h-9.5 pl-8.5 pr-7 text-xs rounded-lg border-2 border-border bg-card/60 text-foreground placeholder:text-muted-foreground/70 focus-visible:ring-1 focus-visible:ring-neutral-500"
         />
         {searchQuery && (
           <button

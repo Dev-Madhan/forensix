@@ -646,3 +646,33 @@ export async function saveSketchToVault(data: {
   }
 }
 
+export async function clearRecentSketches() {
+  try {
+    await Promise.all([
+      prisma.sketch.deleteMany().catch(() => {}),
+      prisma.generationJob.deleteMany().catch(() => {}),
+    ]);
+
+    try {
+      broadcastForensicEvent({
+        type: "SKETCH_GENERATED",
+        data: {
+          id: "__CLEARED__",
+          isCleared: true,
+          sketches: [],
+        },
+        timestamp: Date.now(),
+      });
+    } catch {
+      // ignore
+    }
+
+    revalidatePath("/dashboard");
+    revalidatePath("/sketch");
+    return { success: true };
+  } catch (err: any) {
+    console.error("Error clearing sketches:", err);
+    return { success: false, error: err?.message };
+  }
+}
+

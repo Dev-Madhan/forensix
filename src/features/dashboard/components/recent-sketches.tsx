@@ -43,6 +43,7 @@ import {
   DialogDescription,
   DialogClose,
 } from "@/components/ui/dialog";
+import { getSafeStorageUrl } from "@/lib/storage-url";
 
 export interface SketchItem {
   id: string;
@@ -56,6 +57,45 @@ export interface SketchItem {
 
 interface RecentSketchesProps {
   sketches?: SketchItem[];
+}
+
+function SafeSketchImage({
+  src,
+  alt,
+  className,
+}: {
+  src: string;
+  alt: string;
+  className?: string;
+}) {
+  const fallbackSrc = "/images/sketches/sketch-01.jpg";
+  const safeSrc = React.useMemo(
+    () => getSafeStorageUrl(src, fallbackSrc) || src || fallbackSrc,
+    [src]
+  );
+  const [imgSrc, setImgSrc] = React.useState(safeSrc);
+  const [hasError, setHasError] = React.useState(false);
+
+  React.useEffect(() => {
+    setImgSrc(getSafeStorageUrl(src, fallbackSrc) || src || fallbackSrc);
+    setHasError(false);
+  }, [src]);
+
+  return (
+    <Image
+      src={hasError ? fallbackSrc : imgSrc || fallbackSrc}
+      alt={alt}
+      fill
+      unoptimized
+      className={className || "object-cover object-top"}
+      onError={() => {
+        if (!hasError) {
+          setHasError(true);
+          setImgSrc(fallbackSrc);
+        }
+      }}
+    />
+  );
 }
 
 /**
@@ -204,11 +244,9 @@ export function RecentSketches({ sketches = [] }: RecentSketchesProps) {
                     >
                       {/* Portrait in clean square 1:1 format */}
                       <div className="relative aspect-square w-full overflow-hidden bg-neutral-950">
-                        <Image
+                        <SafeSketchImage
                           src={sketch.imageUrl}
                           alt={displayTitle}
-                          fill
-                          unoptimized
                           className="object-cover object-top group-hover:scale-[1.03] transition-transform duration-300"
                         />
                         {/* Case badge overlay */}
@@ -311,11 +349,9 @@ export function RecentSketches({ sketches = [] }: RecentSketchesProps) {
               <div className="flex gap-3 sm:gap-4 items-start">
                 {/* Portrait with download quick action */}
                 <div className="relative size-24 sm:size-28 rounded-xl overflow-hidden border border-border/70 bg-neutral-950 shrink-0 shadow-xs">
-                  <Image
+                  <SafeSketchImage
                     src={selectedSketch.imageUrl}
                     alt={selectedSketch.title}
-                    fill
-                    unoptimized
                     className="object-cover object-top"
                   />
                   <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent px-1 pb-1 pt-3 pointer-events-none text-center">

@@ -704,27 +704,41 @@ export function SketchProvider({ children }: { children: React.ReactNode }) {
       
       setGenerationStatus("generated");
 
-      // Broadcast generated sketch to other open browser tabs (e.g. Dashboard)
+      // Broadcast generated sketch to other open browser tabs & dashboard
       if (typeof window !== "undefined" && finalImageUrl) {
+        const sketchPayload = {
+          id: data.job_id || `sketch-${Date.now()}`,
+          imageUrl: finalImageUrl,
+          title: data.title || "Composite Suspect Portrait",
+          prompt: promptText.trim() || undefined,
+          caseNumber: selectedCase?.caseNumber || data.caseNumber || "FX-2026-185",
+          caseTitle: selectedCase?.title || data.caseTitle || "Active Investigation",
+          date: new Date().toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+          }),
+        };
+
         try {
           const bc = new BroadcastChannel("forensix:sketches");
           bc.postMessage({
             type: "SKETCH_GENERATED",
-            sketch: {
-              id: data.job_id || `sketch-${Date.now()}`,
-              imageUrl: finalImageUrl,
-              title: "Composite Suspect Portrait",
-              prompt: promptText.trim() || undefined,
-              caseNumber: selectedCase?.caseNumber || "FX-2026-185",
-              caseTitle: selectedCase?.title || "Active Investigation",
-              date: new Date().toLocaleDateString("en-US", {
-                month: "short",
-                day: "numeric",
-                year: "numeric",
-              }),
-            },
+            sketch: sketchPayload,
           });
           bc.close();
+        } catch {
+          // ignore
+        }
+
+        try {
+          window.dispatchEvent(
+            new CustomEvent("forensix:sketch-created", { detail: sketchPayload })
+          );
+          localStorage.setItem(
+            "forensix:recent-sketch-sync",
+            JSON.stringify({ ...sketchPayload, _ts: Date.now() })
+          );
         } catch {
           // ignore
         }

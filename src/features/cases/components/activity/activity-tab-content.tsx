@@ -57,12 +57,7 @@ export function ActivityTabContent({
     let count = 0;
     if (filters.activityType && filters.activityType !== "ALL") count++;
     if (filters.userFilter && filters.userFilter !== "ALL") count++;
-    if (
-      filters.dateRange &&
-      filters.dateRange !== "Oct 1, 2026 - Oct 5, 2026" &&
-      filters.dateRange !== "All Time"
-    )
-      count++;
+    if (filters.dateRange && filters.dateRange !== "All Time") count++;
     if (filters.sortBy && filters.sortBy !== "LATEST_FIRST") count++;
     return count;
   }, [filters]);
@@ -70,7 +65,7 @@ export function ActivityTabContent({
   return (
     <div className="w-full space-y-4 sm:space-y-6">
       {/* Mobile & Tablet Segmented View Switcher (visible only on screens < xl) */}
-      <div className="xl:hidden flex items-center p-1 rounded-xl bg-card/60 border-2 border-border/70 backdrop-blur-xs shadow-2xs">
+      <div className="xl:hidden flex items-center p-1 rounded-xl bg-[#0d0d0d] border border-neutral-800 shadow-2xs">
         <button
           type="button"
           onClick={() => setMobileTab("activity")}
@@ -78,7 +73,7 @@ export function ActivityTabContent({
             "flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-semibold transition-all cursor-pointer select-none touch-manipulation",
             mobileTab === "activity"
               ? "bg-[#665AEF] text-white shadow-xs shadow-[#665AEF]/30"
-              : "text-muted-foreground hover:text-foreground"
+              : "text-neutral-400 hover:text-white"
           )}
         >
           <Clock className="size-3.5" />
@@ -95,7 +90,7 @@ export function ActivityTabContent({
             "flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-semibold transition-all cursor-pointer select-none touch-manipulation",
             mobileTab === "timeline"
               ? "bg-[#665AEF] text-white shadow-xs shadow-[#665AEF]/30"
-              : "text-muted-foreground hover:text-foreground"
+              : "text-neutral-400 hover:text-white"
           )}
         >
           <Calendar className="size-3.5" />
@@ -109,7 +104,7 @@ export function ActivityTabContent({
       {/* Active Filter Chips Bar (visible on all screen sizes when filters are applied) */}
       {activeFilterCount > 0 && (
         <div className="flex flex-wrap items-center gap-1.5 px-0.5">
-          <span className="text-[11px] font-medium text-muted-foreground mr-1">
+          <span className="text-[11px] font-medium text-neutral-400 mr-1">
             Active Filters:
           </span>
 
@@ -146,20 +141,19 @@ export function ActivityTabContent({
             </span>
           )}
 
-          {filters.dateRange !== "Oct 1, 2026 - Oct 5, 2026" &&
-            filters.dateRange !== "All Time" && (
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium border border-teal-500/25 bg-teal-500/10 text-teal-400 shadow-2xs">
-                <span>Date: {filters.dateRange}</span>
-                <button
-                  type="button"
-                  onClick={() => setDateRange("Oct 1, 2026 - Oct 5, 2026")}
-                  className="hover:text-teal-200 cursor-pointer p-0.5"
-                  aria-label="Remove date range filter"
-                >
-                  <X className="size-3" />
-                </button>
-              </span>
-            )}
+          {filters.dateRange && filters.dateRange !== "All Time" && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium border border-teal-500/25 bg-teal-500/10 text-teal-400 shadow-2xs">
+              <span>Date: {filters.dateRange}</span>
+              <button
+                type="button"
+                onClick={() => setDateRange("All Time")}
+                className="hover:text-teal-200 cursor-pointer p-0.5"
+                aria-label="Remove date range filter"
+              >
+                <X className="size-3" />
+              </button>
+            </span>
+          )}
 
           {filters.sortBy !== "LATEST_FIRST" && (
             <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium border border-amber-500/25 bg-amber-500/10 text-amber-400 shadow-2xs">
@@ -178,7 +172,7 @@ export function ActivityTabContent({
           <button
             type="button"
             onClick={resetFilters}
-            className="text-[11px] font-semibold text-muted-foreground hover:text-foreground underline underline-offset-2 ml-1 cursor-pointer"
+            className="text-[11px] font-semibold text-neutral-400 hover:text-white underline underline-offset-2 ml-1 cursor-pointer"
           >
             Clear All
           </button>
@@ -213,6 +207,7 @@ export function ActivityTabContent({
             totalCount={totalCount}
             filteredCount={allFilteredCount}
             onPageChange={setCurrentPage}
+            dateRange={filters.dateRange}
           />
         </div>
 
@@ -245,12 +240,12 @@ export function ActivityTabContent({
       <Sheet open={isMobileFilterOpen} onOpenChange={setIsMobileFilterOpen}>
         <SheetContent
           side="bottom"
-          className="bg-card/95 backdrop-blur-xl border-t-2 border-border/80 p-5 rounded-t-2xl max-h-[85vh] overflow-y-auto"
+          className="bg-[#0d0d0d] border-t border-neutral-800 p-5 rounded-t-2xl max-h-[85vh] overflow-y-auto"
         >
-          <SheetHeader className="pb-3 border-b border-border/40">
+          <SheetHeader className="pb-3 border-b border-neutral-800">
             <div className="flex items-center justify-between">
-              <SheetTitle className="text-base font-bold font-heading text-foreground flex items-center gap-2">
-                <Filter className="size-4 text-blue-400" />
+              <SheetTitle className="text-base font-bold font-heading text-white flex items-center gap-2">
+                <Filter className="size-4 text-[#665AEF]" />
                 <span>Filter Activity Logs</span>
               </SheetTitle>
               {activeFilterCount > 0 && (
@@ -259,7 +254,7 @@ export function ActivityTabContent({
                 </span>
               )}
             </div>
-            <SheetDescription className="text-xs text-muted-foreground">
+            <SheetDescription className="text-xs text-neutral-400">
               Filter case activity by date range, type, or user.
             </SheetDescription>
           </SheetHeader>

@@ -93,6 +93,7 @@ export type CreateCriminalRecordInput = z.infer<typeof CreateCriminalRecordSchem
 
 export const UpdateCriminalRecordSchema = z.object({
   id: z.string().min(1, "Record ID is required"),
+  criminalId: z.string().optional(),
   courtCaseNumber: z.string().optional(),
   offenceType: z.string().optional(),
   description: z.string().optional(),

@@ -52,7 +52,9 @@ function getActiveStepIndex(status: string, rawStatus?: string): number {
     norm.includes("closed") ||
     norm.includes("solved") ||
     norm.includes("resolved") ||
-    raw === "CLOSED"
+    norm.includes("archive") ||
+    raw === "CLOSED" ||
+    raw === "ARCHIVED"
   ) {
     return 3;
   }
@@ -69,6 +71,13 @@ function getActiveStepIndex(status: string, rawStatus?: string): number {
 function renderStatusBadge(status: string) {
   const normalized = (status || "").toLowerCase();
 
+  if (normalized.includes("archive")) {
+    return (
+      <span className="inline-flex items-center rounded-[4px] border-2 border-amber-500/40 bg-amber-500/15 px-2.5 py-0.5 text-xs font-semibold text-amber-400 tracking-wide shadow-2xs">
+        Archived
+      </span>
+    );
+  }
   if (normalized.includes("investigation")) {
     return (
       <span className="inline-flex items-center rounded-[4px] border-2 border-[#7E22CE]/40 bg-[#2D1B4E]/80 px-2.5 py-0.5 text-xs font-semibold text-[#C084FC] tracking-wide shadow-2xs">
@@ -155,8 +164,10 @@ export function CaseStatusCard({ caseData, className }: CaseStatusCardProps) {
     },
     {
       id: "closed",
-      label: "Closed",
-      description: "Case resolved, final report authored & archived",
+      label: (caseData.status || "").toLowerCase().includes("archive") ? "Archived" : "Closed",
+      description: (caseData.status || "").toLowerCase().includes("archive")
+        ? "Case closed and archived to cold records"
+        : "Case resolved, final report authored & archived",
       date: formattedClosedDate,
     },
   ];

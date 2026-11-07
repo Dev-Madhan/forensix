@@ -40,6 +40,7 @@ interface ActivityTableProps {
   filteredCount: number;
   onPageChange: (page: number) => void;
   className?: string;
+  dateRange?: string;
 }
 
 const MotionTableBody = motion.create(TableBody);
@@ -52,6 +53,7 @@ export function ActivityTable({
   filteredCount,
   onPageChange,
   className,
+  dateRange = "All Time",
 }: ActivityTableProps) {
   const getActionIcon = (action: string) => {
     const act = action.toLowerCase();
@@ -161,20 +163,22 @@ export function ActivityTable({
   return (
     <div
       className={cn(
-        "rounded-xl border-2 border-border bg-card/40 overflow-hidden shadow-xs [&>div]:scrollbar-none [&>div::-webkit-scrollbar]:hidden flex flex-col",
+        "rounded-xl border border-neutral-800 bg-[#0d0d0d] overflow-hidden shadow-xs [&>div]:scrollbar-none [&>div::-webkit-scrollbar]:hidden flex flex-col",
         className
       )}
     >
       {/* 1. Mobile Feed Card View (visible only on mobile < sm) */}
-      <div className="block sm:hidden divide-y divide-border/40">
+      <div className="block sm:hidden divide-y divide-neutral-800/60">
         {items.length === 0 ? (
           <div className="py-12 px-4 text-center">
-            <Activity className="size-7 text-muted-foreground/50 mx-auto mb-2" />
-            <p className="font-semibold text-foreground text-sm">
+            <Activity className="size-7 text-neutral-500 mx-auto mb-2" />
+            <p className="font-semibold text-white text-sm">
               No activity logs match your filters
             </p>
-            <p className="text-xs text-muted-foreground mt-1 max-w-xs mx-auto">
-              Try adjusting your date range or clearing user filters to view case history.
+            <p className="text-xs text-neutral-400 mt-1 max-w-xs mx-auto">
+              {dateRange !== "All Time"
+                ? `No activity recorded in "${dateRange}". Try selecting "All Time" or adjusting your date range.`
+                : "Try adjusting your filters or clearing user filters to view case history."}
             </p>
           </div>
         ) : (
@@ -185,22 +189,22 @@ export function ActivityTable({
             return (
               <div
                 key={item.id}
-                className="p-3.5 space-y-2.5 transition-colors active:bg-muted/20"
+                className="p-3.5 space-y-2.5 transition-colors active:bg-neutral-900/40"
               >
                 {/* Header: User Avatar + Name + Role + Category badge */}
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2 min-w-0">
-                    <Avatar size="sm" className="size-7 border border-border/80 shrink-0">
+                    <Avatar size="sm" className="size-7 border border-neutral-800 shrink-0">
                       {item.user.avatar && (
                         <AvatarImage src={item.user.avatar} alt={item.user.name} />
                       )}
-                      <AvatarFallback className="text-[10px] bg-primary/15 text-primary font-bold">
+                      <AvatarFallback className="text-[10px] bg-neutral-800 text-neutral-200 font-bold">
                         {item.user.initials}
                       </AvatarFallback>
                     </Avatar>
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5">
-                        <span className="font-semibold text-foreground text-xs truncate">
+                        <span className="font-semibold text-white text-xs truncate">
                           {item.user.name}
                         </span>
                         {item.user.isCurrentUser && (
@@ -209,7 +213,7 @@ export function ActivityTable({
                           </span>
                         )}
                       </div>
-                      <p className="text-[10px] text-muted-foreground truncate">
+                      <p className="text-[10px] text-neutral-400 truncate">
                         {item.user.role}
                       </p>
                     </div>
@@ -223,17 +227,17 @@ export function ActivityTable({
                 <div className="space-y-1 pl-1">
                   <div className="flex items-center gap-1.5">
                     <Icon className={cn("size-3.5 shrink-0", iconColor)} />
-                    <span className="font-semibold text-foreground text-xs">
+                    <span className="font-semibold text-white text-xs">
                       {item.action}
                     </span>
                   </div>
-                  <p className="text-xs text-foreground/85 leading-relaxed pl-5 font-sans wrap-break-word">
+                  <p className="text-xs text-neutral-300 leading-relaxed pl-5 font-sans wrap-break-word">
                     {item.details}
                   </p>
                 </div>
 
                 {/* Footer: # Index + Formatted Timestamp */}
-                <div className="flex items-center justify-between pt-1 text-[11px] text-muted-foreground border-t border-border/30">
+                <div className="flex items-center justify-between pt-1 text-[11px] text-neutral-400 border-t border-neutral-800/50">
                   <span className="font-mono font-medium">#{formattedNum}</span>
                   <span className="font-medium">
                     {item.formattedDate} • {item.formattedTime}
@@ -245,38 +249,38 @@ export function ActivityTable({
         )}
       </div>
 
-      {/* 2. Desktop/Tablet Data Table (visible for sm and above) - No horizontal scrollbar, styled matching Evidence Table */}
+      {/* 2. Desktop/Tablet Data Table (visible for sm and above) - No horizontal scrollbar */}
       <div className="hidden sm:block [&>div]:overflow-x-auto [&>div]:scrollbar-none [&>div::-webkit-scrollbar]:hidden scrollbar-none [&::-webkit-scrollbar]:hidden">
         <Table>
-          <TableHeader className="bg-card/70 border-b-2 border-border/60">
+          <TableHeader className="bg-neutral-900/60 border-b border-neutral-800">
             <TableRow className="hover:bg-transparent">
               {/* 1. # Index */}
-              <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase px-2 sm:px-2.5 py-3 whitespace-nowrap w-8 text-center">
+              <TableHead className="text-[11px] font-semibold tracking-wider text-neutral-400 uppercase px-2 sm:px-2.5 py-3 whitespace-nowrap w-8 text-center">
                 #
               </TableHead>
 
               {/* 2. Time */}
-              <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase px-2 sm:px-2.5 py-3 whitespace-nowrap">
+              <TableHead className="text-[11px] font-semibold tracking-wider text-neutral-400 uppercase px-2 sm:px-2.5 py-3 whitespace-nowrap">
                 Time
               </TableHead>
 
               {/* 3. User */}
-              <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase px-2 sm:px-2.5 py-3 whitespace-nowrap">
+              <TableHead className="text-[11px] font-semibold tracking-wider text-neutral-400 uppercase px-2 sm:px-2.5 py-3 whitespace-nowrap">
                 User
               </TableHead>
 
               {/* 4. Action */}
-              <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase px-2 sm:px-2.5 py-3 whitespace-nowrap">
+              <TableHead className="text-[11px] font-semibold tracking-wider text-neutral-400 uppercase px-2 sm:px-2.5 py-3 whitespace-nowrap">
                 Action
               </TableHead>
 
               {/* 5. Details */}
-              <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase px-2.5 sm:px-3 py-3 whitespace-nowrap">
+              <TableHead className="text-[11px] font-semibold tracking-wider text-neutral-400 uppercase px-2.5 sm:px-3 py-3 whitespace-nowrap">
                 Details
               </TableHead>
 
               {/* 6. Category */}
-              <TableHead className="text-[11px] font-semibold tracking-wider text-muted-foreground uppercase px-3 sm:px-4 py-3 whitespace-nowrap text-right">
+              <TableHead className="text-[11px] font-semibold tracking-wider text-neutral-400 uppercase px-3 sm:px-4 py-3 whitespace-nowrap text-right">
                 Category
               </TableHead>
             </TableRow>
@@ -289,21 +293,25 @@ export function ActivityTable({
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.16, ease: "easeOut" }}
-              className="divide-y divide-border/40"
+              className="divide-y divide-neutral-800/60"
             >
               {items.length === 0 ? (
                 <TableRow>
                   <TableCell
                     colSpan={6}
-                    className="py-14 text-center text-sm text-muted-foreground"
+                    className="py-14 text-center text-sm text-neutral-400"
                   >
                     <div className="flex flex-col items-center justify-center gap-2">
-                      <Activity className="size-7 text-muted-foreground/50" />
-                      <p className="font-semibold text-foreground text-sm">
+                      <div className="size-10 rounded-full bg-neutral-900 border border-neutral-800 flex items-center justify-center text-neutral-400 mb-1">
+                        <Activity className="size-5" />
+                      </div>
+                      <p className="font-semibold text-white text-sm">
                         No activity logs match your filters
                       </p>
-                      <p className="text-xs text-muted-foreground max-w-sm">
-                        Try adjusting your date range, switching activity category, or clearing user filter to view case history.
+                      <p className="text-xs text-neutral-400 max-w-sm">
+                        {dateRange !== "All Time"
+                          ? `No activity events were recorded within "${dateRange}". Select "All Time" or adjust your filter to view earlier case activity.`
+                          : "Try adjusting your filters, selecting a different activity type, or clearing user filters."}
                       </p>
                     </div>
                   </TableCell>
@@ -315,20 +323,20 @@ export function ActivityTable({
                   return (
                     <TableRow
                       key={item.id}
-                      className="transition-colors hover:bg-muted/30 group"
+                      className="transition-colors hover:bg-neutral-900/40 group border-b border-neutral-800/40"
                     >
                       {/* Column 1: # Number */}
-                      <TableCell className="font-mono tabular-nums font-semibold text-xs text-muted-foreground px-2 sm:px-2.5 py-3.5 whitespace-nowrap text-center w-8">
+                      <TableCell className="font-mono tabular-nums font-semibold text-xs text-neutral-400 px-2 sm:px-2.5 py-3.5 whitespace-nowrap text-center w-8">
                         {formattedNum}
                       </TableCell>
 
                       {/* Column 2: Time */}
                       <TableCell className="px-2 sm:px-2.5 py-3.5 whitespace-nowrap">
                         <div className="flex flex-col text-xs leading-tight">
-                          <span className="font-medium text-foreground text-xs">
+                          <span className="font-medium text-white text-xs">
                             {item.formattedDate}
                           </span>
-                          <span className="text-[11px] text-muted-foreground mt-0.5">
+                          <span className="text-[11px] text-neutral-400 mt-0.5">
                             {item.formattedTime}
                           </span>
                         </div>
@@ -337,20 +345,20 @@ export function ActivityTable({
                       {/* Column 3: User */}
                       <TableCell className="px-2 sm:px-2.5 py-3.5 whitespace-nowrap">
                         <div className="flex items-center gap-2">
-                          <Avatar size="sm" className="size-6 sm:size-7 border border-border/80 shrink-0">
+                          <Avatar size="sm" className="size-6 sm:size-7 border border-neutral-800 shrink-0">
                             {item.user.avatar && (
                               <AvatarImage
                                 src={item.user.avatar}
                                 alt={item.user.name}
                               />
                             )}
-                            <AvatarFallback className="text-[10px] bg-primary/15 text-primary font-bold">
+                            <AvatarFallback className="text-[10px] bg-neutral-800 text-neutral-200 font-bold">
                               {item.user.initials}
                             </AvatarFallback>
                           </Avatar>
                           <div className="flex flex-col min-w-0 max-w-24 sm:max-w-28 xl:max-w-32">
                             <div className="flex items-center gap-1 min-w-0">
-                              <span className="font-semibold text-foreground text-xs truncate">
+                              <span className="font-semibold text-white text-xs truncate">
                                 {item.user.name}
                               </span>
                               {item.user.isCurrentUser && (
@@ -359,7 +367,7 @@ export function ActivityTable({
                                 </span>
                               )}
                             </div>
-                            <span className="text-[11px] text-muted-foreground truncate">
+                            <span className="text-[11px] text-neutral-400 truncate">
                               {item.user.role}
                             </span>
                           </div>
@@ -374,7 +382,7 @@ export function ActivityTable({
                       {/* Column 5: Details */}
                       <TableCell className="px-2.5 sm:px-3 py-3.5 whitespace-nowrap max-w-44 sm:max-w-60 md:max-w-80 xl:max-w-56 2xl:max-w-96">
                         <span
-                          className="text-xs text-foreground/90 font-sans block truncate"
+                          className="text-xs text-neutral-300 font-sans block truncate"
                           title={item.details}
                         >
                           {item.details}
@@ -394,8 +402,8 @@ export function ActivityTable({
         </Table>
       </div>
 
-      {/* Table & Feed Pagination Footer matching Reference Screenshot & Cases Table */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3.5 sm:p-4 border-t-2 border-border/40 text-xs text-muted-foreground bg-card/20">
+      {/* Table & Feed Pagination Footer */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3.5 sm:p-4 border-t border-neutral-800 text-xs text-neutral-400 bg-neutral-950/40">
         <div className="text-center sm:text-left text-[11px] sm:text-xs">
           Showing {items.length > 0 ? startEntry : 0} to {endEntry} of {filteredCount} activities
           {totalCount !== filteredCount && ` (filtered from ${totalCount} total)`}
@@ -408,7 +416,7 @@ export function ActivityTable({
             disabled={currentPage <= 1}
             onClick={() => onPageChange(currentPage - 1)}
             aria-label="Previous page"
-            className="size-9 sm:size-8 rounded-md text-muted-foreground hover:text-foreground disabled:opacity-30 cursor-pointer touch-manipulation"
+            className="size-9 sm:size-8 rounded-md text-neutral-400 hover:text-white hover:bg-neutral-800/60 disabled:opacity-30 cursor-pointer touch-manipulation"
           >
             <ChevronLeft className="size-4" />
           </Button>
@@ -423,7 +431,7 @@ export function ActivityTable({
                 "size-9 sm:size-8 rounded-md text-xs font-semibold tabular-nums transition-colors cursor-pointer touch-manipulation",
                 currentPage === pageNum
                   ? "bg-[#665AEF] hover:bg-[#5749DF] text-white shadow-xs shadow-[#665AEF]/25"
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted/60"
+                  : "text-neutral-400 hover:text-white hover:bg-neutral-800/60"
               )}
             >
               {pageNum}
@@ -436,7 +444,7 @@ export function ActivityTable({
             disabled={currentPage >= totalPages}
             onClick={() => onPageChange(currentPage + 1)}
             aria-label="Next page"
-            className="size-9 sm:size-8 rounded-md text-muted-foreground hover:text-foreground disabled:opacity-30 cursor-pointer touch-manipulation"
+            className="size-9 sm:size-8 rounded-md text-neutral-400 hover:text-white hover:bg-neutral-800/60 disabled:opacity-30 cursor-pointer touch-manipulation"
           >
             <ChevronRight className="size-4" />
           </Button>

@@ -108,7 +108,7 @@ export function useCaseActivityHistory({
     activityType: "ALL",
     userFilter: "ALL",
     onlySessionUser: false,
-    dateRange: "Oct 1, 2026 - Oct 5, 2026",
+    dateRange: "All Time",
     sortBy: "LATEST_FIRST",
     searchQuery: "",
   });
@@ -377,6 +377,54 @@ export function useCaseActivityHistory({
       }
     }
 
+    // Date Range filter
+    if (filters.dateRange && filters.dateRange !== "All Time") {
+      const now = Date.now();
+      const startOfToday = new Date();
+      startOfToday.setHours(0, 0, 0, 0);
+      const startOfTodayMs = startOfToday.getTime();
+      const ONE_DAY_MS = 24 * 60 * 60 * 1000;
+
+      list = list.filter((a) => {
+        let timestampMs = new Date(a.timestamp).getTime();
+        if (isNaN(timestampMs)) {
+          timestampMs = new Date(`${a.formattedDate} ${a.formattedTime}`).getTime();
+        }
+        if (isNaN(timestampMs)) return true;
+
+        switch (filters.dateRange) {
+          case "Today":
+            return timestampMs >= startOfTodayMs;
+
+          case "Last 24 Hours":
+            return timestampMs >= now - ONE_DAY_MS;
+
+          case "Last 7 Days":
+            return timestampMs >= now - 7 * ONE_DAY_MS;
+
+          case "Last 30 Days":
+            return timestampMs >= now - 30 * ONE_DAY_MS;
+
+          case "Last 90 Days":
+            return timestampMs >= now - 90 * ONE_DAY_MS;
+
+          default: {
+            if (filters.dateRange.includes(" - ")) {
+              const [startStr, endStr] = filters.dateRange.split(" - ").map((s) => s.trim());
+              const start = new Date(startStr).getTime();
+              const endObj = new Date(endStr);
+              endObj.setHours(23, 59, 59, 999);
+              const end = endObj.getTime();
+              if (!isNaN(start) && !isNaN(end)) {
+                return timestampMs >= start && timestampMs <= end;
+              }
+            }
+            return true;
+          }
+        }
+      });
+    }
+
     // Sort order
     if (filters.sortBy === "OLDEST_FIRST") {
       list.sort(
@@ -406,7 +454,7 @@ export function useCaseActivityHistory({
       activityType: "ALL",
       userFilter: "ALL",
       onlySessionUser: false,
-      dateRange: "Oct 1, 2026 - Oct 5, 2026",
+      dateRange: "All Time",
       sortBy: "LATEST_FIRST",
       searchQuery: "",
     });
