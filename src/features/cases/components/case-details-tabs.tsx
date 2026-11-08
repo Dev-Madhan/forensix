@@ -243,6 +243,10 @@ export function CaseDetailsTabs({ caseData }: CaseDetailsTabsProps) {
     return caseData.witnesses?.length ?? (caseData.witnessesCount || 0);
   });
 
+  const handleWitnessCountChange = React.useCallback((count: number) => {
+    setLiveWitnessCount(count);
+  }, []);
+
   React.useEffect(() => {
     if (caseData.evidences) {
       setLiveEvidenceCount(caseData.evidences.length);
@@ -1704,7 +1708,7 @@ export function CaseDetailsTabs({ caseData }: CaseDetailsTabsProps) {
                 caseId={caseData.id}
                 caseNumber={caseData.caseNumber}
                 initialWitnesses={caseData.witnesses || []}
-                onWitnessesCountChange={setLiveWitnessCount}
+                onWitnessesCountChange={handleWitnessCountChange}
               />
             </motion.div>
           )}

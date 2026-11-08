@@ -50,20 +50,35 @@ export function WitnessesTabContent({
     summary: string;
   } | null>(null);
 
-  // Stable SSE callbacks — useCallback prevents the effect from re-running on every render.
-  // These callbacks must NOT call any state setter of a parent component synchronously
-  // during render; wrapping in useCallback + keeping deps minimal satisfies React's rules.
-  const handleWitnessEnrolled = useCallback(
-    (newWitness: any) => {
-      setWitnesses((prev) => {
-        if (prev.some((w) => w.id === newWitness.id)) return prev;
-        const updated = [newWitness, ...prev];
-        onWitnessesCountChange?.(updated.length);
-        return updated;
-      });
-    },
-    [onWitnessesCountChange]
-  );
+  // Sync state if initialWitnesses prop updates from server hydration
+  useEffect(() => {
+    if (initialWitnesses) {
+      setWitnesses(initialWitnesses);
+    }
+  }, [initialWitnesses]);
+
+  // Safely notify parent component of witness count changes via a passive effect.
+  // This avoids mutating parent state during child render or state updater cycles.
+  const onWitnessesCountChangeRef = useRef(onWitnessesCountChange);
+  useEffect(() => {
+    onWitnessesCountChangeRef.current = onWitnessesCountChange;
+  });
+
+  const prevCountRef = useRef(witnesses.length);
+  useEffect(() => {
+    if (prevCountRef.current !== witnesses.length) {
+      prevCountRef.current = witnesses.length;
+      onWitnessesCountChangeRef.current?.(witnesses.length);
+    }
+  }, [witnesses.length]);
+
+  // Stable SSE callbacks — pure state updates without side-effects inside updaters
+  const handleWitnessEnrolled = useCallback((newWitness: any) => {
+    setWitnesses((prev) => {
+      if (prev.some((w) => w.id === newWitness.id)) return prev;
+      return [newWitness, ...prev];
+    });
+  }, []);
 
   const handleWitnessUpdated = useCallback((updatedWitness: any) => {
     setWitnesses((prev) =>
@@ -71,26 +86,18 @@ export function WitnessesTabContent({
     );
   }, []);
 
-  const handleWitnessDeleted = useCallback(
-    (deletedId: string) => {
-      setWitnesses((prev) => {
-        const updated = prev.filter((w) => w.id !== deletedId);
-        onWitnessesCountChange?.(updated.length);
-        return updated;
-      });
-    },
-    [onWitnessesCountChange]
-  );
+  const handleWitnessDeleted = useCallback((deletedId: string) => {
+    setWitnesses((prev) => prev.filter((w) => w.id !== deletedId));
+  }, []);
 
-  // A ref that always points to the latest handleInquiryLogged without being a reactive dep.
-  // This avoids a circular dependency: handleRealtimeInquiry → handleInquiryLogged → setDossierWitness.
+  // Stable ref to inquiry handler
   const handleInquiryLoggedRef = useRef<((witnessId: string, inquiry: WitnessInquiryItem) => void) | null>(null);
 
   const handleRealtimeInquiry = useCallback(
     (witnessId: string, inq: WitnessInquiryItem) => {
       handleInquiryLoggedRef.current?.(witnessId, inq);
     },
-    [] // stable — reads from ref, not from closure
+    []
   );
 
   // Real-Time Server-Sent Events (SSE) Live Witness Synchronization
@@ -104,15 +111,19 @@ export function WitnessesTabContent({
 
   // Calculate Real-Time Corroboration Index
   useEffect(() => {
+    let isMounted = true;
     if (witnesses.length >= 2) {
       getWitnessCorroboration(caseId).then((res) => {
-        if (res.success && res.data) {
+        if (isMounted && res.success && res.data) {
           setCorroboration(res.data);
         }
       });
     } else {
       setCorroboration(null);
     }
+    return () => {
+      isMounted = false;
+    };
   }, [witnesses, caseId]);
 
   // Filtered witnesses calculation
@@ -175,15 +186,12 @@ export function WitnessesTabContent({
     setWitnesses((prev) => {
       const existsIndex = prev.findIndex((w) => w.id === savedWitness.id);
       isNew = existsIndex < 0;
-      let updated: WitnessItem[];
       if (existsIndex >= 0) {
-        updated = [...prev];
+        const updated = [...prev];
         updated[existsIndex] = savedWitness;
-      } else {
-        updated = [savedWitness, ...prev];
+        return updated;
       }
-      onWitnessesCountChange?.(updated.length);
-      return updated;
+      return [savedWitness, ...prev];
     });
 
     logCaseActivity({
@@ -211,11 +219,7 @@ export function WitnessesTabContent({
       const res = await deleteWitness(witness.id, caseId);
       if (res.success) {
         toast.success(`Witness ${witness.name} removed from registry`);
-        setWitnesses((prev) => {
-          const updated = prev.filter((w) => w.id !== witness.id);
-          onWitnessesCountChange?.(updated.length);
-          return updated;
-        });
+        setWitnesses((prev) => prev.filter((w) => w.id !== witness.id));
         if (dossierWitness?.id === witness.id) {
           setDossierWitness(null);
         }
@@ -238,10 +242,20 @@ export function WitnessesTabContent({
   };
 
   const handleInquiryLogged = (witnessId: string, inquiry: WitnessInquiryItem) => {
+    const rawId = inquiry.id || (inquiry as any).inquiryId || `inq-${Date.now()}`;
+    const normalizedInquiry: WitnessInquiryItem = {
+      ...inquiry,
+      id: rawId,
+    };
+
     setWitnesses((prev) =>
       prev.map((w) => {
         if (w.id === witnessId) {
-          const updatedInquiries = [inquiry, ...w.inquiries];
+          // Avoid duplicate inquiry entries from simultaneous action resolution and SSE
+          if (w.inquiries.some((item) => item.id === rawId)) {
+            return w;
+          }
+          const updatedInquiries = [normalizedInquiry, ...w.inquiries];
           return {
             ...w,
             inquiriesCount: updatedInquiries.length,
@@ -254,19 +268,24 @@ export function WitnessesTabContent({
 
     // Update active dossier modal if currently inspecting this witness
     if (dossierWitness && dossierWitness.id === witnessId) {
-      setDossierWitness((prev) =>
-        prev
-          ? {
-              ...prev,
-              inquiriesCount: prev.inquiriesCount + 1,
-              inquiries: [inquiry, ...prev.inquiries],
-            }
-          : null
-      );
+      setDossierWitness((prev) => {
+        if (!prev) return null;
+        if (prev.inquiries.some((item) => item.id === rawId)) {
+          return prev;
+        }
+        const updatedInquiries = [normalizedInquiry, ...prev.inquiries];
+        return {
+          ...prev,
+          inquiriesCount: updatedInquiries.length,
+          inquiries: updatedInquiries,
+        };
+      });
     }
   };
   // Keep ref in sync so the stable handleRealtimeInquiry always calls the latest version
-  handleInquiryLoggedRef.current = handleInquiryLogged;
+  useEffect(() => {
+    handleInquiryLoggedRef.current = handleInquiryLogged;
+  });
 
   return (
     <div className="space-y-4">

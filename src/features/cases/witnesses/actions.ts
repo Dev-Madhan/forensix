@@ -142,9 +142,13 @@ export async function createWitness(rawData: unknown): Promise<{
 
   const parsed = CreateWitnessSchema.safeParse(rawData);
   if (!parsed.success) {
+    const errorDetails = parsed.error.issues
+      .map((i) => `${i.path.join(".") || "field"}: ${i.message}`)
+      .join("; ");
+    console.error("Witness creation validation failed:", errorDetails);
     return {
       success: false,
-      error: "Validation failed",
+      error: `Validation failed: ${errorDetails}`,
       details: parsed.error.flatten(),
     };
   }
@@ -197,6 +201,7 @@ export async function createWitness(rawData: unknown): Promise<{
         statement: d.statement,
         statementAudioUrl: d.statementAudioUrl || null,
         keyFacialFeatures: d.keyFacialFeatures,
+        interviewDate: d.interviewDate ? new Date(d.interviewDate) : new Date(),
         interviewingOfficerId: session.user.id,
       },
       include: {
@@ -321,9 +326,13 @@ export async function updateWitness(rawData: unknown): Promise<{
 
   const parsed = UpdateWitnessSchema.safeParse(rawData);
   if (!parsed.success) {
+    const errorDetails = parsed.error.issues
+      .map((i) => `${i.path.join(".") || "field"}: ${i.message}`)
+      .join("; ");
+    console.error("Witness update validation failed:", errorDetails);
     return {
       success: false,
-      error: "Validation failed",
+      error: `Validation failed: ${errorDetails}`,
       details: parsed.error.flatten(),
     };
   }
@@ -379,6 +388,7 @@ export async function updateWitness(rawData: unknown): Promise<{
         statement: d.statement ?? existing.statement,
         statementAudioUrl: d.statementAudioUrl !== undefined ? (d.statementAudioUrl || null) : existing.statementAudioUrl,
         keyFacialFeatures: d.keyFacialFeatures !== undefined ? d.keyFacialFeatures : existing.keyFacialFeatures,
+        interviewDate: d.interviewDate ? new Date(d.interviewDate) : existing.interviewDate,
       },
       include: {
         case: { select: { caseNumber: true } },
@@ -560,9 +570,13 @@ export async function logWitnessInquiry(rawData: unknown): Promise<{
 
   const parsed = CreateWitnessInquirySchema.safeParse(rawData);
   if (!parsed.success) {
+    const errorDetails = parsed.error.issues
+      .map((i) => `${i.path.join(".") || "field"}: ${i.message}`)
+      .join("; ");
+    console.error("Witness inquiry validation failed:", errorDetails);
     return {
       success: false,
-      error: "Validation failed",
+      error: `Validation failed: ${errorDetails}`,
       details: parsed.error.flatten(),
     };
   }
@@ -579,6 +593,11 @@ export async function logWitnessInquiry(rawData: unknown): Promise<{
       return { success: false, error: "Witness not found" };
     }
 
+    const validFollowUpDate =
+      d.nextFollowUpDate && !isNaN(new Date(d.nextFollowUpDate).getTime())
+        ? new Date(d.nextFollowUpDate)
+        : null;
+
     const log = await prisma.witnessInquiryLog.create({
       data: {
         witnessId: d.witnessId,
@@ -587,7 +606,7 @@ export async function logWitnessInquiry(rawData: unknown): Promise<{
         purpose: d.purpose,
         notes: d.notes,
         outcome: d.outcome || null,
-        nextFollowUpDate: d.nextFollowUpDate ? new Date(d.nextFollowUpDate) : null,
+        nextFollowUpDate: validFollowUpDate,
       },
       include: {
         investigator: {
@@ -616,6 +635,38 @@ export async function logWitnessInquiry(rawData: unknown): Promise<{
     } catch (auditErr) {
       console.warn("Inquiry audit log skipped:", auditErr);
     }
+
+    // Broadcast SSE live event for multi-tab synchronization
+    try {
+      const invName = log.investigator?.name || session.user.name || "Investigator";
+      const initials = invName
+        .split(" ")
+        .map((n) => n[0])
+        .join("")
+        .toUpperCase()
+        .slice(0, 2);
+
+      broadcastForensicEvent({
+        type: "WITNESS_INQUIRY_LOGGED",
+        data: {
+          id: log.id,
+          inquiryId: log.id,
+          caseId: witness.caseId,
+          witnessId: d.witnessId,
+          investigatorId: session.user.id,
+          investigatorName: invName,
+          investigatorInitials: initials,
+          inquiryDate: log.inquiryDate.toISOString(),
+          contactMethod: d.contactMethod,
+          purpose: d.purpose,
+          notes: d.notes,
+          outcome: d.outcome,
+          nextFollowUpDate: log.nextFollowUpDate?.toISOString() || null,
+          createdAt: log.createdAt.toISOString(),
+        },
+        timestamp: Date.now(),
+      });
+    } catch {}
 
     revalidatePath(`/case-details/${witness.caseId}`);
 
