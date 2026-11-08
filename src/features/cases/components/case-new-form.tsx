@@ -354,6 +354,8 @@ export function CaseNewForm({ initialUser, suggestedCaseNumber }: CaseNewFormPro
   // Form states
   const [title, setTitle] = React.useState("");
   const [caseType, setCaseType] = React.useState("Theft");
+  const [isCustomType, setIsCustomType] = React.useState(false);
+  const [customCaseType, setCustomCaseType] = React.useState("");
   const [status, setStatus] = React.useState<CaseStatus>(CaseStatus.OPEN);
   const [priority, setPriority] = React.useState<CasePriority>(CasePriority.MEDIUM);
   const [hoveredCaseType, setHoveredCaseType] = React.useState<string | null>(null);
@@ -837,6 +839,8 @@ export function CaseNewForm({ initialUser, suggestedCaseNumber }: CaseNewFormPro
   const handleClearForm = () => {
     setTitle("");
     setCaseType("Theft");
+    setIsCustomType(false);
+    setCustomCaseType("");
     setStatus(CaseStatus.OPEN);
     setPriority(CasePriority.MEDIUM);
     setDateReported(getFormattedCurrentDate());
@@ -1085,68 +1089,167 @@ export function CaseNewForm({ initialUser, suggestedCaseNumber }: CaseNewFormPro
 
               {/* Row 2: Case Type, Status, Priority, Date Reported, Time — all in one 5-col row */}
               <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3.5 sm:gap-4">
-                {/* Case Type Dropdown */}
+                {/* Case Type Dropdown & Custom Input */}
                 <div className="space-y-1.5">
-                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                    Case Type
-                  </Label>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger
-                      render={
-                        <Button
-                          type="button"
-                          variant="outline"
-                          className="h-10 w-full justify-between rounded-lg border-2 border-border/80 bg-background/50 px-3 text-xs sm:text-sm font-medium hover:bg-muted/60 hover:text-foreground cursor-pointer flex items-center shadow-2xs active:scale-[0.99] touch-manipulation"
-                        />
-                      }
-                    >
-                      <span className="truncate">{caseType}</span>
-                      <ChevronDown className="size-3.5 text-muted-foreground opacity-70 shrink-0 ml-2" />
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent
-                      align="start"
-                      side="bottom"
-                      sideOffset={6}
-                      className="w-(--anchor-width) min-w-45 max-h-60 overflow-y-auto scrollbar-none [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden p-1 rounded-xl shadow-2xl bg-card/95 backdrop-blur-xl border-2 border-border"
-                      onPointerLeave={() => setHoveredCaseType(null)}
-                    >
-                      <motion.div
-                        initial={{ opacity: 0, scale: 0.96, y: -6 }}
-                        animate={{ opacity: 1, scale: 1, y: 0 }}
-                        exit={{ opacity: 0, scale: 0.96, y: -6 }}
-                        transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-                        className="space-y-0.5"
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                      Case Type
+                    </Label>
+                    {isCustomType ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsCustomType(false);
+                          setCaseType("Theft");
+                          setCustomCaseType("");
+                        }}
+                        className="text-[10px] text-muted-foreground hover:text-[#665AEF] transition-colors cursor-pointer flex items-center gap-1 font-medium"
+                        title="Switch to presets"
                       >
-                        {CASE_TYPES.map((type) => (
-                          <DropdownMenuItem
-                            key={type}
-                            onPointerEnter={() => setHoveredCaseType(type)}
-                            onClick={() => {
-                              setCaseType(type);
-                              if (!tags.includes(type)) {
-                                setTags((prev) => [type, ...prev.filter((t) => !CASE_TYPES.includes(t))]);
-                              }
-                            }}
-                            className="relative z-0 group flex items-center justify-between cursor-pointer px-2.5 py-2.5 sm:py-2 rounded-lg transition-colors focus:text-accent-foreground hover:text-accent-foreground bg-transparent! text-xs sm:text-sm font-medium touch-manipulation"
-                          >
-                            {hoveredCaseType === type && (
-                              <motion.div
-                                layoutId="case-new-type-hover"
-                                className="absolute inset-0 z-[-1] rounded-lg bg-accent/80"
-                                transition={{
-                                  type: "spring",
-                                  bounce: 0.3,
-                                  duration: 0.4,
-                                }}
-                              />
-                            )}
-                            <span>{type}</span>
-                            {caseType === type && <Check className="size-3.5 text-[#665AEF]" />}
-                          </DropdownMenuItem>
-                        ))}
-                      </motion.div>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                        <RotateCcw className="size-2.5" />
+                        <span>Presets</span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsCustomType(true);
+                          setCaseType(customCaseType.trim() || "Other");
+                        }}
+                        className="text-[10px] text-muted-foreground hover:text-[#665AEF] transition-colors cursor-pointer flex items-center gap-1 font-medium"
+                        title="Enter custom case type"
+                      >
+                        <Plus className="size-2.5" />
+                        <span>Custom</span>
+                      </button>
+                    )}
+                  </div>
+
+                  {isCustomType ? (
+                    <div className="relative flex items-center">
+                      <Input
+                        type="text"
+                        value={customCaseType}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setCustomCaseType(val);
+                          const resolved = val.trim() || "Other";
+                          setCaseType(resolved);
+                          if (val.trim()) {
+                            setTags((prev) => [val.trim(), ...prev.filter((t) => !CASE_TYPES.includes(t) && t !== val.trim())]);
+                          }
+                        }}
+                        placeholder="Enter custom case type..."
+                        autoFocus
+                        className="h-10 text-base sm:text-sm font-medium border-2 border-border/80 bg-background/50 focus-visible:border-[#665AEF] focus-visible:ring-1 focus-visible:ring-[#665AEF]/30 rounded-lg pl-3 pr-8 placeholder:text-muted-foreground/50 shadow-2xs"
+                      />
+                      <DropdownMenu>
+                        <DropdownMenuTrigger
+                          render={
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              className="absolute right-1 size-7 p-0 text-muted-foreground hover:text-foreground cursor-pointer rounded-md flex items-center justify-center"
+                              title="Switch to preset list"
+                            />
+                          }
+                        >
+                          <ChevronDown className="size-3.5 opacity-70" />
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent
+                          align="end"
+                          side="bottom"
+                          sideOffset={6}
+                          className="w-48 max-h-60 overflow-y-auto scrollbar-none [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden p-1 rounded-xl shadow-2xl bg-card/95 backdrop-blur-xl border-2 border-border"
+                        >
+                          {CASE_TYPES.map((type) => (
+                            <DropdownMenuItem
+                              key={type}
+                              onClick={() => {
+                                if (type === "Other") {
+                                  setIsCustomType(true);
+                                } else {
+                                  setIsCustomType(false);
+                                  setCaseType(type);
+                                  setCustomCaseType("");
+                                  if (!tags.includes(type)) {
+                                    setTags((prev) => [type, ...prev.filter((t) => !CASE_TYPES.includes(t))]);
+                                  }
+                                }
+                              }}
+                              className="cursor-pointer text-xs sm:text-sm font-medium px-2.5 py-2 rounded-lg"
+                            >
+                              <span>{type === "Other" ? "Other (Custom)" : type}</span>
+                            </DropdownMenuItem>
+                          ))}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  ) : (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger
+                        render={
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="h-10 w-full justify-between rounded-lg border-2 border-border/80 bg-background/50 px-3 text-xs sm:text-sm font-medium hover:bg-muted/60 hover:text-foreground cursor-pointer flex items-center shadow-2xs active:scale-[0.99] touch-manipulation"
+                          />
+                        }
+                      >
+                        <span className="truncate">{caseType}</span>
+                        <ChevronDown className="size-3.5 text-muted-foreground opacity-70 shrink-0 ml-2" />
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent
+                        align="start"
+                        side="bottom"
+                        sideOffset={6}
+                        className="w-(--anchor-width) min-w-45 max-h-60 overflow-y-auto scrollbar-none [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden p-1 rounded-xl shadow-2xl bg-card/95 backdrop-blur-xl border-2 border-border"
+                        onPointerLeave={() => setHoveredCaseType(null)}
+                      >
+                        <motion.div
+                          initial={{ opacity: 0, scale: 0.96, y: -6 }}
+                          animate={{ opacity: 1, scale: 1, y: 0 }}
+                          exit={{ opacity: 0, scale: 0.96, y: -6 }}
+                          transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+                          className="space-y-0.5"
+                        >
+                          {CASE_TYPES.map((type) => (
+                            <DropdownMenuItem
+                              key={type}
+                              onPointerEnter={() => setHoveredCaseType(type)}
+                              onClick={() => {
+                                if (type === "Other") {
+                                  setIsCustomType(true);
+                                  setCaseType(customCaseType.trim() || "Other");
+                                } else {
+                                  setIsCustomType(false);
+                                  setCaseType(type);
+                                  if (!tags.includes(type)) {
+                                    setTags((prev) => [type, ...prev.filter((t) => !CASE_TYPES.includes(t))]);
+                                  }
+                                }
+                              }}
+                              className="relative z-0 group flex items-center justify-between cursor-pointer px-2.5 py-2.5 sm:py-2 rounded-lg transition-colors focus:text-accent-foreground hover:text-accent-foreground bg-transparent! text-xs sm:text-sm font-medium touch-manipulation"
+                            >
+                              {hoveredCaseType === type && (
+                                <motion.div
+                                  layoutId="case-new-type-hover"
+                                  className="absolute inset-0 z-[-1] rounded-lg bg-accent/80"
+                                  transition={{
+                                    type: "spring",
+                                    bounce: 0.3,
+                                    duration: 0.4,
+                                  }}
+                                />
+                              )}
+                              <span>{type === "Other" ? "Other (Custom...)" : type}</span>
+                              {caseType === type && <Check className="size-3.5 text-[#665AEF]" />}
+                            </DropdownMenuItem>
+                          ))}
+                        </motion.div>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  )}
                 </div>
 
                 {/* Investigation Status Dropdown */}

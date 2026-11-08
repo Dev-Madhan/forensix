@@ -58,6 +58,9 @@ export async function createCase(data: unknown) {
     ) {
       descParts.push(result.data.detailedDescription.trim());
     }
+    if (result.data.caseType?.trim()) {
+      descParts.push(`Case Type: ${result.data.caseType.trim()}`);
+    }
     if (result.data.location?.trim()) {
       descParts.push(
         `Incident Location: ${result.data.location.trim()}${

@@ -463,17 +463,21 @@ export async function resolveCaseBySlug(slug: string): Promise<ResolvedCaseDetai
           : dbCase.description && dbCase.description.toLowerCase().includes("salem")
           ? "Salem, TN"
           : "Chennai, TN",
-      caseType: dbCase.title.toLowerCase().includes("homicide")
-        ? "Homicide"
-        : dbCase.title.toLowerCase().includes("cyber")
-        ? "Cyber Crime"
-        : dbCase.title.toLowerCase().includes("fraud")
-        ? "Fraud"
-        : dbCase.title.toLowerCase().includes("missing")
-        ? "Missing Person"
-        : dbCase.title.toLowerCase().includes("assault")
-        ? "Assault"
-        : "Theft",
+      caseType: (() => {
+        const match = dbCase.description?.match(/Case Type:\s*([^\n]+)/i);
+        if (match && match[1]?.trim()) return match[1].trim();
+        return dbCase.title.toLowerCase().includes("homicide")
+          ? "Homicide"
+          : dbCase.title.toLowerCase().includes("cyber")
+          ? "Cyber Crime"
+          : dbCase.title.toLowerCase().includes("fraud")
+          ? "Fraud"
+          : dbCase.title.toLowerCase().includes("missing")
+          ? "Missing Person"
+          : dbCase.title.toLowerCase().includes("assault")
+          ? "Assault"
+          : "Theft";
+      })(),
       assignedToName: dbCase.assignedTo?.name || "Lead Investigator",
       assignedToEmail: dbCase.assignedTo?.email || "officer@forensix.gov",
       createdBy: "System",
