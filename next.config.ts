@@ -3,6 +3,11 @@ import "./src/env";
 const nextConfig: NextConfig = {
   allowedDevOrigins: ["192.168.29.12"],
   reactCompiler: true,
+  experimental: {
+    serverActions: {
+      bodySizeLimit: "25mb",
+    },
+  },
   images: {
     localPatterns: [
       {

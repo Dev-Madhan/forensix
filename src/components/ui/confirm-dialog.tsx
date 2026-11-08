@@ -12,6 +12,7 @@ export interface ConfirmDialogProps {
   onConfirm: () => void | Promise<void>;
   title: React.ReactNode;
   description?: React.ReactNode;
+  children?: React.ReactNode;
   confirmText?: string;
   cancelText?: string;
   variant?: "destructive" | "primary" | "warning";
@@ -27,6 +28,7 @@ export function ConfirmDialog({
   onConfirm,
   title,
   description = "This action cannot be undone!",
+  children,
   confirmText = "Delete",
   cancelText = "Cancel",
   variant = "destructive",
@@ -94,10 +96,13 @@ export function ConfirmDialog({
 
         {/* Description */}
         {description && (
-          <p className="text-xs sm:text-sm text-muted-foreground mt-2 leading-relaxed">
+          <div className="text-xs sm:text-sm text-muted-foreground mt-2 leading-relaxed">
             {description}
-          </p>
+          </div>
         )}
+
+        {/* Custom Body / Children Content */}
+        {children && <div className="mt-3.5">{children}</div>}
 
         {/* Action Buttons Row */}
         <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center sm:justify-end gap-2.5 sm:gap-3 mt-5 sm:mt-6 pt-1">
@@ -118,9 +123,9 @@ export function ConfirmDialog({
             disabled={isLoading}
             onClick={onConfirm}
             className={cn(
-              "h-10 sm:h-9 px-4 text-xs font-semibold rounded-lg flex items-center justify-center gap-2 border-2 cursor-pointer transition-all shadow-md w-full sm:w-auto",
+              "h-10 sm:h-9 px-4 text-xs font-semibold rounded-lg flex items-center justify-center gap-2 border-2 cursor-pointer transition-all shadow-xs w-full sm:w-auto",
               variant === "destructive"
-                ? "bg-rose-600 hover:bg-rose-700 text-white border-rose-600 shadow-rose-950/40"
+                ? "bg-destructive hover:bg-destructive/90 text-white border-destructive shadow-destructive/20"
                 : variant === "warning"
                 ? "bg-amber-600 hover:bg-amber-700 text-white border-amber-600 shadow-amber-950/40"
                 : "bg-[#665AEF] hover:bg-[#5749DF] text-white border-[#665AEF] shadow-[#665AEF]/30"

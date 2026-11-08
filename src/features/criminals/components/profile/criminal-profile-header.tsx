@@ -27,6 +27,10 @@ import {
   CheckCircle2,
   MapPin,
   FolderPlus,
+  RotateCcw,
+  History,
+  HardDrive,
+  Info,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -39,6 +43,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Modal } from "@/components/ui/modal";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
@@ -52,6 +60,10 @@ import {
 import {
   toggleCriminalWatchlist,
   updateCriminalPhoto,
+  getCriminalPhotoHistory,
+  rollbackCriminalPhoto,
+  deleteCriminalPhoto,
+  type CriminalMugshotHistoryItem,
   markCriminalForSurveillance,
   archiveCriminal,
   updateCriminalStatusAndRisk,
@@ -159,6 +171,42 @@ export function CriminalProfileHeader({
       ? mugshotDisplayUrl
       : criminal.mugshotUrl || null;
   });
+
+  // Photo Archival History & Rollback States
+  const [photoHistoryTab, setPhotoHistoryTab] = useState<string>("upload");
+  const [photoHistory, setPhotoHistory] = useState<CriminalMugshotHistoryItem[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState<boolean>(false);
+  const [selectedHistoryKey, setSelectedHistoryKey] = useState<string | null>(null);
+  const [isRollingBack, setIsRollingBack] = useState<boolean>(false);
+  const [photoToDelete, setPhotoToDelete] = useState<CriminalMugshotHistoryItem | null>(null);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState<boolean>(false);
+  const [isDeletingPhoto, setIsDeletingPhoto] = useState<boolean>(false);
+
+  const loadPhotoHistory = React.useCallback(async () => {
+    setIsLoadingHistory(true);
+    try {
+      const res = await getCriminalPhotoHistory(criminal.id || criminal.criminalId);
+      if (res.success && res.history) {
+        setPhotoHistory(res.history);
+        const active = res.history.find((h) => h.isActive);
+        if (active) {
+          setSelectedHistoryKey(active.storageKey);
+        } else if (res.history.length > 0) {
+          setSelectedHistoryKey(res.history[0].storageKey);
+        }
+      }
+    } catch (err) {
+      console.warn("Could not load photo history:", err);
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  }, [criminal.id, criminal.criminalId]);
+
+  React.useEffect(() => {
+    if (isChangePhotoOpen) {
+      loadPhotoHistory();
+    }
+  }, [isChangePhotoOpen, loadPhotoHistory]);
 
   // Sync state if server prop updates
   React.useEffect(() => {
@@ -287,6 +335,7 @@ export function CriminalProfileHeader({
         setIsChangePhotoOpen(false);
         setNewPhotoFile(null);
         setNewPhotoPreview(null);
+        loadPhotoHistory();
         router.refresh();
       }
     } catch (err: any) {
@@ -294,6 +343,102 @@ export function CriminalProfileHeader({
       toast.error(err?.message || "Failed to upload photo to storage.");
     } finally {
       setIsUploadingPhoto(false);
+    }
+  };
+
+  const handleRollbackPhoto = async () => {
+    if (!selectedHistoryKey) {
+      toast.error("Please select a historical mugshot first.");
+      return;
+    }
+    const selectedItem = photoHistory.find((h) => h.storageKey === selectedHistoryKey);
+    if (selectedItem?.isActive) {
+      toast.info("This mugshot is already the active profile photo.");
+      return;
+    }
+
+    setIsRollingBack(true);
+    try {
+      const res = await rollbackCriminalPhoto(criminal.id, selectedHistoryKey);
+      if (!res.success || res.error) {
+        toast.error(res.error || "Failed to restore historical photo.");
+      } else {
+        toast.success("Profile photo restored successfully (0 MB storage delta).");
+        if (res.storageKey) {
+          setCurrentMugshot(res.storageKey);
+          setPhotoLoadError(false);
+        }
+        setPhotoHistory((prev) =>
+          prev.map((item) => ({
+            ...item,
+            isActive: item.storageKey === selectedHistoryKey,
+          }))
+        );
+        setIsChangePhotoOpen(false);
+        router.refresh();
+      }
+    } catch (err: any) {
+      console.error("Rollback photo error:", err);
+      toast.error(err?.message || "Failed to rollback photo.");
+    } finally {
+      setIsRollingBack(false);
+    }
+  };
+
+  const handleConfirmDeletePhoto = async () => {
+    if (!photoToDelete) return;
+
+    setIsDeletingPhoto(true);
+    try {
+      const res = await deleteCriminalPhoto(criminal.id, photoToDelete.storageKey);
+      if (!res.success || res.error) {
+        toast.error(res.error || "Failed to delete photo from Tigris S3.");
+      } else {
+        toast.success("Mugshot permanently deleted from Tigris S3.");
+        setIsDeleteDialogOpen(false);
+
+        const targetKey = photoToDelete.storageKey;
+        const wasActive = photoToDelete.isActive;
+
+        // Update local photoHistory state
+        const nextHistory = photoHistory
+          .filter((h) => h.storageKey !== targetKey)
+          .map((h) => ({
+            ...h,
+            isActive: wasActive && res.newActiveKey ? h.storageKey === res.newActiveKey : h.isActive,
+          }));
+
+        setPhotoHistory(nextHistory);
+
+        // If active photo was deleted, update active mugshot pointer
+        if (wasActive) {
+          if (res.newActiveKey) {
+            setCurrentMugshot(res.newActiveKey);
+          } else {
+            setCurrentMugshot(null);
+          }
+          setPhotoLoadError(false);
+        }
+
+        // If selected item was deleted, select next available photo
+        if (selectedHistoryKey === targetKey) {
+          if (nextHistory.length > 0) {
+            const nextActive = nextHistory.find((h) => h.isActive) || nextHistory[0];
+            setSelectedHistoryKey(nextActive.storageKey);
+          } else {
+            setSelectedHistoryKey(null);
+            setPhotoHistoryTab("upload");
+          }
+        }
+
+        setPhotoToDelete(null);
+        router.refresh();
+      }
+    } catch (err: any) {
+      console.error("Delete photo error:", err);
+      toast.error(err?.message || "Failed to delete photo from Tigris S3.");
+    } finally {
+      setIsDeletingPhoto(false);
     }
   };
 
@@ -1131,7 +1276,7 @@ export function CriminalProfileHeader({
         </div>
       </Modal>
 
-      {/* 2. CHANGE PHOTO MODAL */}
+      {/* 2. CHANGE PHOTO MODAL & BOOKING ARCHIVE */}
       <Modal
         isOpen={isChangePhotoOpen}
         onClose={() => {
@@ -1139,127 +1284,608 @@ export function CriminalProfileHeader({
           setNewPhotoFile(null);
           setNewPhotoPreview(null);
         }}
-        title="Update Criminal Photo"
-        description="Upload a new front-facing booking photo or mugshot to Tigris S3."
+        maxWidth="max-w-[560px]"
+        title={
+          <div className="flex items-center gap-2 text-foreground font-semibold">
+            <Camera className="size-4 text-muted-foreground" />
+            <span className="text-sm font-semibold tracking-tight">
+              Update Criminal Photo
+            </span>
+          </div>
+        }
+        description="Enroll a new booking mugshot or restore a previous photo with zero storage delta."
+        className="bg-card border-2 border-border/80 text-foreground shadow-2xl rounded-2xl"
       >
-        <div className="space-y-4 py-2">
-          <input
-            type="file"
-            ref={photoInputRef}
-            accept="image/*"
-            className="hidden"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) {
-                if (file.size > 25 * 1024 * 1024) {
-                  toast.error("Image file size exceeds 25 MB limit");
-                  return;
-                }
-                setNewPhotoFile(file);
-                setNewPhotoPreview(URL.createObjectURL(file));
-              }
-            }}
-          />
-
-          {newPhotoPreview ? (
-            <div className="relative aspect-3/4 w-48 mx-auto rounded-xl overflow-hidden border-2 border-[#665AEF]/50 shadow-md">
-              <Image
-                src={newPhotoPreview}
-                alt="New Photo Preview"
-                fill
-                className="object-cover"
-              />
+        <div className="space-y-3.5 py-0.5">
+          <Tabs
+            value={photoHistoryTab}
+            onValueChange={(val) => setPhotoHistoryTab(val)}
+            className="w-full"
+          >
+            {/* PREMIUM DUAL ACTION TILES WITH BORDER-2 */}
+            <div className="grid grid-cols-2 gap-2.5 mb-4" role="tablist">
               <button
                 type="button"
+                role="tab"
+                aria-selected={photoHistoryTab === "upload"}
+                onClick={() => setPhotoHistoryTab("upload")}
+                className={cn(
+                  "group relative flex items-center justify-center gap-2.5 h-11 px-3.5 rounded-xl border-2 text-xs font-semibold tracking-wide transition-all cursor-pointer select-none outline-none",
+                  photoHistoryTab === "upload"
+                    ? "border-2 border-[#665AEF] bg-neutral-900 text-white shadow-xs shadow-[#665AEF]/20"
+                    : "border-2 border-neutral-800/90 bg-neutral-950/60 text-neutral-400 hover:text-neutral-200 hover:border-neutral-700 hover:bg-neutral-900/40"
+                )}
+              >
+                <div
+                  className={cn(
+                    "size-6 rounded-lg flex items-center justify-center transition-colors shrink-0",
+                    photoHistoryTab === "upload"
+                      ? "bg-[#665AEF] text-white shadow-xs"
+                      : "bg-neutral-800/80 text-neutral-400 group-hover:text-neutral-200"
+                  )}
+                >
+                  <Upload className="size-3.5 stroke-[2.5]" />
+                </div>
+                <span>Upload New Photo</span>
+              </button>
+
+              <button
+                type="button"
+                role="tab"
+                aria-selected={photoHistoryTab === "archive"}
+                onClick={() => setPhotoHistoryTab("archive")}
+                className={cn(
+                  "group relative flex items-center justify-center gap-2.5 h-11 px-3.5 rounded-xl border-2 text-xs font-semibold tracking-wide transition-all cursor-pointer select-none outline-none",
+                  photoHistoryTab === "archive"
+                    ? "border-2 border-[#665AEF] bg-neutral-900 text-white shadow-xs shadow-[#665AEF]/20"
+                    : "border-2 border-neutral-800/90 bg-neutral-950/60 text-neutral-400 hover:text-neutral-200 hover:border-neutral-700 hover:bg-neutral-900/40"
+                )}
+              >
+                <div
+                  className={cn(
+                    "size-6 rounded-lg flex items-center justify-center transition-colors shrink-0",
+                    photoHistoryTab === "archive"
+                      ? "bg-[#665AEF] text-white shadow-xs"
+                      : "bg-neutral-800/80 text-neutral-400 group-hover:text-neutral-200"
+                  )}
+                >
+                  <History className="size-3.5 stroke-[2.5]" />
+                </div>
+                <span>Previous Mugshots</span>
+                {photoHistory.length > 0 && (
+                  <span
+                    className={cn(
+                      "text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-md border-2 transition-colors",
+                      photoHistoryTab === "archive"
+                        ? "border-[#665AEF]/60 bg-[#665AEF]/20 text-[#a594fd]"
+                        : "border-neutral-800 bg-neutral-900 text-neutral-400"
+                    )}
+                  >
+                    {photoHistory.length}
+                  </span>
+                )}
+              </button>
+            </div>
+
+            {/* TAB 1: UPLOAD NEW PHOTO */}
+            <TabsContent value="upload" className="space-y-3 outline-none">
+              <input
+                type="file"
+                ref={photoInputRef}
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    if (file.size > 5 * 1024 * 1024) {
+                      toast.error("Image file size exceeds 5 MB limit");
+                      return;
+                    }
+                    setNewPhotoFile(file);
+                    setNewPhotoPreview(URL.createObjectURL(file));
+                  }
+                }}
+              />
+
+              {newPhotoPreview ? (
+                <div className="flex flex-col items-center gap-3 py-1">
+                  <div className="relative aspect-3/4 w-44 rounded-xl overflow-hidden border-2 border-border/80 bg-card shadow-md">
+                    <Image
+                      src={newPhotoPreview}
+                      alt="New Photo Preview"
+                      fill
+                      className="object-cover"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setNewPhotoFile(null);
+                        setNewPhotoPreview(null);
+                      }}
+                      className="absolute top-2 right-2 size-6 rounded-md bg-black/80 text-white flex items-center justify-center hover:bg-black transition-colors cursor-pointer border-2 border-white/20"
+                    >
+                      <X className="size-3.5" />
+                    </button>
+                  </div>
+                  {newPhotoFile && (
+                    <div className="text-center">
+                      <p className="text-xs font-semibold text-foreground truncate max-w-xs">{newPhotoFile.name}</p>
+                      <p className="text-[11px] text-muted-foreground font-mono mt-0.5">{(newPhotoFile.size / (1024 * 1024)).toFixed(2)} MB • Ready for S3 enrollment</p>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div
+                  onClick={() => photoInputRef.current?.click()}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setIsPhotoDragOver(true);
+                  }}
+                  onDragLeave={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setIsPhotoDragOver(false);
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setIsPhotoDragOver(false);
+                    const file = e.dataTransfer.files?.[0];
+                    if (file) {
+                      if (file.size > 5 * 1024 * 1024) {
+                        toast.error("Image file size exceeds 5 MB limit");
+                        return;
+                      }
+                      setNewPhotoFile(file);
+                      setNewPhotoPreview(URL.createObjectURL(file));
+                    }
+                  }}
+                  className={cn(
+                    "border-2 border-dashed rounded-xl p-8 sm:p-10 flex flex-col items-center justify-center gap-3 text-center transition-colors cursor-pointer select-none",
+                    isPhotoDragOver
+                      ? "border-2 border-[#665AEF] bg-[#665AEF]/10 ring-2 ring-[#665AEF]/20"
+                      : "border-2 border-border/80 bg-card/40 hover:border-border hover:bg-muted/40"
+                  )}
+                >
+                  <div className="size-12 rounded-xl border-2 border-border/80 bg-muted/60 flex items-center justify-center text-foreground shadow-xs">
+                    <Upload className="size-5" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-foreground">
+                      Click to select or drag & drop booking photo
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      PNG, JPG, or WEBP up to 5MB • Front-facing portrait
+                    </p>
+                  </div>
+                </div>
+              )}
+            </TabsContent>
+
+            {/* TAB 2: HISTORICAL MUGSHOTS ARCHIVE (PORTION 2: PREMIUM MINIMAL DESIGN WITH BORDER-2) */}
+            <TabsContent value="archive" className="space-y-3 outline-none">
+              {/* Clean Sub-Header with border-2 */}
+              <div className="flex items-center justify-between text-xs text-muted-foreground px-0.5 pb-2 border-b-2 border-border/60">
+                <span className="font-semibold text-foreground text-xs tracking-wider uppercase">
+                  Booking Archive ({photoHistory.length})
+                </span>
+                <span className="text-[11px] text-muted-foreground font-mono flex items-center gap-1.5">
+                  <HardDrive className="size-3 text-muted-foreground" />
+                  0 MB Tigris Delta
+                </span>
+              </div>
+
+              {isLoadingHistory ? (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5">
+                  <Skeleton className="aspect-3/4 rounded-xl border-2 border-border/80 bg-muted/40" />
+                  <Skeleton className="aspect-3/4 rounded-xl border-2 border-border/80 bg-muted/40" />
+                  <Skeleton className="aspect-3/4 rounded-xl border-2 border-border/80 bg-muted/40" />
+                </div>
+              ) : photoHistory.length === 0 ? (
+                <div className="border-2 border-dashed border-border/80 rounded-xl p-8 text-center bg-card/40">
+                  <History className="size-8 text-muted-foreground mx-auto mb-2" />
+                  <p className="text-sm font-semibold text-foreground">No Historical Mugshots Found</p>
+                  <p className="text-xs text-muted-foreground mt-1">Uploaded profile mugshots will automatically be archived here for rollback.</p>
+                </div>
+              ) : photoHistory.length === 1 ? (
+                /* SINGLE PHOTO DOSSIER LAYOUT: High-precision side-by-side cards with border-2 */
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                  {(() => {
+                    const item = photoHistory[0];
+                    const isSelected = selectedHistoryKey === item.storageKey;
+                    const displayUrl = item.url || getSafeStorageUrl(item.storageKey) || "/images/suspects/arun-prakash.jpg";
+                    return (
+                      <div
+                        onClick={() => setSelectedHistoryKey(item.storageKey)}
+                        className={cn(
+                          "group relative aspect-3/4 rounded-xl overflow-hidden cursor-pointer select-none transition-all",
+                          isSelected
+                            ? "border-2 border-[#665AEF] ring-2 ring-[#665AEF]/25 bg-card shadow-md"
+                            : "border-2 border-border/80 hover:border-border bg-card/60"
+                        )}
+                      >
+                        <Image
+                          src={displayUrl}
+                          alt={item.fileName || "Booking Photo"}
+                          fill
+                          className="object-cover"
+                        />
+                        <div className="absolute inset-0 bg-linear-to-t from-black/90 via-black/25 to-transparent pointer-events-none" />
+
+                        {/* Badges Header with border-2 */}
+                        <div className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between pointer-events-none">
+                          {item.isActive ? (
+                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-semibold border-2 border-emerald-500/50 bg-emerald-500/20 text-emerald-400 backdrop-blur-md">
+                              <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                              Active
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold border-2 border-border bg-card/90 text-muted-foreground backdrop-blur-md">
+                              Archived
+                            </span>
+                          )}
+
+                          <div className="flex items-center gap-1.5 pointer-events-auto">
+                            <button
+                              type="button"
+                              title="Delete photo from Tigris S3"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setPhotoToDelete(item);
+                                setIsDeleteDialogOpen(true);
+                              }}
+                              className="size-6 rounded-md bg-black/75 hover:bg-destructive text-muted-foreground hover:text-white border-2 border-border/80 hover:border-destructive flex items-center justify-center transition-all cursor-pointer shadow-xs"
+                            >
+                              <Trash2 className="size-3" />
+                            </button>
+
+                            {isSelected && (
+                              <div className="size-5 rounded-md border-2 border-[#665AEF] bg-[#665AEF] text-white flex items-center justify-center shadow-sm">
+                                <Check className="size-3 stroke-[3]" />
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Bottom Metadata */}
+                        <div className="absolute bottom-2.5 left-2.5 right-2.5 pointer-events-none text-left">
+                          <p className="text-xs font-semibold text-white drop-shadow-xs">
+                            {new Date(item.uploadedAt).toLocaleDateString("en-US", {
+                              month: "short",
+                              day: "numeric",
+                              year: "numeric",
+                            })}
+                          </p>
+                          <p className="text-[11px] text-zinc-300 truncate font-mono mt-0.5">
+                            {item.fileName || "Booking Photo"}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  {/* Dossier Record Specification Panel with border-2 */}
+                  <div className="rounded-xl border-2 border-border/80 bg-card/60 p-4 flex flex-col justify-between text-xs">
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between border-b-2 border-border/60 pb-2">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Vault Dossier Spec</span>
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono border-2 border-border/80 bg-muted/60 text-foreground font-semibold">v1.0 ACTIVE</span>
+                      </div>
+                      
+                      <div className="space-y-2.5 text-foreground">
+                        <div>
+                          <span className="text-[10px] uppercase text-muted-foreground font-semibold block">Archive File</span>
+                          <span className="font-mono text-xs text-foreground truncate block font-medium">
+                            {photoHistory[0].fileName || "booking-photo.jpg"}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] uppercase text-muted-foreground font-semibold block">Enrollment Timestamp</span>
+                          <span className="text-xs text-foreground block font-medium">
+                            {new Date(photoHistory[0].uploadedAt).toLocaleString("en-US", {
+                              month: "short",
+                              day: "numeric",
+                              year: "numeric",
+                              hour: "numeric",
+                              minute: "2-digit",
+                              hour12: true,
+                            })}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] uppercase text-muted-foreground font-semibold block">Biometric Enrollment</span>
+                          <span className="font-mono text-[11px] text-emerald-400 flex items-center gap-1.5 font-medium mt-0.5">
+                            <span className="size-1.5 rounded-full bg-emerald-400" />
+                            ArcFace 512-dim Vector Enrolled
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="pt-3 border-t-2 border-border/60 flex flex-col gap-2">
+                      <p className="text-[11px] text-muted-foreground leading-relaxed">
+                        Subsequent photo updates will automatically be recorded here for instant 0 MB rollback.
+                      </p>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={isDeletingPhoto || isRollingBack}
+                        onClick={() => {
+                          setPhotoToDelete(photoHistory[0]);
+                          setIsDeleteDialogOpen(true);
+                        }}
+                        className="w-full h-8 text-xs font-semibold border-2 border-destructive/30 bg-destructive/10 text-destructive hover:bg-destructive/20 hover:border-destructive/60 rounded-lg cursor-pointer flex items-center justify-center gap-1.5 shadow-xs transition-colors"
+                      >
+                        <Trash2 className="size-3.5" />
+                        <span>Purge from Tigris S3</span>
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* MULTI-PHOTO GALLERY GRID: All photos with border-2 */
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5 max-h-[350px] overflow-y-auto [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden pr-0.5">
+                  {photoHistory.map((item) => {
+                    const isSelected = selectedHistoryKey === item.storageKey;
+                    const displayUrl = item.url || getSafeStorageUrl(item.storageKey) || "/images/suspects/arun-prakash.jpg";
+                    return (
+                      <div
+                        key={item.id || item.storageKey}
+                        onClick={() => setSelectedHistoryKey(item.storageKey)}
+                        className={cn(
+                          "group relative aspect-3/4 rounded-xl overflow-hidden cursor-pointer select-none transition-all",
+                          isSelected
+                            ? "border-2 border-[#665AEF] ring-2 ring-[#665AEF]/25 bg-card shadow-md"
+                            : "border-2 border-border/80 hover:border-border bg-card/60"
+                        )}
+                      >
+                        <Image
+                          src={displayUrl}
+                          alt={item.fileName || "Historical Mugshot"}
+                          fill
+                          className="object-cover"
+                        />
+                        <div className="absolute inset-0 bg-linear-to-t from-black/90 via-black/25 to-transparent pointer-events-none" />
+
+                        {/* Badges Header with border-2 */}
+                        <div className="absolute top-2.5 left-2.5 right-2.5 flex items-center justify-between pointer-events-none">
+                          {item.isActive ? (
+                            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-semibold border-2 border-emerald-500/50 bg-emerald-500/20 text-emerald-400 backdrop-blur-md">
+                              <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                              Active
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold border-2 border-border bg-card/90 text-muted-foreground backdrop-blur-md">
+                              Archived
+                            </span>
+                          )}
+
+                          <div className="flex items-center gap-1.5 pointer-events-auto">
+                            <button
+                              type="button"
+                              title="Delete photo from Tigris S3"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setPhotoToDelete(item);
+                                setIsDeleteDialogOpen(true);
+                              }}
+                              className="size-6 rounded-md bg-black/75 hover:bg-destructive text-muted-foreground hover:text-white border-2 border-border/80 hover:border-destructive flex items-center justify-center transition-all cursor-pointer shadow-xs"
+                            >
+                              <Trash2 className="size-3" />
+                            </button>
+
+                            {isSelected && (
+                              <div className="size-5 rounded-md border-2 border-[#665AEF] bg-[#665AEF] text-white flex items-center justify-center shadow-sm">
+                                <Check className="size-3 stroke-[3]" />
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Bottom Metadata */}
+                        <div className="absolute bottom-2.5 left-2.5 right-2.5 pointer-events-none text-left">
+                          <p className="text-xs font-semibold text-white drop-shadow-xs">
+                            {new Date(item.uploadedAt).toLocaleDateString("en-US", {
+                              month: "short",
+                              day: "numeric",
+                              year: "numeric",
+                            })}
+                          </p>
+                          <p className="text-[11px] text-zinc-300 truncate font-mono mt-0.5">
+                            {item.fileName || "Booking Photo"}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
+
+          {/* Footer Controls with border-2 */}
+          <div className="flex items-center justify-between gap-3 pt-3 mt-1 border-t-2 border-border/80">
+            <div className="text-xs text-muted-foreground min-w-0 flex items-center gap-2">
+              {photoHistoryTab === "archive" && selectedHistoryKey ? (
+                <div className="flex items-center gap-2 truncate">
+                  <span className="size-2 rounded-full bg-muted-foreground/60 shrink-0" />
+                  <span className="text-[11px] font-mono text-foreground font-medium truncate max-w-[200px]">
+                    {photoHistory.find((h) => h.storageKey === selectedHistoryKey)?.fileName || "Selected Mugshot"}
+                  </span>
+                </div>
+              ) : (
+                <span className="text-[11px] text-muted-foreground">
+                  {photoHistoryTab === "upload" ? "Frontal facial biometric standard" : "Select a photo to review or restore"}
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={isUploadingPhoto || isRollingBack}
                 onClick={() => {
+                  setIsChangePhotoOpen(false);
                   setNewPhotoFile(null);
                   setNewPhotoPreview(null);
                 }}
-                className="absolute top-2 right-2 size-6 rounded-full bg-black/70 text-white flex items-center justify-center hover:bg-black cursor-pointer"
+                className="h-9 px-4 border-2 border-border/80 bg-card/60 text-foreground hover:bg-muted/60 hover:text-foreground rounded-lg text-xs font-semibold cursor-pointer shadow-xs"
               >
-                <X className="size-3.5" />
-              </button>
-            </div>
-          ) : (
-            <div
-              onClick={() => photoInputRef.current?.click()}
-              onDragOver={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setIsPhotoDragOver(true);
-              }}
-              onDragLeave={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setIsPhotoDragOver(false);
-              }}
-              onDrop={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setIsPhotoDragOver(false);
-                const file = e.dataTransfer.files?.[0];
-                if (file) {
-                  if (file.size > 25 * 1024 * 1024) {
-                    toast.error("Image file size exceeds 25 MB limit");
-                    return;
-                  }
-                  setNewPhotoFile(file);
-                  setNewPhotoPreview(URL.createObjectURL(file));
-                }
-              }}
-              className={cn(
-                "border-2 border-dashed rounded-xl p-8 flex flex-col items-center justify-center gap-3 text-center transition-colors cursor-pointer",
-                isPhotoDragOver
-                  ? "border-[#665AEF] bg-[#665AEF]/15 ring-2 ring-[#665AEF]/30"
-                  : "border-border/70 bg-muted/10 hover:bg-muted/20"
-              )}
-            >
-              <div className="flex size-12 items-center justify-center rounded-full bg-[#665AEF]/15 text-[#a594fd]">
-                <Upload className="size-6" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-foreground">
-                  Click or drag to select booking mugshot file
-                </p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  PNG, JPG, or WEBP up to 25MB
-                </p>
-              </div>
-            </div>
-          )}
+                Cancel
+              </Button>
 
-          <div className="flex justify-end gap-2.5 pt-2">
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={isUploadingPhoto}
-              onClick={() => {
-                setIsChangePhotoOpen(false);
-                setNewPhotoFile(null);
-                setNewPhotoPreview(null);
-              }}
-              className="h-9 px-4 cursor-pointer"
-            >
-              Cancel
-            </Button>
-            <Button
-              size="sm"
-              disabled={!newPhotoFile || isUploadingPhoto}
-              onClick={handleSaveNewPhoto}
-              className="h-9 px-4 bg-[#665AEF] hover:bg-[#5749DF] text-white shadow-xs shadow-[#665AEF]/25 cursor-pointer gap-2"
-            >
-              {isUploadingPhoto ? (
-                <>
-                  <Loader2 className="size-3.5 animate-spin" />
-                  <span>Uploading to S3...</span>
-                </>
+              {photoHistoryTab === "upload" ? (
+                <Button
+                  size="sm"
+                  disabled={!newPhotoFile || isUploadingPhoto}
+                  onClick={handleSaveNewPhoto}
+                  className="h-9 px-4 bg-[#665AEF] hover:bg-[#5749DF] text-white shadow-xs shadow-[#665AEF]/25 text-xs font-semibold cursor-pointer rounded-lg gap-2"
+                >
+                  {isUploadingPhoto ? (
+                    <>
+                      <Loader2 className="size-3.5 animate-spin" />
+                      <span>Uploading to S3...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="size-3.5" />
+                      <span>Save & Set Active</span>
+                    </>
+                  )}
+                </Button>
               ) : (
-                <span>Save Photo</span>
+                <div className="flex items-center gap-2">
+                  {selectedHistoryKey && photoHistory.length > 0 && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={isRollingBack || isDeletingPhoto}
+                      onClick={() => {
+                        const selectedItem = photoHistory.find((h) => h.storageKey === selectedHistoryKey);
+                        if (selectedItem) {
+                          setPhotoToDelete(selectedItem);
+                          setIsDeleteDialogOpen(true);
+                        }
+                      }}
+                      className="h-9 px-3 border-2 border-destructive/30 bg-destructive/10 text-destructive hover:bg-destructive/20 hover:border-destructive/60 rounded-lg text-xs font-semibold cursor-pointer shadow-xs flex items-center gap-1.5 transition-colors"
+                    >
+                      <Trash2 className="size-3.5" />
+                      <span className="hidden sm:inline">Delete from Tigris</span>
+                      <span className="sm:hidden">Delete</span>
+                    </Button>
+                  )}
+
+                  {(() => {
+                    const selectedItem = photoHistory.find((h) => h.storageKey === selectedHistoryKey);
+                    const isCurrentlyActive = selectedItem?.isActive;
+
+                    if (isCurrentlyActive) {
+                      return (
+                        <Button
+                          size="sm"
+                          disabled
+                          className="h-9 px-4 bg-muted/40 border-2 border-border/80 text-muted-foreground text-xs font-semibold cursor-not-allowed rounded-lg shadow-xs"
+                        >
+                          Currently Active Photo
+                        </Button>
+                      );
+                    }
+
+                    return (
+                      <Button
+                        size="sm"
+                        disabled={!selectedHistoryKey || isRollingBack || isDeletingPhoto || photoHistory.length === 0}
+                        onClick={handleRollbackPhoto}
+                        className="h-9 px-4 bg-[#665AEF] hover:bg-[#5749DF] text-white shadow-xs shadow-[#665AEF]/25 text-xs font-semibold cursor-pointer rounded-lg gap-2"
+                      >
+                        {isRollingBack ? (
+                          <>
+                            <Loader2 className="size-3.5 animate-spin" />
+                            <span>Restoring...</span>
+                          </>
+                        ) : (
+                          <>
+                            <RotateCcw className="size-3.5" />
+                            <span>Restore as Active Photo</span>
+                          </>
+                        )}
+                      </Button>
+                    );
+                  })()}
+                </div>
               )}
-            </Button>
+            </div>
           </div>
         </div>
       </Modal>
+
+      {/* 3.1 CONFIRM DELETE PHOTO FROM TIGRIS S3 DIALOG */}
+      <ConfirmDialog
+        isOpen={isDeleteDialogOpen}
+        onClose={() => {
+          if (!isDeletingPhoto) {
+            setIsDeleteDialogOpen(false);
+            setPhotoToDelete(null);
+          }
+        }}
+        onConfirm={handleConfirmDeletePhoto}
+        title="Permanently Delete Mugshot from Tigris S3?"
+        description="This action cannot be undone. The selected booking mugshot object will be permanently purged from Tigris S3 bucket storage and removed from the biometric archive."
+        confirmText={isDeletingPhoto ? "Deleting from Tigris..." : "Delete from Tigris S3"}
+        cancelText="Keep Photo"
+        variant="destructive"
+        icon={<Trash2 className="size-4" />}
+        isLoading={isDeletingPhoto}
+        zIndex="z-[80]"
+      >
+        {photoToDelete && (
+          <div className="rounded-xl border-2 border-border/80 bg-card/60 p-3.5 space-y-3">
+            <div className="flex items-center gap-3">
+              <div className="relative aspect-3/4 w-14 rounded-lg overflow-hidden border-2 border-border/80 bg-muted shrink-0">
+                <Image
+                  src={photoToDelete.url || getSafeStorageUrl(photoToDelete.storageKey) || "/images/suspects/arun-prakash.jpg"}
+                  alt="Mugshot to delete"
+                  fill
+                  className="object-cover"
+                />
+              </div>
+              <div className="min-w-0 flex-1 space-y-1">
+                <div className="flex items-center gap-2">
+                  {photoToDelete.isActive ? (
+                    <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10px] font-semibold border-2 border-emerald-500/40 bg-emerald-500/15 text-emerald-400">
+                      <span className="size-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                      Active Profile Photo
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold border-2 border-border/80 bg-muted/60 text-muted-foreground">
+                      Archived Mugshot
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs font-semibold text-foreground truncate font-mono">
+                  {photoToDelete.fileName || "booking-photo.jpg"}
+                </p>
+                <p className="text-[10px] text-muted-foreground truncate font-mono">
+                  Key: {photoToDelete.storageKey}
+                </p>
+              </div>
+            </div>
+
+            {photoToDelete.isActive && (
+              <div className="flex items-start gap-2.5 rounded-lg border-2 border-destructive/30 bg-destructive/10 p-2.5 text-[11px] text-destructive leading-relaxed">
+                <AlertTriangle className="size-4 text-destructive shrink-0 mt-0.5" />
+                <p>
+                  <strong className="font-semibold">Notice:</strong> Deleting the active photo will automatically promote the latest archive photo or clear the profile mugshot.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+      </ConfirmDialog>
 
 
 

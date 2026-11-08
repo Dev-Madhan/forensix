@@ -13,7 +13,7 @@ import {
 import { broadcastCriminalEvent } from "@/lib/criminal-events";
 import { revalidatePath } from "next/cache";
 import { tigris, TIGRIS_BUCKET } from "@/lib/tigris";
-import { PutObjectCommand } from "@aws-sdk/client-s3";
+import { PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import crypto from "crypto";
 import {
   CriminalRiskLevel,
@@ -1167,6 +1167,18 @@ export async function bulkUpdateCriminalStatus(
 }
 
 
+export interface CriminalMugshotHistoryItem {
+  id: string;
+  storageKey: string;
+  url: string | null;
+  fileName: string;
+  fileSize?: number;
+  sha256?: string;
+  uploadedAt: string;
+  isActive: boolean;
+  enrolledSource?: "DIRECT_UPLOAD" | "ROLLBACK" | "INITIAL_ENROLLMENT";
+}
+
 /**
  * Upload an updated front-facing booking photo / mugshot to Tigris S3 and update Criminal
  */
@@ -1193,7 +1205,15 @@ export async function updateCriminalPhoto(criminalId: string, formData: FormData
           { criminalId: { equals: criminalId, mode: "insensitive" } },
         ],
       },
-      select: { id: true, criminalId: true, firstName: true, lastName: true },
+      select: {
+        id: true,
+        criminalId: true,
+        firstName: true,
+        lastName: true,
+        mugshotUrl: true,
+        demographics: true,
+        createdAt: true,
+      },
     });
 
     if (!targetCriminal) {
@@ -1206,7 +1226,15 @@ export async function updateCriminalPhoto(criminalId: string, formData: FormData
               { criminalId: { equals: formCriminalId, mode: "insensitive" } },
             ],
           },
-          select: { id: true, criminalId: true, firstName: true, lastName: true },
+          select: {
+            id: true,
+            criminalId: true,
+            firstName: true,
+            lastName: true,
+            mugshotUrl: true,
+            demographics: true,
+            createdAt: true,
+          },
         });
       }
     }
@@ -1229,7 +1257,15 @@ export async function updateCriminalPhoto(criminalId: string, formData: FormData
               { alias: { contains: decoded, mode: "insensitive" } },
             ],
           },
-          select: { id: true, criminalId: true, firstName: true, lastName: true },
+          select: {
+            id: true,
+            criminalId: true,
+            firstName: true,
+            lastName: true,
+            mugshotUrl: true,
+            demographics: true,
+            createdAt: true,
+          },
         });
       }
     }
@@ -1257,12 +1293,58 @@ export async function updateCriminalPhoto(criminalId: string, formData: FormData
     );
 
     const faceEmbId = `ARCFACE-512D-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
+
+    // Manage demographics mugshotHistory
+    const currentDemographics = (targetCriminal.demographics as Record<string, any>) || {};
+    let existingHistory: any[] = Array.isArray(currentDemographics.mugshotHistory)
+      ? [...currentDemographics.mugshotHistory]
+      : [];
+
+    // If there was an active previous mugshot not yet in history, archive it
+    if (
+      targetCriminal.mugshotUrl &&
+      !existingHistory.some((h) => h.storageKey === targetCriminal.mugshotUrl)
+    ) {
+      existingHistory.push({
+        id: crypto.randomUUID(),
+        storageKey: targetCriminal.mugshotUrl,
+        url: getSafeStorageUrl(targetCriminal.mugshotUrl),
+        fileName: "Previous Booking Photo",
+        uploadedAt: targetCriminal.createdAt
+          ? targetCriminal.createdAt.toISOString()
+          : new Date().toISOString(),
+        isActive: false,
+        enrolledSource: "INITIAL_ENROLLMENT",
+      });
+    }
+
+    // Mark existing items as inactive
+    existingHistory = existingHistory.map((item) => ({ ...item, isActive: false }));
+
+    const newHistoryItem: CriminalMugshotHistoryItem = {
+      id: mugshotId,
+      storageKey,
+      url: getSafeStorageUrl(storageKey),
+      fileName: file.name,
+      fileSize: file.size,
+      sha256,
+      uploadedAt: new Date().toISOString(),
+      isActive: true,
+      enrolledSource: "DIRECT_UPLOAD",
+    };
+
+    const updatedDemographics = {
+      ...currentDemographics,
+      mugshotHistory: [newHistoryItem, ...existingHistory],
+    };
+
     const updated = await prisma.criminal.update({
       where: { id: targetCriminal.id },
       data: {
         mugshotUrl: storageKey,
         biometricEnrolledAt: new Date(),
         faceEmbeddingId: faceEmbId,
+        demographics: updatedDemographics,
       },
       select: { id: true, criminalId: true, mugshotUrl: true, firstName: true, lastName: true },
     });
@@ -1308,11 +1390,568 @@ export async function updateCriminalPhoto(criminalId: string, formData: FormData
     return {
       success: true,
       storageKey,
-      fileUrl: getSafeStorageUrl(storageKey),
+      fileUrl: getSafeStorageUrl(storageKey) || undefined,
     };
   } catch (error: any) {
     console.error("Failed to update criminal photo:", error);
     return { error: error?.message || "Failed to update criminal photo" };
+  }
+}
+
+/**
+ * Fetch archival mugshot history for a criminal with fallback to AuditLog and current mugshot
+ */
+export async function getCriminalPhotoHistory(criminalId: string): Promise<{
+  success: boolean;
+  history: CriminalMugshotHistoryItem[];
+  error?: string;
+}> {
+  try {
+    const session = await auth.api.getSession({
+      headers: await headers(),
+    });
+
+    if (!session || !session.user) {
+      return { success: false, history: [], error: "Unauthorized: Active session required." };
+    }
+
+    // Resolve criminal record
+    let targetCriminal = await prisma.criminal.findFirst({
+      where: {
+        OR: [
+          { id: criminalId },
+          { criminalId: { equals: criminalId, mode: "insensitive" } },
+        ],
+      },
+      select: {
+        id: true,
+        criminalId: true,
+        mugshotUrl: true,
+        demographics: true,
+        createdAt: true,
+        firstName: true,
+        lastName: true,
+      },
+    });
+
+    if (!targetCriminal) {
+      const decoded = decodeURIComponent(criminalId).trim();
+      const parts = decoded.split(/[\s-]+/).filter(Boolean);
+      if (parts.length >= 1) {
+        targetCriminal = await prisma.criminal.findFirst({
+          where: {
+            OR: [
+              {
+                AND: [
+                  { firstName: { contains: parts[0], mode: "insensitive" } },
+                  parts.length > 1
+                    ? { lastName: { contains: parts[parts.length - 1], mode: "insensitive" } }
+                    : {},
+                ],
+              },
+              { alias: { contains: decoded, mode: "insensitive" } },
+            ],
+          },
+          select: {
+            id: true,
+            criminalId: true,
+            mugshotUrl: true,
+            demographics: true,
+            createdAt: true,
+            firstName: true,
+            lastName: true,
+          },
+        });
+      }
+    }
+
+    if (!targetCriminal) {
+      return { success: false, history: [], error: "Criminal record not found." };
+    }
+
+    const demographics = (targetCriminal.demographics as Record<string, any>) || {};
+    let rawHistory: any[] = Array.isArray(demographics.mugshotHistory)
+      ? [...demographics.mugshotHistory]
+      : [];
+
+    // Also look up AuditLog to discover any historical photos uploaded earlier
+    try {
+      const photoLogs = await prisma.auditLog.findMany({
+        where: {
+          entityId: targetCriminal.id,
+          action: { in: ["CRIMINAL_PHOTO_UPDATED", "CRIMINAL_PHOTO_ROLLED_BACK"] },
+        },
+        orderBy: { createdAt: "desc" },
+        take: 30,
+      });
+
+      for (const log of photoLogs) {
+        const details = (log.details as Record<string, any>) || {};
+        const storageKey = details.storageKey;
+        if (storageKey && typeof storageKey === "string") {
+          const exists = rawHistory.some((h) => h.storageKey === storageKey);
+          if (!exists) {
+            rawHistory.push({
+              id: log.id || crypto.randomUUID(),
+              storageKey,
+              fileName: details.fileName || "Archived Booking Photo",
+              sha256: details.sha256,
+              uploadedAt: log.createdAt ? log.createdAt.toISOString() : new Date().toISOString(),
+              isActive: targetCriminal.mugshotUrl === storageKey,
+              enrolledSource: "INITIAL_ENROLLMENT",
+            });
+          }
+        }
+      }
+    } catch (auditErr) {
+      console.warn("Could not query audit logs for photo history:", auditErr);
+    }
+
+    // If current mugshotUrl exists but is not yet in history, include it
+    if (targetCriminal.mugshotUrl) {
+      const exists = rawHistory.some((h) => h.storageKey === targetCriminal.mugshotUrl);
+      if (!exists) {
+        rawHistory.unshift({
+          id: crypto.randomUUID(),
+          storageKey: targetCriminal.mugshotUrl,
+          fileName: "Current Booking Photo",
+          uploadedAt: targetCriminal.createdAt
+            ? targetCriminal.createdAt.toISOString()
+            : new Date().toISOString(),
+          isActive: true,
+          enrolledSource: "INITIAL_ENROLLMENT",
+        });
+      }
+    }
+
+    // Map each entry to guarantee safe streaming URLs and correct active status
+    const currentActiveKey = targetCriminal.mugshotUrl;
+    const history: CriminalMugshotHistoryItem[] = rawHistory
+      .filter((item) => item && typeof item.storageKey === "string" && item.storageKey.trim() !== "")
+      .map((item) => {
+        const isActive = item.storageKey === currentActiveKey;
+        return {
+          id: item.id || crypto.randomUUID(),
+          storageKey: item.storageKey,
+          url: getSafeStorageUrl(item.storageKey),
+          fileName: item.fileName || "Booking Photo",
+          fileSize: typeof item.fileSize === "number" ? item.fileSize : undefined,
+          sha256: item.sha256,
+          uploadedAt: item.uploadedAt || new Date().toISOString(),
+          isActive,
+          enrolledSource: item.enrolledSource || (isActive ? "DIRECT_UPLOAD" : "INITIAL_ENROLLMENT"),
+        };
+      })
+      // Sort newest uploadedAt first, with the currently active one prioritized if timestamps are equal
+      .sort((a, b) => {
+        if (a.isActive && !b.isActive) return -1;
+        if (!a.isActive && b.isActive) return 1;
+        return new Date(b.uploadedAt).getTime() - new Date(a.uploadedAt).getTime();
+      });
+
+    return {
+      success: true,
+      history,
+    };
+  } catch (error: any) {
+    console.error("Failed to get criminal photo history:", error);
+    return { success: false, history: [], error: error?.message || "Failed to get photo history" };
+  }
+}
+
+/**
+ * Rollback Criminal active photo to an already-uploaded historical photo with ZERO Tigris storage delta
+ */
+export async function rollbackCriminalPhoto(
+  criminalId: string,
+  storageKey: string
+): Promise<{
+  success: boolean;
+  storageKey?: string;
+  fileUrl?: string;
+  error?: string;
+}> {
+  try {
+    const session = await auth.api.getSession({
+      headers: await headers(),
+    });
+
+    if (!session || !session.user) {
+      return { success: false, error: "Unauthorized: Active session required to rollback photo." };
+    }
+
+    if (!storageKey || typeof storageKey !== "string" || !storageKey.trim()) {
+      return { success: false, error: "A valid storage key is required for photo rollback." };
+    }
+
+    // Resolve criminal record
+    let targetCriminal = await prisma.criminal.findFirst({
+      where: {
+        OR: [
+          { id: criminalId },
+          { criminalId: { equals: criminalId, mode: "insensitive" } },
+        ],
+      },
+      select: {
+        id: true,
+        criminalId: true,
+        firstName: true,
+        lastName: true,
+        mugshotUrl: true,
+        demographics: true,
+      },
+    });
+
+    if (!targetCriminal) {
+      const decoded = decodeURIComponent(criminalId).trim();
+      const parts = decoded.split(/[\s-]+/).filter(Boolean);
+      if (parts.length >= 1) {
+        targetCriminal = await prisma.criminal.findFirst({
+          where: {
+            OR: [
+              {
+                AND: [
+                  { firstName: { contains: parts[0], mode: "insensitive" } },
+                  parts.length > 1
+                    ? { lastName: { contains: parts[parts.length - 1], mode: "insensitive" } }
+                    : {},
+                ],
+              },
+              { alias: { contains: decoded, mode: "insensitive" } },
+            ],
+          },
+          select: {
+            id: true,
+            criminalId: true,
+            firstName: true,
+            lastName: true,
+            mugshotUrl: true,
+            demographics: true,
+          },
+        });
+      }
+    }
+
+    if (!targetCriminal) {
+      return { success: false, error: "Criminal profile record could not be found." };
+    }
+
+    const previousKey = targetCriminal.mugshotUrl;
+    if (previousKey === storageKey) {
+      return {
+        success: true,
+        storageKey,
+        fileUrl: getSafeStorageUrl(storageKey) || undefined,
+      };
+    }
+
+    // Update mugshotHistory in demographics
+    const demographics = (targetCriminal.demographics as Record<string, any>) || {};
+    let existingHistory: any[] = Array.isArray(demographics.mugshotHistory)
+      ? [...demographics.mugshotHistory]
+      : [];
+
+    let targetFound = false;
+    existingHistory = existingHistory.map((item) => {
+      const matches = item.storageKey === storageKey;
+      if (matches) targetFound = true;
+      return {
+        ...item,
+        isActive: matches,
+      };
+    });
+
+    if (!targetFound) {
+      existingHistory.unshift({
+        id: crypto.randomUUID(),
+        storageKey,
+        url: getSafeStorageUrl(storageKey),
+        fileName: "Restored Booking Mugshot",
+        uploadedAt: new Date().toISOString(),
+        isActive: true,
+        enrolledSource: "ROLLBACK",
+      });
+    }
+
+    const updatedDemographics = {
+      ...demographics,
+      mugshotHistory: existingHistory,
+    };
+
+    const faceEmbId = `ARCFACE-512D-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
+
+    // Update criminal record without uploading any new bytes
+    await prisma.criminal.update({
+      where: { id: targetCriminal.id },
+      data: {
+        mugshotUrl: storageKey,
+        biometricEnrolledAt: new Date(),
+        faceEmbeddingId: faceEmbId,
+        demographics: updatedDemographics,
+      },
+    });
+
+    // Recompute and persist pgvector embedding
+    try {
+      const vector = generateNormalizedEmbedding(storageKey + targetCriminal.id);
+      const vectorStr = `[${vector.join(",")}]`;
+      await prisma.$executeRawUnsafe(
+        `UPDATE "Criminal" SET embedding = '${vectorStr}'::vector, "biometricEnrolledAt" = NOW(), "faceEmbeddingId" = '${faceEmbId}' WHERE id = '${targetCriminal.id}';`
+      );
+    } catch (pgvErr) {
+      console.warn("Auto-enrollment pgvector warning on photo rollback:", pgvErr);
+    }
+
+    // Record audit log
+    try {
+      await prisma.auditLog.create({
+        data: {
+          action: "CRIMINAL_PHOTO_ROLLED_BACK",
+          entityType: "Criminal",
+          entityId: targetCriminal.id,
+          userId: session.user.id,
+          details: {
+            storageKey,
+            rolledBackFrom: previousKey,
+            zeroStorageDelta: true,
+          },
+        },
+      });
+    } catch (auditErr) {
+      console.warn("Audit log creation skipped on rollback:", auditErr);
+    }
+
+    // Revalidate paths
+    revalidatePath("/dashboard/criminals");
+    revalidatePath(`/dashboard/criminals/${targetCriminal.id}`);
+    if (targetCriminal.criminalId) {
+      revalidatePath(`/dashboard/criminals/${targetCriminal.criminalId}`);
+    }
+    const slug = `${targetCriminal.firstName?.toLowerCase()}-${targetCriminal.lastName?.toLowerCase()}`.replace(/[^a-z0-9]+/g, "-");
+    revalidatePath(`/dashboard/criminals/${slug}`);
+    revalidatePath(`/dashboard/criminals/${slug}-${targetCriminal.criminalId}`);
+    revalidatePath(`/criminals/${targetCriminal.id}`);
+    if (targetCriminal.criminalId) {
+      revalidatePath(`/criminals/${targetCriminal.criminalId}`);
+    }
+
+    return {
+      success: true,
+      storageKey,
+      fileUrl: getSafeStorageUrl(storageKey) || undefined,
+    };
+  } catch (error: any) {
+    console.error("Failed to rollback criminal photo:", error);
+    return { success: false, error: error?.message || "Failed to rollback criminal photo" };
+  }
+}
+
+/**
+ * Permanently delete a criminal booking photo from Tigris S3 and update booking archive
+ */
+export async function deleteCriminalPhoto(
+  criminalId: string,
+  storageKey: string
+): Promise<{
+  success: boolean;
+  deletedKey?: string;
+  newActiveKey?: string | null;
+  remainingCount?: number;
+  error?: string;
+}> {
+  try {
+    const session = await auth.api.getSession({
+      headers: await headers(),
+    });
+
+    if (!session || !session.user) {
+      return { success: false, error: "Unauthorized: Active session required to delete photo." };
+    }
+
+    if (!storageKey || typeof storageKey !== "string" || !storageKey.trim()) {
+      return { success: false, error: "A valid storage key is required for deletion." };
+    }
+
+    // Resolve criminal record
+    let targetCriminal = await prisma.criminal.findFirst({
+      where: {
+        OR: [
+          { id: criminalId },
+          { criminalId: { equals: criminalId, mode: "insensitive" } },
+        ],
+      },
+      select: {
+        id: true,
+        criminalId: true,
+        firstName: true,
+        lastName: true,
+        mugshotUrl: true,
+        demographics: true,
+      },
+    });
+
+    if (!targetCriminal) {
+      const decoded = decodeURIComponent(criminalId).trim();
+      const parts = decoded.split(/[\s-]+/).filter(Boolean);
+      if (parts.length >= 1) {
+        targetCriminal = await prisma.criminal.findFirst({
+          where: {
+            OR: [
+              {
+                AND: [
+                  { firstName: { contains: parts[0], mode: "insensitive" } },
+                  parts.length > 1
+                    ? { lastName: { contains: parts[parts.length - 1], mode: "insensitive" } }
+                    : {},
+                ],
+              },
+              { alias: { contains: decoded, mode: "insensitive" } },
+            ],
+          },
+          select: {
+            id: true,
+            criminalId: true,
+            firstName: true,
+            lastName: true,
+            mugshotUrl: true,
+            demographics: true,
+          },
+        });
+      }
+    }
+
+    if (!targetCriminal) {
+      return { success: false, error: "Criminal profile record could not be found." };
+    }
+
+    // 1. Delete object from Tigris S3
+    try {
+      await tigris.send(
+        new DeleteObjectCommand({
+          Bucket: TIGRIS_BUCKET,
+          Key: storageKey,
+        })
+      );
+    } catch (s3Err: any) {
+      console.warn("Tigris S3 DeleteObjectCommand warning:", s3Err?.message || s3Err);
+    }
+
+    // 2. Remove from mugshotHistory in demographics
+    const demographics = (targetCriminal.demographics as Record<string, any>) || {};
+    let existingHistory: any[] = Array.isArray(demographics.mugshotHistory)
+      ? [...demographics.mugshotHistory]
+      : [];
+
+    const remainingHistory = existingHistory.filter((item) => item.storageKey !== storageKey);
+    const wasActive = targetCriminal.mugshotUrl === storageKey;
+    let nextActiveKey: string | null = targetCriminal.mugshotUrl;
+
+    if (wasActive) {
+      if (remainingHistory.length > 0) {
+        nextActiveKey = remainingHistory[0].storageKey;
+        remainingHistory[0].isActive = true;
+      } else {
+        nextActiveKey = null;
+      }
+    }
+
+    const updatedDemographics = {
+      ...demographics,
+      mugshotHistory: remainingHistory,
+    };
+
+    // 3. Update database record
+    await prisma.criminal.update({
+      where: { id: targetCriminal.id },
+      data: {
+        mugshotUrl: nextActiveKey,
+        demographics: updatedDemographics,
+      },
+    });
+
+    // 4. Update vector embedding if active photo changed
+    if (wasActive) {
+      if (nextActiveKey) {
+        try {
+          const faceEmbId = `ARCFACE-512D-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
+          const vector = generateNormalizedEmbedding(nextActiveKey + targetCriminal.id);
+          const vectorStr = `[${vector.join(",")}]`;
+          await prisma.$executeRawUnsafe(
+            `UPDATE "Criminal" SET embedding = '${vectorStr}'::vector, "biometricEnrolledAt" = NOW(), "faceEmbeddingId" = '${faceEmbId}' WHERE id = '${targetCriminal.id}';`
+          );
+        } catch (pgvErr) {
+          console.warn("Auto-enrollment pgvector warning on photo delete:", pgvErr);
+        }
+      } else {
+        try {
+          await prisma.$executeRawUnsafe(
+            `UPDATE "Criminal" SET embedding = NULL, "faceEmbeddingId" = NULL WHERE id = '${targetCriminal.id}';`
+          );
+        } catch (pgvErr) {
+          console.warn("Pgvector reset warning on photo delete:", pgvErr);
+        }
+      }
+    }
+
+    // 5. Audit Log
+    try {
+      await prisma.auditLog.create({
+        data: {
+          action: "CRIMINAL_PHOTO_DELETED",
+          entityType: "Criminal",
+          entityId: targetCriminal.id,
+          userId: session.user.id,
+          details: {
+            deletedStorageKey: storageKey,
+            wasActive,
+            nextActiveKey,
+            remainingCount: remainingHistory.length,
+          },
+        },
+      });
+    } catch (auditErr) {
+      console.warn("Audit log creation skipped on photo delete:", auditErr);
+    }
+
+    // 6. Broadcast event & Revalidate cache
+    try {
+      broadcastCriminalEvent({
+        type: "RECORD_UPDATED",
+        criminalId: targetCriminal.id,
+        criminalName: `${targetCriminal.firstName} ${targetCriminal.lastName}`,
+        actorName: session.user.name || "Investigator",
+        metadata: {
+          action: "PHOTO_DELETED",
+          deletedKey: storageKey,
+        },
+        timestamp: Date.now(),
+      });
+    } catch (bcErr) {
+      console.warn("Broadcast warning:", bcErr);
+    }
+
+    revalidatePath("/dashboard/criminals");
+    revalidatePath(`/dashboard/criminals/${targetCriminal.id}`);
+    if (targetCriminal.criminalId) {
+      revalidatePath(`/dashboard/criminals/${targetCriminal.criminalId}`);
+    }
+    const slug = `${targetCriminal.firstName?.toLowerCase()}-${targetCriminal.lastName?.toLowerCase()}`.replace(/[^a-z0-9]+/g, "-");
+    revalidatePath(`/dashboard/criminals/${slug}`);
+    revalidatePath(`/dashboard/criminals/${slug}-${targetCriminal.criminalId}`);
+    revalidatePath(`/criminals/${targetCriminal.id}`);
+    if (targetCriminal.criminalId) {
+      revalidatePath(`/criminals/${targetCriminal.criminalId}`);
+    }
+
+    return {
+      success: true,
+      deletedKey: storageKey,
+      newActiveKey: nextActiveKey,
+      remainingCount: remainingHistory.length,
+    };
+  } catch (error: any) {
+    console.error("Failed to delete criminal photo:", error);
+    return { success: false, error: error?.message || "Failed to delete criminal photo" };
   }
 }
 
