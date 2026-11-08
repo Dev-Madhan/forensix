@@ -17,7 +17,7 @@ import {
   FileVideo,
   FileImage,
   FileAudio,
-  File,
+  File as FileIcon,
   X,
   AlertCircle,
   Shield,
@@ -850,7 +850,7 @@ export function getFileIcon(fileName: string, mimeType?: string) {
   if (type.includes("pdf") || ["pdf", "doc", "docx", "txt", "rtf", "md"].includes(ext)) {
     return <FileText className="size-4 text-amber-500 shrink-0" />;
   }
-  return <File className="size-4 text-muted-foreground shrink-0" />;
+  return <FileIcon className="size-4 text-muted-foreground shrink-0" />;
 }
 
 export function MediaDropZone({

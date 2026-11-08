@@ -7,7 +7,7 @@ import {
   FileImage,
   FileAudio,
   FileText,
-  File,
+  File as FileIcon,
   X,
   AlertCircle,
 } from "lucide-react";
@@ -61,8 +61,26 @@ function getCategoryIcon(mimeOrName: string) {
     case "DOCUMENT":
       return <FileText className="size-4 text-amber-400 shrink-0" />;
     default:
-      return <File className="size-4 text-muted-foreground shrink-0" />;
+      return <FileIcon className="size-4 text-muted-foreground shrink-0" />;
   }
+}
+
+function extractRawFile(item: any): File | null {
+  if (!item) return null;
+  const candidate = item.file || item;
+  if (typeof window !== "undefined" && typeof window.File !== "undefined" && candidate instanceof window.File) {
+    return candidate;
+  }
+  if (
+    candidate &&
+    typeof candidate === "object" &&
+    typeof candidate.name === "string" &&
+    typeof candidate.size === "number" &&
+    typeof candidate.arrayBuffer === "function"
+  ) {
+    return candidate as File;
+  }
+  return null;
 }
 
 function getCategoryLabel(mimeOrName: string): string {
@@ -127,7 +145,7 @@ export function CaseEvidenceUploadSection({
     if (acceptedFiles.length > 0) {
       const rawFiles: File[] = [];
       acceptedFiles.forEach((mf: any) => {
-        const file = (mf?.file instanceof File ? mf.file : (mf instanceof File ? mf : null)) as File | null;
+        const file = extractRawFile(mf);
         if (file) rawFiles.push(file);
       });
       if (rawFiles.length > 0) {

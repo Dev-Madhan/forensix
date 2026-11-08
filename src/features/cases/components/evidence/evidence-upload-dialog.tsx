@@ -29,7 +29,7 @@ import {
   FileImage,
   FileAudio,
   FileText,
-  File,
+  File as FileIcon,
   Shield,
 } from "lucide-react";
 import { cn } from "cn";
@@ -92,7 +92,25 @@ function getEvidenceIcon(name: string, mime?: string) {
   if (type.includes("pdf") || ["pdf", "doc", "docx", "txt"].includes(ext)) {
     return <FileText className="size-4 text-amber-500 shrink-0" />;
   }
-  return <File className="size-4 text-muted-foreground shrink-0" />;
+  return <FileIcon className="size-4 text-muted-foreground shrink-0" />;
+}
+
+function extractRawFile(fileItem: any): File | null {
+  if (!fileItem) return null;
+  const candidate = fileItem.file || fileItem;
+  if (typeof window !== "undefined" && typeof window.File !== "undefined" && candidate instanceof window.File) {
+    return candidate;
+  }
+  if (
+    candidate &&
+    typeof candidate === "object" &&
+    typeof candidate.name === "string" &&
+    typeof candidate.size === "number" &&
+    typeof candidate.arrayBuffer === "function"
+  ) {
+    return candidate as File;
+  }
+  return null;
 }
 
 function getThumbnailType(type: EvidenceType) {
@@ -183,9 +201,9 @@ export function EvidenceUploadDialog({
     try {
       for (let i = 0; i < acceptedFiles.length; i++) {
         const fileItem = acceptedFiles[i];
-        const rawFile = (fileItem as any)?.file instanceof File ? (fileItem as any).file : (fileItem instanceof File ? fileItem : null);
+        const rawFile = extractRawFile(fileItem);
         if (!rawFile) {
-          uploadErrors.push(`Could not read file data for ${fileItem.name || "item"}`);
+          uploadErrors.push(`Could not read file data for ${fileItem?.name || "item"}`);
           continue;
         }
 
