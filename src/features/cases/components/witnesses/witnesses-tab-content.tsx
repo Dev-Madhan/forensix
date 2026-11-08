@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { WitnessesStatsCards } from "./witnesses-stats-cards";
 import { WitnessesHeader } from "./witnesses-header";
 import { WitnessesTable } from "./witnesses-table";
@@ -50,10 +50,11 @@ export function WitnessesTabContent({
     summary: string;
   } | null>(null);
 
-  // Real-Time Server-Sent Events (SSE) Live Witness Synchronization
-  useWitnessRealtime({
-    caseId,
-    onWitnessEnrolled: (newWitness) => {
+  // Stable SSE callbacks — useCallback prevents the effect from re-running on every render.
+  // These callbacks must NOT call any state setter of a parent component synchronously
+  // during render; wrapping in useCallback + keeping deps minimal satisfies React's rules.
+  const handleWitnessEnrolled = useCallback(
+    (newWitness: any) => {
       setWitnesses((prev) => {
         if (prev.some((w) => w.id === newWitness.id)) return prev;
         const updated = [newWitness, ...prev];
@@ -61,21 +62,44 @@ export function WitnessesTabContent({
         return updated;
       });
     },
-    onWitnessUpdated: (updatedWitness) => {
-      setWitnesses((prev) =>
-        prev.map((w) => (w.id === updatedWitness.id ? { ...w, ...updatedWitness } : w))
-      );
-    },
-    onWitnessDeleted: (deletedId) => {
+    [onWitnessesCountChange]
+  );
+
+  const handleWitnessUpdated = useCallback((updatedWitness: any) => {
+    setWitnesses((prev) =>
+      prev.map((w) => (w.id === updatedWitness.id ? { ...w, ...updatedWitness } : w))
+    );
+  }, []);
+
+  const handleWitnessDeleted = useCallback(
+    (deletedId: string) => {
       setWitnesses((prev) => {
         const updated = prev.filter((w) => w.id !== deletedId);
         onWitnessesCountChange?.(updated.length);
         return updated;
       });
     },
-    onInquiryLogged: (witnessId, inq) => {
-      handleInquiryLogged(witnessId, inq);
+    [onWitnessesCountChange]
+  );
+
+  // A ref that always points to the latest handleInquiryLogged without being a reactive dep.
+  // This avoids a circular dependency: handleRealtimeInquiry → handleInquiryLogged → setDossierWitness.
+  const handleInquiryLoggedRef = useRef<((witnessId: string, inquiry: WitnessInquiryItem) => void) | null>(null);
+
+  const handleRealtimeInquiry = useCallback(
+    (witnessId: string, inq: WitnessInquiryItem) => {
+      handleInquiryLoggedRef.current?.(witnessId, inq);
     },
+    [] // stable — reads from ref, not from closure
+  );
+
+  // Real-Time Server-Sent Events (SSE) Live Witness Synchronization
+  useWitnessRealtime({
+    caseId,
+    onWitnessEnrolled: handleWitnessEnrolled,
+    onWitnessUpdated: handleWitnessUpdated,
+    onWitnessDeleted: handleWitnessDeleted,
+    onInquiryLogged: handleRealtimeInquiry,
   });
 
   // Calculate Real-Time Corroboration Index
@@ -241,6 +265,8 @@ export function WitnessesTabContent({
       );
     }
   };
+  // Keep ref in sync so the stable handleRealtimeInquiry always calls the latest version
+  handleInquiryLoggedRef.current = handleInquiryLogged;
 
   return (
     <div className="space-y-4">
