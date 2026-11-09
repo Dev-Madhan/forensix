@@ -2,6 +2,7 @@
 
 import React, { useEffect } from "react";
 import { createPortal } from "react-dom";
+import { motion, AnimatePresence } from "motion/react";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -52,73 +53,90 @@ export function Modal({
     };
   }, [isOpen, onClose]);
 
-  if (!mounted || !isOpen) return null;
+  if (!mounted) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-6">
-      {/* Backdrop */}
-      <div
-        className="fixed inset-0 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200"
-        onClick={onClose}
-      />
+    <AnimatePresence>
+      {isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-6 pointer-events-auto">
+          {/* Backdrop with Hardware-Accelerated Fade */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18, ease: "easeOut" }}
+            className="fixed inset-0 bg-black/80 backdrop-blur-xs"
+            onClick={onClose}
+          />
 
-      {/* Dialog Box */}
-      <div
-        role="dialog"
-        aria-modal="true"
-        className={cn(
-          "relative z-10 w-full bg-background border-2 border-border/80 shadow-2xl rounded-2xl overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[92vh] sm:max-h-[90vh]",
-          maxWidth,
-          className
-        )}
-      >
-        {/* Header */}
-        {(title || description) && (
-          <div className="flex items-start justify-between gap-2.5 sm:gap-3 px-3.5 py-3 sm:px-5 sm:py-4 border-b-2 border-border/60 bg-muted/20 shrink-0">
-            <div className="flex-1 min-w-0 pr-1">
-              {title && (
-                <div className="text-sm sm:text-base font-semibold tracking-tight text-foreground">
-                  {title}
-                </div>
-              )}
-              {description && (
-                <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
-                  {description}
-                </p>
-              )}
-            </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-lg p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/60 transition cursor-pointer shrink-0 -mr-1 -mt-0.5 touch-manipulation"
-              aria-label="Close"
-            >
-              <X className="size-4.5 sm:size-4" />
-            </button>
-          </div>
-        )}
-
-        {/* Content with hidden scrollbar */}
-        <div
-          className={cn(
-            "p-3.5 sm:p-5 overflow-y-auto flex-1 min-h-0 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden",
-            contentClassName
-          )}
-        >
-          {children}
-        </div>
-
-        {/* Modal Footer */}
-        {footer && (
-          <div
-            data-modal-footer
-            className="shrink-0 px-3.5 py-2.5 sm:px-5 sm:py-3.5 border-t-2 border-border/80 bg-background/95 backdrop-blur-md"
+          {/* Dialog Box with Tuned Spring Physics */}
+          <motion.div
+            role="dialog"
+            aria-modal="true"
+            initial={{ opacity: 0, scale: 0.96, y: 8 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.96, y: 6 }}
+            transition={{
+              type: "spring",
+              damping: 28,
+              stiffness: 400,
+              mass: 0.7,
+            }}
+            className={cn(
+              "relative z-10 w-full bg-background border-2 border-border/80 shadow-2xl rounded-2xl overflow-hidden flex flex-col max-h-[92vh] sm:max-h-[90vh]",
+              maxWidth,
+              className
+            )}
           >
-            {footer}
-          </div>
-        )}
-      </div>
-    </div>,
+            {/* Header */}
+            {(title || description) && (
+              <div className="flex items-start justify-between gap-2.5 sm:gap-3 px-3.5 py-3 sm:px-5 sm:py-4 border-b-2 border-border/60 bg-muted/20 shrink-0">
+                <div className="flex-1 min-w-0 pr-1">
+                  {title && (
+                    <div className="text-sm sm:text-base font-semibold tracking-tight text-foreground">
+                      {title}
+                    </div>
+                  )}
+                  {description && (
+                    <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+                      {description}
+                    </p>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="rounded-lg p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/60 transition cursor-pointer shrink-0 -mr-1 -mt-0.5 touch-manipulation"
+                  aria-label="Close"
+                >
+                  <X className="size-4.5 sm:size-4" />
+                </button>
+              </div>
+            )}
+
+            {/* Content with hidden scrollbar */}
+            <div
+              className={cn(
+                "p-3.5 sm:p-5 overflow-y-auto flex-1 min-h-0 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden",
+                contentClassName
+              )}
+            >
+              {children}
+            </div>
+
+            {/* Modal Footer */}
+            {footer && (
+              <div
+                data-modal-footer
+                className="shrink-0 px-3.5 py-2.5 sm:px-5 sm:py-3.5 border-t-2 border-border/80 bg-background/95 backdrop-blur-md"
+              >
+                {footer}
+              </div>
+            )}
+          </motion.div>
+        </div>
+      )}
+    </AnimatePresence>,
     document.body
   );
 }

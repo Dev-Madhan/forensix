@@ -168,6 +168,22 @@
   html {
     @apply font-sans;
     scrollbar-gutter: stable;
+    scrollbar-color: #27272a transparent;
+    scrollbar-width: thin;
+  }
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #27272a;
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #3f3f46;
   }
   h1, h2, h3, h4, h5, h6 {
     @apply font-heading;

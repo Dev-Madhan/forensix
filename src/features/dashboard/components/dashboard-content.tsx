@@ -234,7 +234,7 @@ export function DashboardContent({
         <ChartAreaInteractive data={currentChartData} />
       </motion.div>
 
-      {/* 4. Bottom Section: Recent Cases & Recent Sketches */}
+      {/* 4. Bottom Section: Recent Cases & Recent Sketches (8-col / 4-col optimal layout) */}
       <motion.div
         layout
         variants={itemVariants}
@@ -244,14 +244,14 @@ export function DashboardContent({
         <motion.div
           layout
           transition={{ layout: { duration: 0.45, ease: [0.16, 1, 0.3, 1] } }}
-          className="lg:col-span-7 flex flex-col"
+          className="lg:col-span-8 flex flex-col"
         >
           <RecentCasesTable cases={currentCases} />
         </motion.div>
         <motion.div
           layout
           transition={{ layout: { duration: 0.45, ease: [0.16, 1, 0.3, 1] } }}
-          className="lg:col-span-5 flex flex-col"
+          className="lg:col-span-4 flex flex-col"
         >
           <RecentSketches sketches={currentSketches} />
         </motion.div>

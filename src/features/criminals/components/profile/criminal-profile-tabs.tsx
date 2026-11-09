@@ -293,6 +293,305 @@ export const JUDICIAL_OUTCOME_OPTIONS = [
   "Plea Bargain",
 ];
 
+export const SUSPECT_ROLE_OPTIONS = [
+  {
+    value: SuspectRole.UNDER_INVESTIGATION,
+    label: "Under Active Investigation",
+    description: "Subject actively investigated in current case docket",
+    icon: Search,
+  },
+  {
+    value: SuspectRole.DIRECT_INVOLVEMENT,
+    label: "Direct Involvement",
+    description: "Identified as a direct actor or named perpetrator",
+    icon: UserCheck,
+  },
+  {
+    value: SuspectRole.POSSIBLE_ASSOCIATE,
+    label: "Possible Associate",
+    description: "Affiliated connection or suspected associate",
+    icon: Users,
+  },
+  {
+    value: SuspectRole.ACCOMPLICE,
+    label: "Accomplice / Co-Conspirator",
+    description: "Aided, abetted, or conspired with primary suspects",
+    icon: ShieldAlert,
+  },
+  {
+    value: SuspectRole.INFORMANT,
+    label: "Informant / Source",
+    description: "Confidential human source or intelligence asset",
+    icon: Eye,
+  },
+  {
+    value: SuspectRole.WITNESS,
+    label: "Witness",
+    description: "Eye witness, material witness, or reporting party",
+    icon: FileText,
+  },
+];
+
+export const SUSPECT_STATUS_OPTIONS = [
+  {
+    value: SuspectCaseStatus.PERSON_OF_INTEREST,
+    label: "Person of Interest",
+    description: "Under active surveillance and intelligence monitoring",
+    dotColor: "bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.5)]",
+  },
+  {
+    value: SuspectCaseStatus.PRIMARY_SUSPECT,
+    label: "Primary Suspect",
+    description: "Principal target of FIR indictment and charges",
+    dotColor: "bg-rose-500 shadow-[0_0_8px_rgba(244,63,94,0.5)]",
+  },
+  {
+    value: SuspectCaseStatus.ACCOMPLICE,
+    label: "Accomplice",
+    description: "Secondary accused linked to criminal acts",
+    dotColor: "bg-orange-400 shadow-[0_0_8px_rgba(251,146,60,0.5)]",
+  },
+  {
+    value: SuspectCaseStatus.CLEARED,
+    label: "Cleared / Exonerated",
+    description: "Removed from active suspicion through evidence",
+    dotColor: "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.5)]",
+  },
+  {
+    value: SuspectCaseStatus.CONVICTED,
+    label: "Convicted by Court",
+    description: "Found guilty by judicial magistrate or court order",
+    dotColor: "bg-neutral-300 shadow-[0_0_8px_rgba(212,212,216,0.5)]",
+  },
+];
+
+interface RoleSelectDropdownProps {
+  value: SuspectRole;
+  onChange: (value: SuspectRole) => void;
+}
+
+const RoleSelectDropdown = React.memo(function RoleSelectDropdown({
+  value,
+  onChange,
+}: RoleSelectDropdownProps) {
+  const [open, setOpen] = useState(false);
+  const [hovered, setHovered] = useState<SuspectRole | null>(null);
+
+  const activeConfig =
+    SUSPECT_ROLE_OPTIONS.find((r) => r.value === value) || SUSPECT_ROLE_OPTIONS[0];
+  const ActiveIcon = activeConfig.icon;
+
+  return (
+    <DropdownMenu
+      open={open}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen);
+        if (!nextOpen) setHovered(null);
+      }}
+    >
+      <DropdownMenuTrigger
+        render={
+          <button
+            type="button"
+            className={cn(
+              "w-full h-11 px-3.5 flex items-center justify-between rounded-xl bg-neutral-950 border-2 transition-colors cursor-pointer outline-none",
+              open
+                ? "border-neutral-600 bg-neutral-900/60"
+                : "border-neutral-800 hover:border-neutral-700 hover:bg-neutral-900/40"
+            )}
+          />
+        }
+      >
+        <div className="flex items-center gap-2.5 min-w-0">
+          <ActiveIcon className="size-4 text-muted-foreground shrink-0" />
+          <span className="text-xs font-semibold text-foreground truncate">
+            {activeConfig.label}
+          </span>
+        </div>
+        <ChevronDown
+          className={cn(
+            "size-4 text-muted-foreground transition-transform duration-200 shrink-0",
+            open && "rotate-180 text-foreground"
+          )}
+        />
+      </DropdownMenuTrigger>
+
+      <DropdownMenuContent
+        align="start"
+        sideOffset={6}
+        className="w-[calc(100vw-2.5rem)] max-w-md sm:w-[var(--anchor-width)] p-1.5 rounded-xl shadow-2xl bg-[#0d0d0d] border-2 border-neutral-800 backdrop-blur-2xl overflow-hidden z-[100]"
+      >
+        <DropdownMenuGroup
+          className="space-y-0.5"
+          onPointerLeave={() => setHovered(null)}
+        >
+          {SUSPECT_ROLE_OPTIONS.map((opt) => {
+            const isSelected = value === opt.value;
+            const OptionIcon = opt.icon;
+            return (
+              <DropdownMenuItem
+                key={opt.value}
+                onPointerEnter={() => setHovered(opt.value)}
+                onClick={() => {
+                  onChange(opt.value);
+                  setOpen(false);
+                }}
+                className={cn(
+                  "relative z-0 group flex items-center justify-between gap-3 cursor-pointer px-3 py-2.5 rounded-lg transition-colors duration-150 outline-none text-xs font-medium bg-transparent! focus:bg-transparent! data-[highlighted]:bg-transparent!",
+                  isSelected ? "text-foreground" : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {hovered === opt.value && (
+                  <motion.div
+                    layoutId="fir-role-hover"
+                    className="absolute inset-0 z-[-1] rounded-lg bg-accent/80"
+                    transition={{ type: "spring", bounce: 0.3, duration: 0.4 }}
+                  />
+                )}
+                <div className="flex items-center gap-3 min-w-0">
+                  <OptionIcon
+                    className={cn(
+                      "size-4 shrink-0 transition-colors",
+                      isSelected
+                        ? "text-foreground"
+                        : "text-muted-foreground/80 group-hover:text-foreground"
+                    )}
+                  />
+                  <div className="flex flex-col text-left">
+                    <span
+                      className={cn(
+                        "text-xs leading-snug",
+                        isSelected ? "text-foreground font-semibold" : "text-foreground/90 font-medium"
+                      )}
+                    >
+                      {opt.label}
+                    </span>
+                    <span className="text-[11px] text-muted-foreground/75 leading-tight mt-0.5">
+                      {opt.description}
+                    </span>
+                  </div>
+                </div>
+                {isSelected && (
+                  <Check className="size-4 text-emerald-400 shrink-0 ml-2" />
+                )}
+              </DropdownMenuItem>
+            );
+          })}
+        </DropdownMenuGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+});
+
+interface StatusSelectDropdownProps {
+  value: SuspectCaseStatus;
+  onChange: (value: SuspectCaseStatus) => void;
+}
+
+const StatusSelectDropdown = React.memo(function StatusSelectDropdown({
+  value,
+  onChange,
+}: StatusSelectDropdownProps) {
+  const [open, setOpen] = useState(false);
+  const [hovered, setHovered] = useState<SuspectCaseStatus | null>(null);
+
+  const activeConfig =
+    SUSPECT_STATUS_OPTIONS.find((s) => s.value === value) || SUSPECT_STATUS_OPTIONS[0];
+
+  return (
+    <DropdownMenu
+      open={open}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen);
+        if (!nextOpen) setHovered(null);
+      }}
+    >
+      <DropdownMenuTrigger
+        render={
+          <button
+            type="button"
+            className={cn(
+              "w-full h-11 px-3.5 flex items-center justify-between rounded-xl bg-neutral-950 border-2 transition-colors cursor-pointer outline-none",
+              open
+                ? "border-neutral-600 bg-neutral-900/60"
+                : "border-neutral-800 hover:border-neutral-700 hover:bg-neutral-900/40"
+            )}
+          />
+        }
+      >
+        <div className="flex items-center gap-2.5 min-w-0">
+          <span className={cn("size-2.5 rounded-full shrink-0", activeConfig.dotColor)} />
+          <span className="text-xs font-semibold text-foreground truncate">
+            {activeConfig.label}
+          </span>
+        </div>
+        <ChevronDown
+          className={cn(
+            "size-4 text-muted-foreground transition-transform duration-200 shrink-0",
+            open && "rotate-180 text-foreground"
+          )}
+        />
+      </DropdownMenuTrigger>
+
+      <DropdownMenuContent
+        align="start"
+        sideOffset={6}
+        className="w-[calc(100vw-2.5rem)] max-w-md sm:w-[var(--anchor-width)] p-1.5 rounded-xl shadow-2xl bg-[#0d0d0d] border-2 border-neutral-800 backdrop-blur-2xl overflow-hidden z-[100]"
+      >
+        <DropdownMenuGroup
+          className="space-y-0.5"
+          onPointerLeave={() => setHovered(null)}
+        >
+          {SUSPECT_STATUS_OPTIONS.map((opt) => {
+            const isSelected = value === opt.value;
+            return (
+              <DropdownMenuItem
+                key={opt.value}
+                onPointerEnter={() => setHovered(opt.value)}
+                onClick={() => {
+                  onChange(opt.value);
+                  setOpen(false);
+                }}
+                className={cn(
+                  "relative z-0 group flex items-center justify-between gap-3 cursor-pointer px-3 py-2.5 rounded-lg transition-colors duration-150 outline-none text-xs font-medium bg-transparent! focus:bg-transparent! data-[highlighted]:bg-transparent!",
+                  isSelected ? "text-foreground" : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {hovered === opt.value && (
+                  <motion.div
+                    layoutId="fir-status-hover"
+                    className="absolute inset-0 z-[-1] rounded-lg bg-accent/80"
+                    transition={{ type: "spring", bounce: 0.3, duration: 0.4 }}
+                  />
+                )}
+                <div className="flex items-center gap-3 min-w-0">
+                  <span className={cn("size-2 rounded-full shrink-0", opt.dotColor)} />
+                  <div className="flex flex-col text-left">
+                    <span
+                      className={cn(
+                        "text-xs leading-snug",
+                        isSelected ? "text-foreground font-semibold" : "text-foreground/90 font-medium"
+                      )}
+                    >
+                      {opt.label}
+                    </span>
+                    <span className="text-[11px] text-muted-foreground/75 leading-tight mt-0.5">
+                      {opt.description}
+                    </span>
+                  </div>
+                </div>
+                {isSelected && (
+                  <Check className="size-4 text-emerald-400 shrink-0 ml-2" />
+                )}
+              </DropdownMenuItem>
+            );
+          })}
+        </DropdownMenuGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+});
+
 
 
 function renderOffenceBadge(type: CriminalHistoryItem["offenceType"]) {
@@ -1688,11 +1987,11 @@ export function CriminalProfileTabs({
                     <div>
                       {/* Header */}
                       <div className="flex items-center justify-between pb-3 border-b border-border/50">
-                        <div className="flex items-center gap-2.5">
-                          <div className="flex size-7.5 items-center justify-center rounded-md bg-[#665AEF]/20 text-[#a594fd] border-2 border-[#665AEF]/30">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="flex size-7.5 items-center justify-center rounded-md bg-[#665AEF]/20 text-[#a594fd] border-2 border-[#665AEF]/30 shrink-0">
                             <Ruler className="size-4" />
                           </div>
-                          <h3 className="text-sm font-semibold text-foreground">
+                          <h3 className="text-sm font-semibold text-foreground whitespace-nowrap">
                             Physical Description
                           </h3>
                         </div>
@@ -1762,15 +2061,15 @@ export function CriminalProfileTabs({
                     <div>
                       {/* Header */}
                       <div className="flex items-center justify-between pb-3 border-b border-border/50">
-                        <div className="flex items-center gap-2.5">
-                          <div className="flex size-7.5 items-center justify-center rounded-md bg-[#665AEF]/20 text-[#a594fd] border-2 border-[#665AEF]/30">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="flex size-7.5 items-center justify-center rounded-md bg-[#665AEF]/20 text-[#a594fd] border-2 border-[#665AEF]/30 shrink-0">
                             <Tag className="size-4" />
                           </div>
-                          <div className="flex items-center gap-2">
-                            <h3 className="text-sm font-semibold text-foreground">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <h3 className="text-sm font-semibold text-foreground whitespace-nowrap">
                               Aliases
                             </h3>
-                            <span className="text-[11px] font-semibold text-[#a594fd] bg-[#665AEF]/15 px-2 py-0.5 rounded-md border-2 border-[#665AEF]/30">
+                            <span className="text-[11px] font-semibold text-[#a594fd] bg-[#665AEF]/15 px-2 py-0.5 rounded-md border-2 border-[#665AEF]/30 shrink-0">
                               {aliases.length}
                             </span>
                           </div>
@@ -2000,11 +2299,11 @@ export function CriminalProfileTabs({
                     <div>
                       {/* Header */}
                       <div className="flex items-center justify-between pb-3 border-b border-border/50">
-                        <div className="flex items-center gap-2.5">
-                          <div className="flex size-7.5 items-center justify-center rounded-md bg-[#665AEF]/20 text-[#a594fd] border-2 border-[#665AEF]/30">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="flex size-7.5 items-center justify-center rounded-md bg-[#665AEF]/20 text-[#a594fd] border-2 border-[#665AEF]/30 shrink-0">
                             <BookOpen className="size-4" />
                           </div>
-                          <h3 className="text-sm font-semibold text-foreground">
+                          <h3 className="text-sm font-semibold text-foreground whitespace-nowrap">
                             Crime Information
                           </h3>
                         </div>
@@ -2124,17 +2423,18 @@ export function CriminalProfileTabs({
                   <div className="h-full rounded-lg border-2 border-border/80 bg-card/60 p-3.5 sm:p-5 shadow-xs flex flex-col justify-between">
                     <div>
                       {/* Header */}
-                      <div className="flex items-center justify-between pb-3 border-b border-border/50">
-                        <div className="flex items-center gap-2.5">
-                          <div className="flex size-7.5 items-center justify-center rounded-md bg-[#665AEF]/20 text-[#a594fd] border-2 border-[#665AEF]/30">
-                            <Camera className="size-4" />
+                      <div className="flex items-center justify-between gap-1.5 sm:gap-2 pb-3 border-b border-border/50">
+                        <div className="flex items-center gap-2 sm:gap-2.5 min-w-0">
+                          <div className="flex size-7 sm:size-7.5 items-center justify-center rounded-md bg-[#665AEF]/20 text-[#a594fd] border-2 border-[#665AEF]/30 shrink-0">
+                            <Camera className="size-3.5 sm:size-4" />
                           </div>
-                          <div className="flex items-center gap-2">
-                            <h3 className="text-sm font-semibold text-foreground">
+                          <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+                            <h3 className="text-xs sm:text-sm font-semibold text-foreground whitespace-nowrap">
                               Recent Evidence
                             </h3>
-                            <span className="text-[11px] font-semibold text-muted-foreground bg-muted/50 px-2 py-0.5 rounded-md border-2 border-border/50">
-                              {evidenceItems.length} Total
+                            <span className="text-[10px] sm:text-[11px] font-semibold text-muted-foreground bg-muted/50 px-1.5 sm:px-2 py-0.5 rounded-md border-2 border-border/50 shrink-0 whitespace-nowrap">
+                              {evidenceItems.length}
+                              <span className="hidden sm:inline"> Total</span>
                             </span>
                           </div>
                         </div>
@@ -2143,7 +2443,7 @@ export function CriminalProfileTabs({
                           variant="ghost"
                           size="xs"
                           onClick={() => setActiveTab("evidence")}
-                          className="h-7 px-2.5 gap-1.5 text-xs font-semibold text-[#a594fd] hover:text-foreground hover:bg-[#665AEF]/10 cursor-pointer rounded-md transition-colors"
+                          className="h-7 px-1.5 sm:px-2.5 gap-1 text-xs font-semibold text-[#a594fd] hover:text-foreground hover:bg-[#665AEF]/10 cursor-pointer rounded-md transition-colors shrink-0"
                         >
                           <span>View All</span>
                           <ArrowRight className="size-3" />
@@ -2237,41 +2537,24 @@ export function CriminalProfileTabs({
                     <div>
                       {/* Header */}
                       <div className="flex items-center justify-between pb-3 border-b border-border/50">
-                        <div className="flex items-center gap-2.5">
-                          <div className="flex size-7.5 items-center justify-center rounded-md bg-[#665AEF]/20 text-[#a594fd] border-2 border-[#665AEF]/30">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="flex size-7.5 items-center justify-center rounded-md bg-[#665AEF]/20 text-[#a594fd] border-2 border-[#665AEF]/30 shrink-0">
                             <FolderKanban className="size-4" />
                           </div>
-                          <div className="flex items-center gap-2">
-                            <h3 className="text-sm font-semibold text-foreground">
-                              Related Cases
-                            </h3>
-                            <span className="text-[11px] font-semibold text-muted-foreground bg-muted/50 px-2 py-0.5 rounded-md border-2 border-border/50">
-                              {caseList.length} Total
-                            </span>
-                          </div>
+                          <h3 className="text-sm font-semibold text-foreground whitespace-nowrap">
+                            Related Cases
+                          </h3>
                         </div>
-                        <div className="flex items-center gap-1.5">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="xs"
-                            onClick={() => setIsLinkCaseOpen(true)}
-                            className="h-7 px-2 gap-1 text-[11px] font-semibold text-[#a594fd] hover:text-foreground border-2 border-border/80 bg-muted/30 hover:bg-[#665AEF]/15 rounded-md cursor-pointer transition-colors"
-                          >
-                            <Plus className="size-3 text-[#665AEF]" />
-                            <span>Link Case</span>
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="xs"
-                            render={<Link href="/dashboard/cases" />}
-                            className="h-7 px-2.5 gap-1.5 text-xs font-semibold text-[#a594fd] hover:text-foreground hover:bg-[#665AEF]/10 cursor-pointer rounded-md transition-colors"
-                            nativeButton={false}
-                          >
-                            <span>View All</span>
-                            <ArrowRight className="size-3" />
-                          </Button>
-                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="xs"
+                          onClick={() => setIsLinkCaseOpen(true)}
+                          className="h-7 px-2.5 gap-1.5 text-xs font-semibold text-[#a594fd] hover:text-foreground border-2 border-border/80 bg-muted/30 hover:bg-[#665AEF]/15 rounded-md cursor-pointer transition-colors shrink-0"
+                        >
+                          <Plus className="size-3 text-[#665AEF]" />
+                          <span>Link Case</span>
+                        </Button>
                       </div>
 
                       {/* Rows List or Empty State */}
@@ -2380,20 +2663,20 @@ export function CriminalProfileTabs({
                 <div className="rounded-lg border-2 border-border/80 bg-card/60 p-3.5 sm:p-5 shadow-xs flex flex-col justify-between gap-4">
                   {/* Header */}
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-border/50">
-                    <div className="flex items-center gap-2.5">
-                      <div className="flex size-7.5 items-center justify-center rounded-md bg-[#665AEF]/20 text-[#a594fd] border-2 border-[#665AEF]/30">
+                    <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                      <div className="flex size-7.5 items-center justify-center rounded-md bg-[#665AEF]/20 text-[#a594fd] border-2 border-[#665AEF]/30 shrink-0 mt-0.5">
                         <Network className="size-4" />
                       </div>
-                      <div>
-                        <div className="flex items-center gap-2">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
                           <h3 className="text-sm font-semibold text-foreground">
                             Co-Offender Network & Syndicate Links
                           </h3>
-                          <span className="text-[11px] font-semibold text-[#a594fd] bg-[#665AEF]/15 px-2 py-0.5 rounded-md border-2 border-[#665AEF]/30">
+                          <span className="text-[10px] sm:text-[11px] font-semibold text-[#a594fd] bg-[#665AEF]/15 px-2 py-0.5 rounded-md border-2 border-[#665AEF]/30 shrink-0 whitespace-nowrap">
                             {computedCoOffenders.length} Linked Associate{computedCoOffenders.length === 1 ? "" : "s"}
                           </span>
                         </div>
-                        <p className="text-[11px] text-muted-foreground mt-0.5">
+                        <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
                           Cross-case associative intelligence derived from mutual FIR investigations and co-accused rosters
                         </p>
                       </div>
@@ -6145,30 +6428,25 @@ export function CriminalProfileTabs({
         isOpen={caseRoleToEdit !== null}
         onClose={() => setCaseRoleToEdit(null)}
         maxWidth="max-w-md"
-        className="border-2 border-border/90 bg-[#0B0F17]/95 backdrop-blur-xl shadow-2xl rounded-xl"
+        className="border-2 border-neutral-800 bg-[#0a0a0a] shadow-2xl rounded-2xl [&_[data-modal-footer]]:bg-[#0a0a0a] [&_[data-modal-footer]]:border-neutral-800/80"
         title={
-          <div className="flex items-center gap-2.5">
-            <div className="flex size-8.5 items-center justify-center rounded-lg bg-[#665AEF]/20 text-[#a594fd] border border-[#665AEF]/30 shrink-0">
-              <UserCheck className="size-4" />
-            </div>
-            <div>
-              <span className="text-sm sm:text-base font-semibold text-foreground">
-                Update FIR Classification
-              </span>
-              <p className="text-[11px] text-muted-foreground">
-                Case {caseRoleToEdit?.caseNumber} suspect status
-              </p>
-            </div>
+          <div>
+            <span className="text-sm sm:text-base font-bold text-foreground tracking-tight">
+              Update FIR Classification
+            </span>
+            <p className="text-[11px] text-muted-foreground font-mono mt-0.5">
+              Case {caseRoleToEdit?.caseNumber} • Suspect Classification
+            </p>
           </div>
         }
         footer={
-          <div className="flex items-center justify-end gap-2 w-full">
+          <div className="flex items-center justify-end gap-2.5 w-full">
             <Button
               type="button"
               variant="outline"
               size="sm"
               onClick={() => setCaseRoleToEdit(null)}
-              className="h-8.5 px-3 text-xs"
+              className="h-9 px-3.5 text-xs font-semibold rounded-lg border-2 border-neutral-800 bg-neutral-900/60 hover:bg-neutral-800 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
             >
               Cancel
             </Button>
@@ -6177,43 +6455,41 @@ export function CriminalProfileTabs({
               size="sm"
               onClick={handleSaveCaseRole}
               disabled={isSavingCaseRole}
-              className="h-8.5 px-4 text-xs bg-[#665AEF] hover:bg-[#5749DF] text-white font-semibold cursor-pointer"
+              className="h-9 px-4 text-xs font-semibold rounded-lg bg-[#665AEF] hover:bg-[#5749DF] text-white transition-all shadow-md shadow-[#665AEF]/30 hover:shadow-[#665AEF]/50 cursor-pointer disabled:opacity-50 flex items-center gap-1.5 border border-[#665AEF]/40 font-medium"
             >
-              {isSavingCaseRole ? "Saving..." : "Update Role"}
+              {isSavingCaseRole ? (
+                <>
+                  <Loader2 className="size-3.5 animate-spin" />
+                  <span>Saving...</span>
+                </>
+              ) : (
+                <span>Update Role</span>
+              )}
             </Button>
           </div>
         }
       >
-        <div className="space-y-3.5 text-xs">
-          <div className="space-y-1">
-            <label className="text-[11px] font-medium text-muted-foreground">Investigative Role</label>
-            <select
+        <div className="space-y-4 py-1 text-xs">
+          {/* Field 1: Investigative Role */}
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+              Investigative Role
+            </label>
+            <RoleSelectDropdown
               value={editCaseRole}
-              onChange={(e) => setEditCaseRole(e.target.value as SuspectRole)}
-              className="w-full px-3 py-2 rounded-lg bg-background/50 border border-border/80 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-[#665AEF]"
-            >
-              <option value="DIRECT_INVOLVEMENT">Direct Involvement</option>
-              <option value="POSSIBLE_ASSOCIATE">Possible Associate</option>
-              <option value="ACCOMPLICE">Accomplice / Co-Conspirator</option>
-              <option value="INFORMANT">Informant / Source</option>
-              <option value="WITNESS">Witness</option>
-              <option value="UNDER_INVESTIGATION">Under Active Investigation</option>
-            </select>
+              onChange={setEditCaseRole}
+            />
           </div>
 
-          <div className="space-y-1">
-            <label className="text-[11px] font-medium text-muted-foreground">Case Status Disposition</label>
-            <select
+          {/* Field 2: Case Status Disposition */}
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+              Case Status Disposition
+            </label>
+            <StatusSelectDropdown
               value={editCaseStatus}
-              onChange={(e) => setEditCaseStatus(e.target.value as SuspectCaseStatus)}
-              className="w-full px-3 py-2 rounded-lg bg-background/50 border border-border/80 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-[#665AEF]"
-            >
-              <option value="PRIMARY_SUSPECT">Primary Suspect</option>
-              <option value="PERSON_OF_INTEREST">Person of Interest</option>
-              <option value="ACCOMPLICE">Accomplice</option>
-              <option value="CLEARED">Cleared / Exonerated</option>
-              <option value="CONVICTED">Convicted by Court</option>
-            </select>
+              onChange={setEditCaseStatus}
+            />
           </div>
         </div>
       </Modal>

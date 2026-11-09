@@ -211,10 +211,10 @@ export function RecentSketches({ sketches = [] }: RecentSketchesProps) {
           </div>
           <Link
             href="/sketch"
-            className="group shrink-0 whitespace-nowrap inline-flex items-center gap-1 text-xs font-medium text-[#a594fd] hover:text-[#c4b8ff] transition-colors"
+            className="group shrink-0 whitespace-nowrap inline-flex items-center gap-1.5 text-xs font-medium text-[#a594fd] hover:text-[#c4b8ff] transition-colors bg-secondary/40 hover:bg-secondary/70 border border-border/50 px-2.5 py-1 rounded-lg"
           >
             <span>Open Studio</span>
-            <ArrowRight className="size-3.5 shrink-0 transition-transform group-hover:translate-x-0.5" />
+            <ArrowRight className="size-3 shrink-0 transition-transform group-hover:translate-x-0.5" />
           </Link>
         </CardHeader>
 
@@ -287,27 +287,26 @@ export function RecentSketches({ sketches = [] }: RecentSketchesProps) {
               </AnimatePresence>
             </div>
           ) : (
-            <Empty className="py-8 border-2 border-dashed border-border/60 rounded-xl bg-card/30">
-              <EmptyHeader>
-                <EmptyTitle className="text-sm font-semibold text-foreground">
-                  No composite sketches generated yet
-                </EmptyTitle>
-                <EmptyDescription className="text-xs text-muted-foreground max-w-[270px]">
-                  Synthesize composite suspect faces using witness descriptors in the Forensic Studio.
-                </EmptyDescription>
-              </EmptyHeader>
-              <EmptyContent>
-                <Button
-                  size="sm"
-                  className="h-8 gap-1.5 rounded-lg bg-[#665AEF] hover:bg-[#5749DF] text-white text-xs font-medium cursor-pointer shadow-xs shadow-[#665AEF]/25"
-                  render={<Link href="/sketch" />}
-                  nativeButton={false}
-                >
-                  <Sparkles className="size-3.5" />
-                  <span>Launch AI Studio</span>
-                </Button>
-              </EmptyContent>
-            </Empty>
+            <div className="flex flex-col items-center justify-center text-center py-6 px-4 border border-dashed border-border/70 rounded-xl bg-card/40 my-auto">
+              <div className="size-10 rounded-xl bg-[#665AEF]/15 border border-[#665AEF]/30 flex items-center justify-center text-[#a594fd] mb-2.5 shadow-xs">
+                <Sparkles className="size-4.5" />
+              </div>
+              <p className="text-xs sm:text-sm font-semibold text-foreground">
+                No composite sketches generated yet
+              </p>
+              <p className="text-[11px] sm:text-xs text-muted-foreground max-w-[260px] mt-1 mb-3.5 leading-relaxed">
+                Synthesize composite suspect faces using witness descriptors in the Forensic Studio.
+              </p>
+              <Button
+                size="sm"
+                className="h-8 gap-1.5 rounded-lg bg-[#665AEF] hover:bg-[#5749DF] text-white text-xs font-medium cursor-pointer shadow-xs shadow-[#665AEF]/25"
+                render={<Link href="/sketch" />}
+                nativeButton={false}
+              >
+                <Sparkles className="size-3.5" />
+                <span>Launch AI Studio</span>
+              </Button>
+            </div>
           )}
         </CardContent>
       </Card>

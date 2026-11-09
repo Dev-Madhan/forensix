@@ -194,20 +194,27 @@ export function RecentCasesTable({ cases = [] }: RecentCasesTableProps) {
   return (
     <Card className="@container/card rounded-xl border border-border/70 bg-card/75 shadow-xs h-full flex flex-col justify-between overflow-hidden">
       <CardHeader className="flex flex-row items-center justify-between gap-3 sm:gap-4 border-b border-border/40 px-4 sm:px-6 py-3.5 sm:py-4">
-        <div className="space-y-1 min-w-0 flex-1">
-          <CardTitle className="text-sm sm:text-base font-semibold tracking-tight text-foreground font-heading">
-            Recent Cases
-          </CardTitle>
-          <CardDescription className="text-xs text-muted-foreground">
+        <div className="space-y-0.5 min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <CardTitle className="text-sm sm:text-base font-semibold tracking-tight text-foreground font-heading">
+              Recent Cases
+            </CardTitle>
+            {cases.length > 0 && (
+              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-md bg-secondary/80 text-muted-foreground border border-border/60">
+                {cases.length} active
+              </span>
+            )}
+          </div>
+          <CardDescription className="text-xs text-muted-foreground truncate">
             Live investigation files registered in the forensic database.
           </CardDescription>
         </div>
         <Link
           href="/dashboard/cases"
-          className="group shrink-0 whitespace-nowrap inline-flex items-center gap-1 text-xs font-medium text-[#a594fd] hover:text-[#c4b8ff] transition-colors"
+          className="group shrink-0 whitespace-nowrap inline-flex items-center gap-1.5 text-xs font-medium text-[#a594fd] hover:text-[#c4b8ff] transition-colors bg-secondary/40 hover:bg-secondary/70 border border-border/50 px-2.5 py-1 rounded-lg"
         >
-          <span className="whitespace-nowrap">View all</span>
-          <ArrowRight className="size-3.5 shrink-0 transition-transform group-hover:translate-x-0.5" />
+          <span>View all</span>
+          <ArrowRight className="size-3 shrink-0 transition-transform group-hover:translate-x-0.5" />
         </Link>
       </CardHeader>
 
@@ -288,25 +295,25 @@ export function RecentCasesTable({ cases = [] }: RecentCasesTableProps) {
               </AnimatePresence>
             </div>
 
-            {/* 2. Desktop High-Density Data Table */}
-            <div className="hidden sm:block overflow-x-auto">
-              <Table className="w-full">
+            {/* 2. Desktop High-Density Data Table (Zero Horizontal Scrollbar) */}
+            <div className="hidden sm:block overflow-hidden">
+              <Table className="w-full table-fixed">
                 <TableHeader>
                   <TableRow className="border-border/40 hover:bg-transparent">
-                    <TableHead className="w-[120px] pl-5 sm:pl-6 text-xs text-muted-foreground font-medium">
+                    <TableHead className="w-[115px] sm:w-[125px] pl-5 sm:pl-6 text-xs text-muted-foreground font-medium shrink-0">
                       Case ID
                     </TableHead>
-                    <TableHead className="text-xs text-muted-foreground font-medium">
+                    <TableHead className="text-xs text-muted-foreground font-medium min-w-0">
                       Title
                     </TableHead>
-                    <TableHead className="w-[110px] text-xs text-muted-foreground font-medium">
+                    <TableHead className="w-[100px] text-xs text-muted-foreground font-medium hidden md:table-cell shrink-0">
                       Date
                     </TableHead>
-                    <TableHead className="w-[150px] text-xs text-muted-foreground font-medium">
+                    <TableHead className="w-[140px] text-xs text-muted-foreground font-medium shrink-0">
                       Status
                     </TableHead>
-                    <TableHead className="w-[60px] pr-5 sm:pr-6 text-right text-xs text-muted-foreground font-medium">
-                      Actions
+                    <TableHead className="w-[48px] pr-5 sm:pr-6 text-right text-xs text-muted-foreground font-medium shrink-0">
+                      <span className="sr-only">Actions</span>
                     </TableHead>
                   </TableRow>
                 </TableHeader>
@@ -322,7 +329,7 @@ export function RecentCasesTable({ cases = [] }: RecentCasesTableProps) {
                         transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
                         className="border-b border-border/40 hover:bg-muted/30 transition-colors"
                       >
-                        <TableCell className="pl-5 sm:pl-6 text-xs font-mono font-medium text-foreground/90">
+                        <TableCell className="w-[115px] sm:w-[125px] pl-5 sm:pl-6 text-xs font-mono font-medium text-foreground/90 shrink-0">
                           <Link
                             href={`/case-details/${item.caseId}`}
                             className="hover:text-[#a594fd] transition-colors"
@@ -330,19 +337,22 @@ export function RecentCasesTable({ cases = [] }: RecentCasesTableProps) {
                             {item.caseId}
                           </Link>
                         </TableCell>
-                        <TableCell className="text-xs font-medium text-foreground">
+                        <TableCell className="text-xs font-medium text-foreground truncate min-w-0 max-w-0">
                           <Link
                             href={`/case-details/${item.caseId}`}
-                            className="hover:underline hover:text-foreground line-clamp-1"
+                            className="hover:underline hover:text-foreground truncate block"
+                            title={item.title}
                           >
                             {item.title}
                           </Link>
                         </TableCell>
-                        <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                        <TableCell className="w-[100px] text-xs text-muted-foreground whitespace-nowrap hidden md:table-cell shrink-0 font-mono text-[11px]">
                           {item.date}
                         </TableCell>
-                        <TableCell>{getStatusBadge(item.status)}</TableCell>
-                        <TableCell className="pr-5 sm:pr-6 text-right">
+                        <TableCell className="w-[140px] shrink-0">
+                          {getStatusBadge(item.status)}
+                        </TableCell>
+                        <TableCell className="w-[48px] pr-5 sm:pr-6 text-right shrink-0">
                           <RecentCaseRowActions
                             item={item}
                             copiedId={copiedId}

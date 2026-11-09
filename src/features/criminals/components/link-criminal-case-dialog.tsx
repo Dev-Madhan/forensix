@@ -27,6 +27,7 @@ import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -135,6 +136,213 @@ const STATUS_CONFIGS: Record<
   },
 };
 
+interface LinkCaseRoleSelectProps {
+  value: SuspectRole;
+  onChange: (value: SuspectRole) => void;
+}
+
+const LinkCaseRoleSelect = React.memo(function LinkCaseRoleSelect({
+  value,
+  onChange,
+}: LinkCaseRoleSelectProps) {
+  const [open, setOpen] = useState(false);
+  const [hovered, setHovered] = useState<SuspectRole | null>(null);
+  const currentRoleConfig =
+    ROLE_CONFIGS[value] || ROLE_CONFIGS[SuspectRole.UNDER_INVESTIGATION];
+
+  return (
+    <DropdownMenu
+      open={open}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen);
+        if (!nextOpen) setHovered(null);
+      }}
+    >
+      <DropdownMenuTrigger
+        render={
+          <button
+            type="button"
+            className={cn(
+              "w-full h-11 px-3.5 flex items-center justify-between rounded-xl bg-neutral-950 border-2 transition-colors cursor-pointer outline-none",
+              open
+                ? "border-neutral-600 bg-neutral-900/60"
+                : "border-neutral-800 hover:border-neutral-700 hover:bg-neutral-900/40"
+            )}
+          />
+        }
+      >
+        <div className="flex items-center gap-2.5 min-w-0">
+          <span className={cn("size-2.5 rounded-full shrink-0", currentRoleConfig.color)} />
+          <span className="truncate text-xs font-semibold text-foreground">
+            {currentRoleConfig.label}
+          </span>
+        </div>
+        <ChevronDown
+          className={cn(
+            "size-4 text-muted-foreground transition-transform duration-200 shrink-0",
+            open && "rotate-180 text-foreground"
+          )}
+        />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="start"
+        sideOffset={6}
+        className="w-[calc(100vw-2.5rem)] max-w-md sm:w-[var(--anchor-width)] p-1.5 rounded-xl shadow-2xl bg-[#0d0d0d] border-2 border-neutral-800 backdrop-blur-2xl overflow-hidden z-[100]"
+      >
+        <DropdownMenuGroup
+          className="space-y-0.5"
+          onPointerLeave={() => setHovered(null)}
+        >
+          {(Object.keys(ROLE_CONFIGS) as SuspectRole[]).map((r) => {
+            const cfg = ROLE_CONFIGS[r];
+            const isSelected = value === r;
+            return (
+              <DropdownMenuItem
+                key={r}
+                onPointerEnter={() => setHovered(r)}
+                onClick={() => {
+                  onChange(r);
+                  setOpen(false);
+                }}
+                className={cn(
+                  "relative z-0 group flex items-center justify-between gap-3 cursor-pointer px-3 py-2.5 rounded-lg transition-colors duration-150 outline-none text-xs font-medium bg-transparent! focus:bg-transparent! data-[highlighted]:bg-transparent!",
+                  isSelected ? "text-foreground" : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {hovered === r && (
+                  <motion.div
+                    layoutId="link-case-role-hover"
+                    className="absolute inset-0 z-[-1] rounded-lg bg-accent/80"
+                    transition={{ type: "spring", bounce: 0.3, duration: 0.4 }}
+                  />
+                )}
+                <div className="flex items-center gap-3 min-w-0">
+                  <span className={cn("size-2 rounded-full shrink-0", cfg.color)} />
+                  <div className="flex flex-col text-left min-w-0">
+                    <span
+                      className={cn(
+                        "text-xs leading-snug",
+                        isSelected ? "text-foreground font-semibold" : "text-foreground/90 font-medium"
+                      )}
+                    >
+                      {cfg.label}
+                    </span>
+                    <span className="text-[11px] text-muted-foreground/75 leading-tight mt-0.5">
+                      {cfg.desc}
+                    </span>
+                  </div>
+                </div>
+                {isSelected && <Check className="size-4 text-emerald-400 shrink-0 ml-2" />}
+              </DropdownMenuItem>
+            );
+          })}
+        </DropdownMenuGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+});
+
+interface LinkCaseStatusSelectProps {
+  value: SuspectCaseStatus;
+  onChange: (value: SuspectCaseStatus) => void;
+}
+
+const LinkCaseStatusSelect = React.memo(function LinkCaseStatusSelect({
+  value,
+  onChange,
+}: LinkCaseStatusSelectProps) {
+  const [open, setOpen] = useState(false);
+  const [hovered, setHovered] = useState<SuspectCaseStatus | null>(null);
+  const currentStatusConfig =
+    STATUS_CONFIGS[value] || STATUS_CONFIGS[SuspectCaseStatus.PERSON_OF_INTEREST];
+
+  return (
+    <DropdownMenu
+      open={open}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen);
+        if (!nextOpen) setHovered(null);
+      }}
+    >
+      <DropdownMenuTrigger
+        render={
+          <button
+            type="button"
+            className={cn(
+              "w-full h-11 px-3.5 flex items-center justify-between rounded-xl bg-neutral-950 border-2 transition-colors cursor-pointer outline-none",
+              open
+                ? "border-neutral-600 bg-neutral-900/60"
+                : "border-neutral-800 hover:border-neutral-700 hover:bg-neutral-900/40"
+            )}
+          />
+        }
+      >
+        <div className="flex items-center gap-2.5 min-w-0">
+          <span className={cn("size-2.5 rounded-full shrink-0", currentStatusConfig.color)} />
+          <span className="truncate text-xs font-semibold text-foreground">
+            {currentStatusConfig.label}
+          </span>
+        </div>
+        <ChevronDown
+          className={cn(
+            "size-4 text-muted-foreground transition-transform duration-200 shrink-0",
+            open && "rotate-180 text-foreground"
+          )}
+        />
+      </DropdownMenuTrigger>
+      <DropdownMenuContent
+        align="start"
+        sideOffset={6}
+        className="w-[calc(100vw-2.5rem)] max-w-md sm:w-[var(--anchor-width)] p-1.5 rounded-xl shadow-2xl bg-[#0d0d0d] border-2 border-neutral-800 backdrop-blur-2xl overflow-hidden z-[100]"
+      >
+        <DropdownMenuGroup
+          className="space-y-0.5"
+          onPointerLeave={() => setHovered(null)}
+        >
+          {(Object.keys(STATUS_CONFIGS) as SuspectCaseStatus[]).map((st) => {
+            const cfg = STATUS_CONFIGS[st];
+            const isSelected = value === st;
+            return (
+              <DropdownMenuItem
+                key={st}
+                onPointerEnter={() => setHovered(st)}
+                onClick={() => {
+                  onChange(st);
+                  setOpen(false);
+                }}
+                className={cn(
+                  "relative z-0 group flex items-center justify-between gap-3 cursor-pointer px-3 py-2.5 rounded-lg transition-colors duration-150 outline-none text-xs font-medium bg-transparent! focus:bg-transparent! data-[highlighted]:bg-transparent!",
+                  isSelected ? "text-foreground" : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {hovered === st && (
+                  <motion.div
+                    layoutId="link-case-status-hover"
+                    className="absolute inset-0 z-[-1] rounded-lg bg-accent/80"
+                    transition={{ type: "spring", bounce: 0.3, duration: 0.4 }}
+                  />
+                )}
+                <div className="flex items-center gap-3 min-w-0">
+                  <span className={cn("size-2 rounded-full shrink-0", cfg.color)} />
+                  <span
+                    className={cn(
+                      "text-xs leading-snug",
+                      isSelected ? "text-foreground font-semibold" : "text-foreground/90 font-medium"
+                    )}
+                  >
+                    {cfg.label}
+                  </span>
+                </div>
+                {isSelected && <Check className="size-4 text-emerald-400 shrink-0 ml-2" />}
+              </DropdownMenuItem>
+            );
+          })}
+        </DropdownMenuGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+});
+
 export function LinkCriminalCaseDialog({
   isOpen,
   onClose,
@@ -166,10 +374,6 @@ export function LinkCriminalCaseDialog({
   const [isLoadingCases, setIsLoadingCases] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-
-  // Hover states for smooth dropdown animations
-  const [hoveredRole, setHoveredRole] = useState<string | null>(null);
-  const [hoveredStatus, setHoveredStatus] = useState<string | null>(null);
 
   // Populate from currentCase or reset when opened
   useEffect(() => {
@@ -358,7 +562,7 @@ export function LinkCriminalCaseDialog({
       isOpen={isOpen}
       onClose={handleClose}
       maxWidth="max-w-lg"
-      className="border-2 border-border/80 bg-black/95 backdrop-blur-2xl shadow-2xl rounded-2xl"
+      className="border-2 border-neutral-800 bg-[#0a0a0a] shadow-2xl rounded-2xl [&_[data-modal-footer]]:bg-[#0a0a0a] [&_[data-modal-footer]]:border-neutral-800/80"
       title={
         <div className="flex items-start sm:items-center gap-2 sm:gap-2.5 min-w-0 pr-1">
           <FolderPlus className="size-4.5 sm:size-5 text-[#665AEF] shrink-0 mt-0.5 sm:mt-0" />
@@ -430,7 +634,7 @@ export function LinkCriminalCaseDialog({
               size="sm"
               disabled={isSubmitting || isUnlinking}
               onClick={handleClose}
-              className="h-10 sm:h-9 px-4 text-xs font-semibold rounded-lg border-2 border-border/80 bg-zinc-950/80 hover:bg-zinc-900 text-foreground cursor-pointer transition-colors flex-1 sm:flex-none justify-center"
+              className="h-10 sm:h-9 px-4 text-xs font-semibold rounded-lg border-2 border-neutral-800 bg-neutral-900/60 hover:bg-neutral-800 text-muted-foreground hover:text-foreground cursor-pointer transition-colors flex-1 sm:flex-none justify-center"
             >
               Cancel
             </Button>
@@ -488,7 +692,7 @@ export function LinkCriminalCaseDialog({
               }}
               onFocus={() => setShowSuggestions(true)}
               placeholder="Search active cases or type FX-2026-###..."
-              className="h-10 pl-9 pr-9 text-xs sm:text-sm font-mono border-2 border-border/80 bg-zinc-950/80 focus-visible:border-[#665AEF] focus-visible:ring-1 focus-visible:ring-[#665AEF] rounded-lg"
+              className="h-11 pl-9 pr-9 text-xs sm:text-sm font-mono border-2 border-neutral-800 bg-neutral-950 focus-visible:border-neutral-500 rounded-xl"
             />
             {caseInput && (
               <button
@@ -505,14 +709,14 @@ export function LinkCriminalCaseDialog({
           <AnimatePresence>
             {showSuggestions && (
               <motion.div
-                initial={{ opacity: 0, y: -6, scale: 0.98 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -6, scale: 0.98 }}
-                transition={{ duration: 0.18, ease: "easeOut" }}
-                className="absolute left-0 right-0 top-full mt-1.5 z-50 rounded-xl border-2 border-border/90 bg-zinc-950 shadow-2xl overflow-hidden max-h-48 sm:max-h-56 overflow-y-auto no-scrollbar scrollbar-none [&::-webkit-scrollbar]:hidden"
+                initial={{ opacity: 0, y: -4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.14, ease: "easeOut" }}
+                className="absolute left-0 right-0 top-full mt-1.5 z-50 rounded-xl border-2 border-neutral-800 bg-[#0d0d0d] shadow-2xl overflow-hidden max-h-48 sm:max-h-56 overflow-y-auto no-scrollbar scrollbar-none [&::-webkit-scrollbar]:hidden"
               >
                 <div className="p-1.5 space-y-1">
-                  <div className="px-2.5 py-1 text-[10px] font-mono text-muted-foreground uppercase tracking-widest flex items-center justify-between border-b-2 border-border/60 pb-1.5 mb-1">
+                  <div className="px-2.5 py-1 text-[10px] font-mono text-muted-foreground uppercase tracking-widest flex items-center justify-between border-b-2 border-neutral-800 pb-1.5 mb-1">
                     <span>Active Investigation Dockets</span>
                     {isLoadingCases && <Loader2 className="size-3 animate-spin text-[#a594fd]" />}
                   </div>
@@ -526,7 +730,7 @@ export function LinkCriminalCaseDialog({
                           "px-2.5 py-2 rounded-lg cursor-pointer transition-colors flex items-center justify-between gap-2 text-xs",
                           selectedCase?.id === c.id
                             ? "bg-[#665AEF]/20 text-white border-2 border-[#665AEF]/50"
-                            : "hover:bg-zinc-900/80 text-foreground"
+                            : "hover:bg-neutral-800/70 text-foreground"
                         )}
                       >
                         <div className="min-w-0">
@@ -565,7 +769,7 @@ export function LinkCriminalCaseDialog({
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
-            className="p-2.5 rounded-lg border-2 border-zinc-800 bg-zinc-950 flex items-center justify-between gap-2 text-xs"
+            className="p-2.5 rounded-lg border-2 border-neutral-800 bg-neutral-950 flex items-center justify-between gap-2 text-xs"
           >
             <div className="flex items-center gap-2 min-w-0">
               <span className="font-mono font-bold text-[#a594fd] shrink-0">{selectedCase.caseNumber}:</span>
@@ -589,61 +793,7 @@ export function LinkCriminalCaseDialog({
             <Label className="text-xs font-bold text-foreground uppercase tracking-wider">
               Suspect Role
             </Label>
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="h-10 w-full justify-between rounded-lg border-2 border-border/80 bg-zinc-950/80 px-3 text-xs sm:text-sm font-medium hover:bg-zinc-900 text-foreground cursor-pointer flex items-center shadow-xs"
-                  />
-                }
-              >
-                <div className="flex items-center gap-2 truncate">
-                  <span className={cn("size-2 rounded-full shrink-0", currentRoleConfig.color)} />
-                  <span className="truncate">{currentRoleConfig.label}</span>
-                </div>
-                <ChevronDown className="size-3.5 text-muted-foreground opacity-70 shrink-0 ml-1.5" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                align="start"
-                side="bottom"
-                sideOffset={6}
-                className="w-(--anchor-width) min-w-48 max-w-[calc(100vw-2.5rem)] p-1.5 rounded-xl shadow-2xl bg-zinc-950 backdrop-blur-xl border-2 border-border/90 z-50"
-                onPointerLeave={() => setHoveredRole(null)}
-              >
-                <div className="space-y-0.5">
-                  {(Object.keys(ROLE_CONFIGS) as SuspectRole[]).map((r) => {
-                    const cfg = ROLE_CONFIGS[r];
-                    const isSelected = role === r;
-                    return (
-                      <DropdownMenuItem
-                        key={r}
-                        onPointerEnter={() => setHoveredRole(r)}
-                        onClick={() => setRole(r)}
-                        className="relative z-0 group flex items-center justify-between cursor-pointer px-2.5 py-2 rounded-lg transition-colors bg-transparent! text-xs font-medium"
-                      >
-                        {hoveredRole === r && (
-                          <motion.div
-                            layoutId="dialog-role-hover"
-                            className="absolute inset-0 z-[-1] rounded-lg bg-zinc-800/80"
-                            transition={{ type: "spring", bounce: 0.25, duration: 0.35 }}
-                          />
-                        )}
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className={cn("size-2 rounded-full shrink-0", cfg.color)} />
-                          <div className="min-w-0">
-                            <span className="block truncate font-semibold text-foreground">{cfg.label}</span>
-                            <span className="block truncate text-[10px] text-muted-foreground">{cfg.desc}</span>
-                          </div>
-                        </div>
-                        {isSelected && <Check className="size-3.5 text-[#665AEF] shrink-0 ml-2" />}
-                      </DropdownMenuItem>
-                    );
-                  })}
-                </div>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <LinkCaseRoleSelect value={role} onChange={setRole} />
           </div>
 
           {/* Case Status Dropdown */}
@@ -651,58 +801,7 @@ export function LinkCriminalCaseDialog({
             <Label className="text-xs font-bold text-foreground uppercase tracking-wider">
               Case Status
             </Label>
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="h-10 w-full justify-between rounded-lg border-2 border-border/80 bg-zinc-950/80 px-3 text-xs sm:text-sm font-medium hover:bg-zinc-900 text-foreground cursor-pointer flex items-center shadow-xs"
-                  />
-                }
-              >
-                <div className="flex items-center gap-2 truncate">
-                  <span className={cn("size-2 rounded-full shrink-0", currentStatusConfig.color)} />
-                  <span className="truncate">{currentStatusConfig.label}</span>
-                </div>
-                <ChevronDown className="size-3.5 text-muted-foreground opacity-70 shrink-0 ml-1.5" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent
-                align="start"
-                side="bottom"
-                sideOffset={6}
-                className="w-(--anchor-width) min-w-48 max-w-[calc(100vw-2.5rem)] p-1.5 rounded-xl shadow-2xl bg-zinc-950 backdrop-blur-xl border-2 border-border/90 z-50"
-                onPointerLeave={() => setHoveredStatus(null)}
-              >
-                <div className="space-y-0.5">
-                  {(Object.keys(STATUS_CONFIGS) as SuspectCaseStatus[]).map((st) => {
-                    const cfg = STATUS_CONFIGS[st];
-                    const isSelected = status === st;
-                    return (
-                      <DropdownMenuItem
-                        key={st}
-                        onPointerEnter={() => setHoveredStatus(st)}
-                        onClick={() => setStatus(st)}
-                        className="relative z-0 group flex items-center justify-between cursor-pointer px-2.5 py-2 rounded-lg transition-colors bg-transparent! text-xs font-medium"
-                      >
-                        {hoveredStatus === st && (
-                          <motion.div
-                            layoutId="dialog-status-hover"
-                            className="absolute inset-0 z-[-1] rounded-lg bg-zinc-800/80"
-                            transition={{ type: "spring", bounce: 0.25, duration: 0.35 }}
-                          />
-                        )}
-                        <div className="flex items-center gap-2">
-                          <span className={cn("size-2 rounded-full shrink-0", cfg.color)} />
-                          <span className="font-semibold text-foreground">{cfg.label}</span>
-                        </div>
-                        {isSelected && <Check className="size-3.5 text-[#665AEF] shrink-0" />}
-                      </DropdownMenuItem>
-                    );
-                  })}
-                </div>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <LinkCaseStatusSelect value={status} onChange={setStatus} />
           </div>
         </div>
 
@@ -719,7 +818,7 @@ export function LinkCriminalCaseDialog({
             maxLength={250}
             onChange={(e) => setNotes(e.target.value)}
             placeholder="e.g. Sighted near crime scene perimeter, ANPR hit at junction..."
-            className="h-10 text-xs sm:text-sm border-2 border-border/80 bg-zinc-950/80 focus-visible:border-[#665AEF] focus-visible:ring-1 focus-visible:ring-[#665AEF] rounded-lg"
+            className="h-11 text-xs sm:text-sm border-2 border-neutral-800 bg-neutral-950 focus-visible:border-neutral-500 rounded-xl"
           />
         </div>
       </form>
