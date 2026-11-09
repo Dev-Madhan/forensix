@@ -248,6 +248,11 @@ export function EnrollWitnessDialog({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (!caseId) {
+      toast.error("Case reference missing. Please refresh and try again.");
+      return;
+    }
+
     if (!name.trim()) {
       toast.error("Please enter the witness name");
       setActiveTab("contact");
@@ -268,6 +273,11 @@ export function EnrollWitnessDialog({
 
     setIsSubmitting(true);
 
+    const parsedAge = ageAtIncident && !isNaN(parseInt(ageAtIncident, 10)) ? parseInt(ageAtIncident, 10) : null;
+    const parsedDistance = incidentDistanceMeters && !isNaN(parseFloat(incidentDistanceMeters)) ? parseFloat(incidentDistanceMeters) : null;
+    const parsedDuration = observationDurationSec && !isNaN(parseInt(observationDurationSec, 10)) ? parseInt(observationDurationSec, 10) : null;
+    const parsedConfidence = confidenceScore && !isNaN(parseInt(confidenceScore, 10)) ? parseInt(confidenceScore, 10) : null;
+
     try {
       if (witnessToEdit) {
         const res = await updateWitness({
@@ -275,7 +285,7 @@ export function EnrollWitnessDialog({
           name: name.trim(),
           alias: alias.trim() || null,
           gender: gender || null,
-          ageAtIncident: ageAtIncident ? parseInt(ageAtIncident, 10) : null,
+          ageAtIncident: parsedAge,
           occupation: occupation.trim() || null,
           witnessType,
           credibility,
@@ -296,14 +306,14 @@ export function EnrollWitnessDialog({
           keyFacialFeatures: keyFacialFeatures.trim() || null,
           interviewDate: interviewDate || null,
           lightingCondition: lightingCondition || null,
-          incidentDistanceMeters: incidentDistanceMeters ? parseFloat(incidentDistanceMeters) : null,
-          observationDurationSec: observationDurationSec ? parseInt(observationDurationSec, 10) : null,
-          confidenceScore: confidenceScore ? parseInt(confidenceScore, 10) : null,
+          incidentDistanceMeters: parsedDistance,
+          observationDurationSec: parsedDuration,
+          confidenceScore: parsedConfidence,
         });
 
         if (res.success && res.data) {
           toast.success(`Witness ${res.data.name} updated successfully`);
-          onWitnessSaved(res.data);
+          onWitnessSaved?.(res.data);
           onOpenChange(false);
         } else {
           toast.error(res.error || "Failed to update witness");
@@ -314,7 +324,7 @@ export function EnrollWitnessDialog({
           name: name.trim(),
           alias: alias.trim() || null,
           gender: gender || null,
-          ageAtIncident: ageAtIncident ? parseInt(ageAtIncident, 10) : null,
+          ageAtIncident: parsedAge,
           occupation: occupation.trim() || null,
           witnessType,
           credibility,
@@ -335,23 +345,23 @@ export function EnrollWitnessDialog({
           keyFacialFeatures: keyFacialFeatures.trim() || null,
           interviewDate: interviewDate || null,
           lightingCondition: lightingCondition || null,
-          incidentDistanceMeters: incidentDistanceMeters ? parseFloat(incidentDistanceMeters) : null,
-          observationDurationSec: observationDurationSec ? parseInt(observationDurationSec, 10) : null,
-          confidenceScore: confidenceScore ? parseInt(confidenceScore, 10) : null,
+          incidentDistanceMeters: parsedDistance,
+          observationDurationSec: parsedDuration,
+          confidenceScore: parsedConfidence,
         });
 
         if (res.success && res.data) {
           toast.success(`Witness ${res.data.name} enrolled in case registry`);
-          onWitnessSaved(res.data);
+          onWitnessSaved?.(res.data);
           onOpenChange(false);
           resetForm();
         } else {
           toast.error(res.error || "Failed to enroll witness");
         }
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      toast.error("An error occurred while saving witness");
+      toast.error(err?.message || "An error occurred while saving witness");
     } finally {
       setIsSubmitting(false);
     }

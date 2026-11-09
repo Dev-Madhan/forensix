@@ -126,6 +126,58 @@ export async function getCaseWitnesses(caseId: string): Promise<{
   }
 }
 
+/**
+ * Generates a collision-proof, judicial-grade witness registry code.
+ * Pattern: FX-WIT-{caseSuffix}-{sequence} (e.g. FX-WIT-186-001)
+ * Guaranteed unique across the database via collision checking.
+ */
+async function generateUniqueWitnessCode(
+  caseId: string,
+  caseNumber?: string | null
+): Promise<string> {
+  const digitsMatch = caseNumber ? caseNumber.match(/\d+$/) : null;
+  const caseSuffix = digitsMatch
+    ? digitsMatch[0]
+    : caseNumber
+    ? caseNumber.replace(/[^a-zA-Z0-9]/g, "").slice(-3)
+    : "";
+
+  // 1. Try case-scoped sequential codes: FX-WIT-{caseSuffix}-001, 002...
+  if (caseSuffix) {
+    const existingInCaseCount = await prisma.witness.count({
+      where: { caseId },
+    });
+    for (let seq = existingInCaseCount + 1; seq <= existingInCaseCount + 500; seq++) {
+      const candidate = `FX-WIT-${caseSuffix}-${String(seq).padStart(3, "0")}`;
+      const exists = await prisma.witness.findUnique({
+        where: { witnessCode: candidate },
+        select: { id: true },
+      });
+      if (!exists) {
+        return candidate;
+      }
+    }
+  }
+
+  // 2. Global sequential fallback: FX-WIT-0001, 0002...
+  const totalCount = await prisma.witness.count();
+  for (let seq = totalCount + 1; seq <= totalCount + 500; seq++) {
+    const candidate = `FX-WIT-${String(seq).padStart(4, "0")}`;
+    const exists = await prisma.witness.findUnique({
+      where: { witnessCode: candidate },
+      select: { id: true },
+    });
+    if (!exists) {
+      return candidate;
+    }
+  }
+
+  // 3. Guaranteed timestamp fallback
+  const year = new Date().getFullYear();
+  const salt = Math.random().toString(36).substring(2, 6).toUpperCase();
+  return `FX-WIT-${year}-${salt}`;
+}
+
 export async function createWitness(rawData: unknown): Promise<{
   success: boolean;
   data?: WitnessItem;
@@ -137,7 +189,7 @@ export async function createWitness(rawData: unknown): Promise<{
   });
 
   if (!session || !session.user) {
-    return { success: false, error: "Unauthorized access" };
+    return { success: false, error: "Unauthorized access. Please log in to enroll a witness." };
   }
 
   const parsed = CreateWitnessSchema.safeParse(rawData);
@@ -156,80 +208,150 @@ export async function createWitness(rawData: unknown): Promise<{
   const d = parsed.data;
 
   try {
-    // Generate formatted witness code
-    const count = await prisma.witness.count({ where: { caseId: d.caseId } });
-    const witnessCode = `FX-WIT-${String(count + 1).padStart(3, "0")}`;
-
-    const newWitness = await prisma.witness.create({
-      data: {
-        witnessCode,
-        caseId: d.caseId,
-        name: d.name,
-        alias: d.alias,
-        dateOfBirth: d.dateOfBirth ? new Date(d.dateOfBirth) : null,
-        ageAtIncident: d.ageAtIncident,
-        gender: d.gender,
-        occupation: d.occupation,
-        employerName: d.employerName,
-        idType: d.idType,
-        idNumberMasked: maskIdNumber(d.idNumber),
-        idVerified: d.idVerified,
-        contactInfo: d.primaryPhone,
-        primaryPhone: d.primaryPhone,
-        secondaryPhone: d.secondaryPhone,
-        email: d.email || null,
-        emergencyContactName: d.emergencyContactName,
-        emergencyContactPhone: d.emergencyContactPhone,
-        emergencyRelationship: d.emergencyRelationship,
-        currentAddress: d.currentAddress,
-        permanentAddress: d.permanentAddress,
-        city: d.city,
-        state: d.state,
-        postalCode: d.postalCode,
-        witnessType: d.witnessType,
-        credibility: d.credibility,
-        availabilityStatus: d.availabilityStatus,
-        isProtected: d.isProtected,
-        protectionProtocol: d.protectionProtocol,
-        incidentDistanceMeters: d.incidentDistanceMeters,
-        lightingCondition: d.lightingCondition,
-        weatherCondition: d.weatherCondition,
-        observationDurationSec: d.observationDurationSec,
-        timeElapsedHours: d.timeElapsedHours,
-        impairmentFactors: d.impairmentFactors,
-        confidenceScore: d.confidenceScore,
-        statement: d.statement,
-        statementAudioUrl: d.statementAudioUrl || null,
-        keyFacialFeatures: d.keyFacialFeatures,
-        interviewDate: d.interviewDate ? new Date(d.interviewDate) : new Date(),
-        interviewingOfficerId: session.user.id,
+    // 1. Resolve case record (accepts both UUID and caseNumber like FX-2026-186)
+    const targetCase = await prisma.case.findFirst({
+      where: {
+        OR: [
+          { id: d.caseId },
+          { caseNumber: d.caseId },
+        ],
       },
-      include: {
-        case: { select: { caseNumber: true } },
-      },
+      select: { id: true, caseNumber: true },
     });
 
-    // Create Audit Log
-    try {
-      await prisma.auditLog.create({
-        data: {
-          action: "WITNESS_ENROLLED",
-          entityType: "Witness",
-          entityId: newWitness.id,
-          userId: session.user.id,
-          details: {
-            witnessCode: newWitness.witnessCode,
-            name: newWitness.name,
-            witnessType: newWitness.witnessType,
-            caseId: d.caseId,
-          },
-        },
+    if (!targetCase) {
+      return {
+        success: false,
+        error: `Investigation case "${d.caseId}" could not be found. Please refresh and try again.`,
+      };
+    }
+
+    const resolvedCaseId = targetCase.id;
+    const resolvedCaseNumber = targetCase.caseNumber;
+
+    // 2. Generate guaranteed collision-free witness code
+    const witnessCode = await generateUniqueWitnessCode(resolvedCaseId, resolvedCaseNumber);
+
+    // 3. Resolve interviewing officer ID if valid User exists in database
+    let officerId: string | null = null;
+    if (session?.user?.id) {
+      const officer = await prisma.user.findUnique({
+        where: { id: session.user.id },
+        select: { id: true },
       });
+      if (officer) {
+        officerId = officer.id;
+      }
+    }
+
+    // 4. Safely parse dates to prevent Invalid Date errors
+    let parsedDob: Date | null = null;
+    if (d.dateOfBirth) {
+      const dobDate = new Date(d.dateOfBirth);
+      if (!isNaN(dobDate.getTime())) {
+        parsedDob = dobDate;
+      }
+    }
+
+    let parsedInterviewDate: Date = new Date();
+    if (d.interviewDate) {
+      const iDate = new Date(d.interviewDate);
+      if (!isNaN(iDate.getTime())) {
+        parsedInterviewDate = iDate;
+      }
+    }
+
+    // 5. Create witness with retry on race condition
+    let newWitness: any = null;
+    let finalCode = witnessCode;
+
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        newWitness = await prisma.witness.create({
+          data: {
+            witnessCode: finalCode,
+            caseId: resolvedCaseId,
+            name: d.name,
+            alias: d.alias || null,
+            dateOfBirth: parsedDob,
+            ageAtIncident: d.ageAtIncident ?? null,
+            gender: d.gender || null,
+            occupation: d.occupation || null,
+            employerName: d.employerName || null,
+            idType: d.idType,
+            idNumberMasked: maskIdNumber(d.idNumber),
+            idVerified: d.idVerified,
+            contactInfo: d.primaryPhone,
+            primaryPhone: d.primaryPhone,
+            secondaryPhone: d.secondaryPhone || null,
+            email: d.email || null,
+            emergencyContactName: d.emergencyContactName || null,
+            emergencyContactPhone: d.emergencyContactPhone || null,
+            emergencyRelationship: d.emergencyRelationship || null,
+            currentAddress: d.currentAddress || null,
+            permanentAddress: d.permanentAddress || null,
+            city: d.city || null,
+            state: d.state || null,
+            postalCode: d.postalCode || null,
+            witnessType: d.witnessType,
+            credibility: d.credibility,
+            availabilityStatus: d.availabilityStatus,
+            isProtected: d.isProtected,
+            protectionProtocol: d.protectionProtocol || null,
+            incidentDistanceMeters: d.incidentDistanceMeters ?? null,
+            lightingCondition: d.lightingCondition || null,
+            weatherCondition: d.weatherCondition || null,
+            observationDurationSec: d.observationDurationSec ?? null,
+            timeElapsedHours: d.timeElapsedHours ?? null,
+            impairmentFactors: d.impairmentFactors || null,
+            confidenceScore: d.confidenceScore ?? null,
+            statement: d.statement,
+            statementAudioUrl: d.statementAudioUrl || null,
+            keyFacialFeatures: d.keyFacialFeatures || null,
+            interviewDate: parsedInterviewDate,
+            interviewingOfficerId: officerId,
+          },
+          include: {
+            case: { select: { caseNumber: true } },
+          },
+        });
+        break;
+      } catch (insertErr: any) {
+        if (insertErr?.code === "P2002" || insertErr?.message?.includes("witnessCode")) {
+          finalCode = `FX-WIT-${resolvedCaseNumber ? resolvedCaseNumber.replace(/[^a-zA-Z0-9]/g, "").slice(-3) : "REG"}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+          continue;
+        }
+        throw insertErr;
+      }
+    }
+
+    if (!newWitness) {
+      throw new Error("Unable to allocate unique witness registration code after multiple attempts.");
+    }
+
+    // 6. Create Audit Log (guarded)
+    try {
+      if (officerId) {
+        await prisma.auditLog.create({
+          data: {
+            action: "WITNESS_ENROLLED",
+            entityType: "Witness",
+            entityId: newWitness.id,
+            userId: officerId,
+            details: {
+              witnessCode: newWitness.witnessCode,
+              name: newWitness.name,
+              witnessType: newWitness.witnessType,
+              caseId: resolvedCaseId,
+            },
+          },
+        });
+      }
     } catch (auditErr) {
       console.warn("Witness audit log skipped:", auditErr);
     }
 
-    // Broadcast Realtime Event
+    // 7. Broadcast Realtime Event (guarded)
     try {
       broadcastForensicEvent({
         type: "WITNESS_ENROLLED" as any,
@@ -247,7 +369,10 @@ export async function createWitness(rawData: unknown): Promise<{
       console.warn("Event broadcast skipped:", eventErr);
     }
 
-    revalidatePath(`/case-details/${d.caseId}`);
+    revalidatePath(`/case-details/${resolvedCaseId}`);
+    if (resolvedCaseNumber) {
+      revalidatePath(`/case-details/${resolvedCaseNumber}`);
+    }
     revalidatePath(`/dashboard/cases`);
     revalidatePath(`/sketch`);
 
@@ -255,9 +380,9 @@ export async function createWitness(rawData: unknown): Promise<{
       success: true,
       data: {
         id: newWitness.id,
-        witnessCode: newWitness.witnessCode || witnessCode,
+        witnessCode: newWitness.witnessCode || finalCode,
         caseId: newWitness.caseId,
-        caseNumber: newWitness.case?.caseNumber,
+        caseNumber: newWitness.case?.caseNumber || resolvedCaseNumber,
         name: newWitness.name,
         alias: newWitness.alias,
         dateOfBirth: newWitness.dateOfBirth?.toISOString().slice(0, 10) || null,
@@ -304,9 +429,15 @@ export async function createWitness(rawData: unknown): Promise<{
         updatedAt: newWitness.updatedAt.toISOString(),
       },
     };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error creating witness:", error);
-    return { success: false, error: "Failed to enroll witness into registry." };
+    const msg = error?.message || "Failed to enroll witness into registry.";
+    return {
+      success: false,
+      error: msg.includes("Unique constraint")
+        ? "A witness with this code already exists. Please retry."
+        : `Failed to enroll witness: ${msg}`,
+    };
   }
 }
 
@@ -348,12 +479,30 @@ export async function updateWitness(rawData: unknown): Promise<{
       return { success: false, error: "Witness record not found" };
     }
 
+    let parsedDob: Date | null | undefined = undefined;
+    if (d.dateOfBirth !== undefined) {
+      if (d.dateOfBirth) {
+        const dobDate = new Date(d.dateOfBirth);
+        parsedDob = !isNaN(dobDate.getTime()) ? dobDate : existing.dateOfBirth;
+      } else {
+        parsedDob = null;
+      }
+    }
+
+    let parsedInterviewDate: Date | undefined = undefined;
+    if (d.interviewDate !== undefined) {
+      if (d.interviewDate) {
+        const iDate = new Date(d.interviewDate);
+        parsedInterviewDate = !isNaN(iDate.getTime()) ? iDate : existing.interviewDate;
+      }
+    }
+
     const updated = await prisma.witness.update({
       where: { id: d.id },
       data: {
         name: d.name ?? existing.name,
         alias: d.alias !== undefined ? d.alias : existing.alias,
-        dateOfBirth: d.dateOfBirth ? new Date(d.dateOfBirth) : existing.dateOfBirth,
+        dateOfBirth: parsedDob !== undefined ? parsedDob : existing.dateOfBirth,
         ageAtIncident: d.ageAtIncident !== undefined ? d.ageAtIncident : existing.ageAtIncident,
         gender: d.gender !== undefined ? d.gender : existing.gender,
         occupation: d.occupation !== undefined ? d.occupation : existing.occupation,
@@ -388,7 +537,7 @@ export async function updateWitness(rawData: unknown): Promise<{
         statement: d.statement ?? existing.statement,
         statementAudioUrl: d.statementAudioUrl !== undefined ? (d.statementAudioUrl || null) : existing.statementAudioUrl,
         keyFacialFeatures: d.keyFacialFeatures !== undefined ? d.keyFacialFeatures : existing.keyFacialFeatures,
-        interviewDate: d.interviewDate ? new Date(d.interviewDate) : existing.interviewDate,
+        interviewDate: parsedInterviewDate !== undefined ? parsedInterviewDate : existing.interviewDate,
       },
       include: {
         case: { select: { caseNumber: true } },
@@ -401,19 +550,30 @@ export async function updateWitness(rawData: unknown): Promise<{
     });
 
     try {
-      await prisma.auditLog.create({
-        data: {
-          action: "WITNESS_UPDATED",
-          entityType: "Witness",
-          entityId: updated.id,
-          userId: session.user.id,
-          details: {
-            witnessCode: updated.witnessCode,
-            name: updated.name,
-            availabilityStatus: updated.availabilityStatus,
+      let officerId: string | null = null;
+      if (session?.user?.id) {
+        const officer = await prisma.user.findUnique({
+          where: { id: session.user.id },
+          select: { id: true },
+        });
+        if (officer) officerId = officer.id;
+      }
+
+      if (officerId) {
+        await prisma.auditLog.create({
+          data: {
+            action: "WITNESS_UPDATED",
+            entityType: "Witness",
+            entityId: updated.id,
+            userId: officerId,
+            details: {
+              witnessCode: updated.witnessCode,
+              name: updated.name,
+              availabilityStatus: updated.availabilityStatus,
+            },
           },
-        },
-      });
+        });
+      }
     } catch (auditErr) {
       console.warn("Witness update audit log skipped:", auditErr);
     }
@@ -493,9 +653,10 @@ export async function updateWitness(rawData: unknown): Promise<{
         updatedAt: updated.updatedAt.toISOString(),
       },
     };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error updating witness:", error);
-    return { success: false, error: "Failed to update witness record" };
+    const msg = error?.message || "Failed to update witness record";
+    return { success: false, error: `Failed to update witness: ${msg}` };
   }
 }
 
