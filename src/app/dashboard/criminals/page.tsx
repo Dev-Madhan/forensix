@@ -44,9 +44,14 @@ export default async function CriminalsPage({
     order?: string;
   }>;
 }) {
-  const session = await auth.api.getSession({
-    headers: await headers(),
-  });
+  let session = null;
+  try {
+    session = await auth.api.getSession({
+      headers: await headers(),
+    });
+  } catch (err) {
+    console.warn("Session check fallback on criminals page:", err);
+  }
 
   const user = session?.user
     ? {

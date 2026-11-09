@@ -355,7 +355,7 @@ export function CaseEditForm({ caseData }: CaseEditFormProps) {
   );
 
   // Personnel & Assignment
-  const [assignedToName, setAssignedToName] = React.useState(caseData.assignedToName || "Madhan Kumar");
+  const [assignedToName, setAssignedToName] = React.useState(caseData.assignedToName || "Unassigned Officer");
   const [assignedToEmail, setAssignedToEmail] = React.useState(caseData.assignedToEmail || "officer@forensix.gov");
   const [department, setDepartment] = React.useState("Digital Forensics & Incident Response");
   const [custodyRole, setCustodyRole] = React.useState("Lead Custodian");

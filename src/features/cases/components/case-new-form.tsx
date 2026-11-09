@@ -378,7 +378,7 @@ export function CaseNewForm({ initialUser, suggestedCaseNumber }: CaseNewFormPro
 
   // Personnel & Assignment
   const [assignedToName, setAssignedToName] = React.useState(
-    initialUser?.name || "Madhan Kumar"
+    initialUser?.name || "Lead Investigator"
   );
   const [assignedToEmail, setAssignedToEmail] = React.useState(
     initialUser?.email || "officer@forensix.gov"

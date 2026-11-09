@@ -207,19 +207,17 @@ export function CaseDetailsTabs({ caseData }: CaseDetailsTabsProps) {
     () => resolveCaseLocation(caseData),
     [caseData]
   );
-  const assignedUserName =
-    caseData.assignedToName ||
-    session?.user?.name ||
-    "Madhan Kumar";
-  const assignedUserAvatar = session?.user?.image || undefined;
+  const assignedUserName = caseData.assignedToName || "Unassigned Officer";
+  const assignedUserAvatar = caseData.assignedToAvatar || undefined;
   const assignedUserInitials =
+    caseData.assignedToInitials ||
     assignedUserName
       .split(" ")
       .map((n) => n[0])
       .filter(Boolean)
       .join("")
       .toUpperCase()
-      .slice(0, 2) || "U";
+      .slice(0, 2) || "UO";
 
   const [activeTab, setActiveTab] = useState("overview");
 
@@ -322,17 +320,18 @@ export function CaseDetailsTabs({ caseData }: CaseDetailsTabsProps) {
         }
 
         const rawName =
-          log.userName === "System Investigator" || !log.userName
-            ? assignedUserName
-            : log.userName;
+          log.userName || (log.action.includes("SYSTEM") ? "System" : assignedUserName);
+        const avatar = log.userAvatar || null;
         const initials =
+          log.userInitials ||
           rawName
             .split(" ")
             .map((n) => n[0])
             .filter(Boolean)
             .join("")
             .toUpperCase()
-            .slice(0, 2) || "SY";
+            .slice(0, 2) ||
+          (rawName === "System" ? "SY" : "IN");
 
         const detailDesc =
           typeof log.details === "object" && log.details !== null
@@ -344,7 +343,7 @@ export function CaseDetailsTabs({ caseData }: CaseDetailsTabsProps) {
         list.push({
           id: log.id,
           name: rawName,
-          avatar: assignedUserAvatar,
+          avatar: avatar,
           initials,
           action: formatActionText(log.action, detailDesc, log.entityType),
           time: formatActivityTime(log.createdAt),
@@ -361,6 +360,7 @@ export function CaseDetailsTabs({ caseData }: CaseDetailsTabsProps) {
             ? `${ev.dateAdded}${ev.timeAdded ? `, ${ev.timeAdded}` : ""}`
             : formatActivityTime(caseData.createdAt);
           const evAuthor = ev.addedBy?.name || assignedUserName;
+          const evAvatar = ev.addedBy?.avatar || null;
           const evInitials =
             ev.addedBy?.initials ||
             evAuthor
@@ -370,12 +370,12 @@ export function CaseDetailsTabs({ caseData }: CaseDetailsTabsProps) {
               .join("")
               .toUpperCase()
               .slice(0, 2) ||
-            "MK";
+            "IN";
 
           list.push({
             id: `ev-${ev.id}`,
             name: evAuthor,
-            avatar: assignedUserAvatar,
+            avatar: evAvatar,
             initials: evInitials,
             action: `Added new evidence ${ev.name}`,
             time: evTime,
@@ -390,21 +390,33 @@ export function CaseDetailsTabs({ caseData }: CaseDetailsTabsProps) {
       list.push({
         id: `status-${caseData.id}`,
         name: assignedUserName,
-        avatar: assignedUserAvatar,
+        avatar: assignedUserAvatar || null,
         initials: assignedUserInitials,
         action: `Updated case status to ${caseData.status || "Under Investigation"}`,
         time: statusTime,
         timestamp: new Date(caseData.createdAt).getTime() - 1000 * 60 * 30,
       });
 
+      const creatorName = caseData.createdByName || caseData.createdBy || "System";
+      const creatorAvatar = caseData.createdByAvatar || null;
+      const creatorInitials =
+        caseData.createdByInitials ||
+        creatorName
+          .split(" ")
+          .map((n) => n[0])
+          .filter(Boolean)
+          .join("")
+          .toUpperCase()
+          .slice(0, 2) ||
+        "SY";
       const createdTime = caseData.dateReported
         ? `${caseData.dateReported}, 07:14 PM`
         : formatActivityTime(caseData.createdAt);
       list.push({
         id: `created-${caseData.id}`,
-        name: "System",
-        avatar: null,
-        initials: "SY",
+        name: creatorName,
+        avatar: creatorAvatar,
+        initials: creatorInitials,
         action: "Case created",
         time: createdTime,
         timestamp: new Date(caseData.createdAt).getTime() - 1000 * 60 * 60,
@@ -426,12 +438,26 @@ export function CaseDetailsTabs({ caseData }: CaseDetailsTabsProps) {
       if (stored) {
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          const sanitized = parsed.filter(
-            (a: any) =>
-              a &&
-              !a.name?.includes("Arjun Karthik") &&
-              !a.name?.includes("Priya Nair")
-          );
+          const sanitized = parsed
+            .filter(
+              (a: any) =>
+                a &&
+                !a.name?.includes("Arjun Karthik") &&
+                !a.name?.includes("Priya Nair")
+            )
+            .map((a: any) => {
+              // Strip corrupted avatars from legacy sessions where the logged-in viewer's
+              // avatar was mistakenly stamped onto other officers or system actions
+              if (
+                session?.user &&
+                a.name !== session.user.name &&
+                session.user.image &&
+                a.avatar === session.user.image
+              ) {
+                return { ...a, avatar: null };
+              }
+              return a;
+            });
           if (sanitized.length > 0) {
             setRecentActivities((prev) => {
               const combined = [
@@ -446,7 +472,7 @@ export function CaseDetailsTabs({ caseData }: CaseDetailsTabsProps) {
     } catch (e) {
       console.warn("Could not load stored session activity:", e);
     }
-  }, [cleanCase]);
+  }, [cleanCase, session?.user]);
 
   // Real-time listener for all case activities (evidence, suspects, witnesses, status, notes)
   React.useEffect(() => {
@@ -488,7 +514,9 @@ export function CaseDetailsTabs({ caseData }: CaseDetailsTabsProps) {
       }
 
       const now = new Date();
-      const userName = detail.user?.name || assignedUserName;
+      const userName = detail.user?.name || "Investigator";
+      const isAssignee = userName.toLowerCase() === assignedUserName.toLowerCase();
+      const authenticAvatar = detail.user?.avatar || (isAssignee ? assignedUserAvatar : null);
       const initials =
         detail.user?.initials ||
         userName
@@ -498,12 +526,12 @@ export function CaseDetailsTabs({ caseData }: CaseDetailsTabsProps) {
           .join("")
           .toUpperCase()
           .slice(0, 2) ||
-        "MK";
+        (userName.toLowerCase() === "system" ? "SY" : "IN");
 
       const newAct: CaseRecentActivityItem = {
         id: `act-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
         name: userName,
-        avatar: detail.user?.avatar || assignedUserAvatar,
+        avatar: authenticAvatar,
         initials,
         action: formatActionText(detail.action, detail.details, detail.category),
         time: formatActivityTime(now),
@@ -573,17 +601,25 @@ export function CaseDetailsTabs({ caseData }: CaseDetailsTabsProps) {
             }
 
             if (actionText) {
-              const liveAct: CaseRecentActivityItem = {
-                id: `sse-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-                name: data.userName || assignedUserName,
-                avatar: data.userAvatar || assignedUserAvatar,
-                initials: (data.userName || assignedUserName)
+              const liveUserName = data.userName || "System";
+              const isAssignee = liveUserName.toLowerCase() === assignedUserName.toLowerCase();
+              const liveAvatar = data.userAvatar || (isAssignee ? assignedUserAvatar : null);
+              const liveInitials =
+                data.userInitials ||
+                liveUserName
                   .split(" ")
                   .map((n: string) => n[0])
                   .filter(Boolean)
                   .join("")
                   .toUpperCase()
-                  .slice(0, 2) || "MK",
+                  .slice(0, 2) ||
+                (liveUserName.toLowerCase() === "system" ? "SY" : "IN");
+
+              const liveAct: CaseRecentActivityItem = {
+                id: `sse-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                name: liveUserName,
+                avatar: liveAvatar,
+                initials: liveInitials,
                 action: actionText,
                 time: formatActivityTime(now),
                 timestamp: now.getTime(),
@@ -794,7 +830,7 @@ export function CaseDetailsTabs({ caseData }: CaseDetailsTabsProps) {
     const authorName =
       session?.user?.name ||
       caseData.assignedToName ||
-      "Madhan Kumar";
+      "Investigator";
     const authorRole = (session?.user as any)?.role || "Lead Investigator";
     const authorAvatar = session?.user?.image || undefined;
     const authorInitials =
@@ -804,7 +840,7 @@ export function CaseDetailsTabs({ caseData }: CaseDetailsTabsProps) {
         .filter(Boolean)
         .join("")
         .toUpperCase()
-        .slice(0, 2) || "MK";
+        .slice(0, 2) || "IN";
 
     const newNote: CaseNoteItem = {
       id: `note-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -882,7 +918,7 @@ export function CaseDetailsTabs({ caseData }: CaseDetailsTabsProps) {
     const authorName =
       session?.user?.name ||
       caseData.assignedToName ||
-      "Madhan Kumar";
+      "Investigator";
     const authorInitials =
       authorName
         .split(" ")
@@ -890,7 +926,7 @@ export function CaseDetailsTabs({ caseData }: CaseDetailsTabsProps) {
         .filter(Boolean)
         .join("")
         .toUpperCase()
-        .slice(0, 2) || "MK";
+        .slice(0, 2) || "IN";
 
     logCaseActivity({
       caseId: caseData.id,
@@ -1336,9 +1372,22 @@ export function CaseDetailsTabs({ caseData }: CaseDetailsTabsProps) {
                       <Shield className="size-3.5 shrink-0" />
                       <span>Created By</span>
                     </div>
-                    <span className="font-medium text-foreground text-xs sm:text-sm">
-                      {caseData.createdBy || "System"}
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <Avatar size="sm" className="size-5 border border-border">
+                        {caseData.createdByAvatar && (
+                          <AvatarImage
+                            src={caseData.createdByAvatar}
+                            alt={caseData.createdByName || caseData.createdBy || "System"}
+                          />
+                        )}
+                        <AvatarFallback className="text-[9px] bg-primary/20 text-primary font-medium">
+                          {caseData.createdByInitials || "SY"}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="font-medium text-foreground text-xs sm:text-sm">
+                        {caseData.createdByName || caseData.createdBy || "System"}
+                      </span>
+                    </div>
                   </div>
 
                   {/* Last Updated */}

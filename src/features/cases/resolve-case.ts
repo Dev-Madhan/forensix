@@ -1,4 +1,4 @@
-import { prisma } from "@/lib/prisma";
+import { prisma, withDbRetry } from "@/lib/prisma";
 import { CaseStatus, CasePriority } from "@prisma/client";
 import { notFound } from "next/navigation";
 import crypto from "crypto";
@@ -14,6 +14,7 @@ export interface CaseAuditLogItem {
   entityType: string;
   createdAt: string;
   userName: string;
+  userAvatar?: string | null;
   userInitials: string;
   details?: any;
 }
@@ -34,7 +35,12 @@ export interface ResolvedCaseDetail {
   caseType: string;
   assignedToName: string;
   assignedToEmail?: string;
+  assignedToAvatar?: string | null;
+  assignedToInitials?: string;
   createdBy?: string;
+  createdByName?: string;
+  createdByAvatar?: string | null;
+  createdByInitials?: string;
   lastUpdated?: string;
   tags?: string[];
   evidenceCount?: number;
@@ -75,7 +81,10 @@ const STATUS_MAP: Record<string, "Verified" | "Under Review" | "Flagged"> = {
   REJECTED: "Flagged",
 };
 
-export function mapPrismaEvidenceToItem(e: any): EvidenceItem {
+export function mapPrismaEvidenceToItem(
+  e: any,
+  uploaderInfo?: { name: string; avatar: string | null; initials: string }
+): EvidenceItem {
   const meta = (e.metadata as Record<string, any>) || {};
   const ext = (e.fileName || "").split(".").pop()?.toLowerCase() || "";
   const isVideo = e.mimeType?.startsWith("video/") || ["mp4", "mkv", "avi", "mov", "webm"].includes(ext);
@@ -118,6 +127,21 @@ export function mapPrismaEvidenceToItem(e: any): EvidenceItem {
   const normalizedStatus: "Verified" | "Under Review" | "Flagged" =
     STATUS_MAP[rawStatus] ?? "Verified";
 
+  const rawAuthorName =
+    uploaderInfo?.name ||
+    (e.uploadedBy && e.uploadedBy.length < 50 && !e.uploadedBy.includes("-")
+      ? e.uploadedBy
+      : "Investigator");
+  const evInitials =
+    uploaderInfo?.initials ||
+    (rawAuthorName
+      .split(" ")
+      .map((n: string) => n[0])
+      .filter(Boolean)
+      .join("")
+      .toUpperCase()
+      .slice(0, 2) || "IN");
+
   return {
     id: e.id,
     name: e.title || e.fileName,
@@ -125,8 +149,9 @@ export function mapPrismaEvidenceToItem(e: any): EvidenceItem {
     type,
     source: normalizedSource,
     addedBy: {
-      name: "Investigator",
-      initials: "IN",
+      name: rawAuthorName,
+      avatar: uploaderInfo?.avatar || undefined,
+      initials: evInitials,
     },
     dateAdded: dt.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }),
     timeAdded: dt.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true }),
@@ -202,60 +227,22 @@ export async function resolveCaseBySlug(slug: string): Promise<ResolvedCaseDetai
 
   // 1. Database lookup by ID or CaseNumber with deep relation queries
   try {
-    let dbCase = await prisma.case.findFirst({
-      where: {
-        OR: [
-          { id: decodedSlug },
-          { caseNumber: { equals: decodedSlug, mode: "insensitive" } },
-        ],
-      },
-      include: {
-        assignedTo: {
-          select: {
-            id: true,
-            name: true,
-            email: true,
-          },
+    let dbCase = await withDbRetry(async () => {
+      let found = await prisma.case.findFirst({
+        where: {
+          OR: [
+            { id: decodedSlug },
+            { caseNumber: { equals: decodedSlug, mode: "insensitive" } },
+          ],
         },
-        evidences: {
-          orderBy: { uploadedAt: "desc" },
-          include: { criminal: true },
-        },
-        suspects: {
-          orderBy: { addedAt: "desc" },
-          include: {
-            criminal: {
-              include: { records: true },
-            },
-            assignedOfficer: true,
-          },
-        },
-        sketches: {
-          orderBy: { createdAt: "desc" },
-          include: { recognitionResults: { include: { criminal: true } } },
-        },
-        witnesses: {
-          orderBy: { createdAt: "desc" },
-          include: {
-            sketches: { select: { id: true } },
-            inquiries: {
-              include: { investigator: { select: { id: true, name: true } } },
-              orderBy: { inquiryDate: "desc" },
-            },
-          },
-        },
-      },
-    });
-
-    if (!dbCase) {
-      dbCase = await prisma.case.findFirst({
-        orderBy: { createdAt: "desc" },
         include: {
           assignedTo: {
             select: {
               id: true,
               name: true,
               email: true,
+              image: true,
+              avatarUrl: true,
             },
           },
           evidences: {
@@ -287,7 +274,52 @@ export async function resolveCaseBySlug(slug: string): Promise<ResolvedCaseDetai
           },
         },
       });
-    }
+
+      if (!found) {
+        found = await prisma.case.findFirst({
+          orderBy: { createdAt: "desc" },
+          include: {
+            assignedTo: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+                image: true,
+                avatarUrl: true,
+              },
+            },
+            evidences: {
+              orderBy: { uploadedAt: "desc" },
+              include: { criminal: true },
+            },
+            suspects: {
+              orderBy: { addedAt: "desc" },
+              include: {
+                criminal: {
+                  include: { records: true },
+                },
+                assignedOfficer: true,
+              },
+            },
+            sketches: {
+              orderBy: { createdAt: "desc" },
+              include: { recognitionResults: { include: { criminal: true } } },
+            },
+            witnesses: {
+              orderBy: { createdAt: "desc" },
+              include: {
+                sketches: { select: { id: true } },
+                inquiries: {
+                  include: { investigator: { select: { id: true, name: true } } },
+                  orderBy: { inquiryDate: "desc" },
+                },
+              },
+            },
+          },
+        });
+      }
+      return found;
+    });
 
     if (!dbCase) {
       notFound();
@@ -297,28 +329,66 @@ export async function resolveCaseBySlug(slug: string): Promise<ResolvedCaseDetai
 
     // Query real Audit Logs for this case
     let auditLogItems: CaseAuditLogItem[] = [];
+    let createdByName = "System";
+    let createdByAvatar: string | null = null;
+    let createdByInitials = "SY";
+    const evidenceUploaderMap = new Map<string, { name: string; avatar: string | null; initials: string }>();
+
     try {
       const dbAuditLogs = await prisma.auditLog.findMany({
         where: {
           OR: [
             { entityId: dbCase.id },
             { details: { path: ["caseId"], equals: dbCase.id } },
+            { entityType: "Case", entityId: dbCase.caseNumber },
+            { details: { path: ["caseNumber"], equals: dbCase.caseNumber } },
           ],
         },
         include: { user: true },
         orderBy: { createdAt: "desc" },
-        take: 40,
+        take: 60,
       });
 
+      // Find real creator from CASE_CREATED log
+      const creationLog = dbAuditLogs.find(
+        (l) => l.action === "CASE_CREATED" || l.action === "CASE_INITIALIZED"
+      );
+      if (creationLog?.user) {
+        createdByName = creationLog.user.name || "System";
+        createdByAvatar = creationLog.user.image || creationLog.user.avatarUrl || null;
+        createdByInitials =
+          createdByName
+            .split(" ")
+            .map((n) => n[0])
+            .filter(Boolean)
+            .join("")
+            .toUpperCase()
+            .slice(0, 2) || "SY";
+      } else if (dbCase.assignedTo) {
+        createdByName = dbCase.assignedTo.name || "System";
+        createdByAvatar = dbCase.assignedTo.image || dbCase.assignedTo.avatarUrl || null;
+        createdByInitials =
+          createdByName
+            .split(" ")
+            .map((n) => n[0])
+            .filter(Boolean)
+            .join("")
+            .toUpperCase()
+            .slice(0, 2) || "SY";
+      }
+
       auditLogItems = dbAuditLogs.map((log) => {
-        const userName = log.user?.name || "System Investigator";
-        const initials = userName
-          .split(" ")
-          .map((n) => n[0])
-          .filter(Boolean)
-          .join("")
-          .toUpperCase()
-          .slice(0, 2) || "IN";
+        const userName =
+          log.user?.name || (log.action.includes("SYSTEM") ? "System" : "Investigator");
+        const userAvatar = log.user?.image || log.user?.avatarUrl || null;
+        const initials =
+          userName
+            .split(" ")
+            .map((n) => n[0])
+            .filter(Boolean)
+            .join("")
+            .toUpperCase()
+            .slice(0, 2) || (userName === "System" ? "SY" : "IN");
 
         return {
           id: log.id,
@@ -326,18 +396,38 @@ export async function resolveCaseBySlug(slug: string): Promise<ResolvedCaseDetai
           entityType: log.entityType,
           createdAt: log.createdAt.toISOString(),
           userName,
+          userAvatar,
           userInitials: initials,
           details: log.details,
         };
       });
+
+      // Map evidence uploaders from audit log
+      for (const log of dbAuditLogs) {
+        if (log.entityType === "Evidence" && log.entityId && log.user) {
+          const name = log.user.name || "Investigator";
+          const avatar = log.user.image || log.user.avatarUrl || null;
+          const initials =
+            name
+              .split(" ")
+              .map((n) => n[0])
+              .filter(Boolean)
+              .join("")
+              .toUpperCase()
+              .slice(0, 2) || "IN";
+          if (!evidenceUploaderMap.has(log.entityId)) {
+            evidenceUploaderMap.set(log.entityId, { name, avatar, initials });
+          }
+        }
+      }
     } catch (logErr) {
       console.warn("Audit logs lookup skipped:", logErr);
     }
 
-    // Map real evidences directly from database
+    // Map real evidences directly from database with authentic uploader info
     const mappedEvidences: EvidenceItem[] =
       dbCase.evidences && dbCase.evidences.length > 0
-        ? dbCase.evidences.map(mapPrismaEvidenceToItem)
+        ? dbCase.evidences.map((e) => mapPrismaEvidenceToItem(e, evidenceUploaderMap.get(e.id)))
         : [];
 
     // Map real suspects directly from database
@@ -480,7 +570,19 @@ export async function resolveCaseBySlug(slug: string): Promise<ResolvedCaseDetai
       })(),
       assignedToName: dbCase.assignedTo?.name || "Lead Investigator",
       assignedToEmail: dbCase.assignedTo?.email || "officer@forensix.gov",
-      createdBy: "System",
+      assignedToAvatar: dbCase.assignedTo?.image || dbCase.assignedTo?.avatarUrl || null,
+      assignedToInitials:
+        (dbCase.assignedTo?.name || "Lead Investigator")
+          .split(" ")
+          .map((n: string) => n[0])
+          .filter(Boolean)
+          .join("")
+          .toUpperCase()
+          .slice(0, 2) || "LI",
+      createdBy: createdByName,
+      createdByName,
+      createdByAvatar,
+      createdByInitials,
       lastUpdated: new Date(dbCase.updatedAt).toLocaleString("en-US", {
         month: "short",
         day: "numeric",

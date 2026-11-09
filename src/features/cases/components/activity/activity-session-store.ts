@@ -71,15 +71,17 @@ export function useCaseActivityHistory({
   // Logged-in user info derived from Better Auth session
   const currentUser = useMemo(() => {
     const rawUser = session?.user;
-    const name = rawUser?.name || "Madhan Kumar";
+    const name = rawUser?.name || "Investigator";
     const role = (rawUser as { role?: string })?.role || "Investigator";
-    const avatar = rawUser?.image || "/images/avatar-investigator.jpg";
-    const initials = name
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .slice(0, 2)
-      .toUpperCase() || "MK";
+    const avatar = rawUser?.image || undefined;
+    const initials =
+      name
+        .split(" ")
+        .map((n) => n[0])
+        .filter(Boolean)
+        .join("")
+        .slice(0, 2)
+        .toUpperCase() || "IN";
     const email = rawUser?.email || "investigator@forensix.gov";
 
     return {
@@ -133,7 +135,28 @@ export function useCaseActivityHistory({
       const stored = sessionStorage.getItem(storageKey);
       if (stored) {
         const parsed = JSON.parse(stored) as ActivityItem[];
-        if (Array.isArray(parsed)) sessionItems = parsed;
+        if (Array.isArray(parsed)) {
+          // Strip viewer's avatar from legacy sessions where it was mistakenly applied to other actors
+          sessionItems = parsed.map((item) => {
+            if (
+              item.user &&
+              currentUser.name &&
+              item.user.name !== currentUser.name &&
+              currentUser.avatar &&
+              item.user.avatar === currentUser.avatar
+            ) {
+              return {
+                ...item,
+                user: {
+                  ...item.user,
+                  avatar: undefined,
+                  isCurrentUser: false,
+                },
+              };
+            }
+            return item;
+          });
+        }
       }
     } catch (err) {
       console.warn("Could not load stored session activity:", err);
@@ -204,14 +227,30 @@ export function useCaseActivityHistory({
         hour12: true,
       });
 
+      const isCurrent = payload.user?.email
+        ? payload.user.email === currentUser.email
+        : payload.user?.name
+        ? payload.user.name.toLowerCase() === currentUser.name.toLowerCase()
+        : true;
+
       const user = payload.user
         ? {
             name: payload.user.name || currentUser.name,
-            role: payload.user.role || currentUser.role,
-            avatar: payload.user.avatar || currentUser.avatar,
-            initials: payload.user.initials || currentUser.initials,
-            email: payload.user.email || currentUser.email,
-            isCurrentUser: true,
+            role: payload.user.role || (isCurrent ? currentUser.role : "Investigator"),
+            avatar: payload.user.avatar || (isCurrent ? currentUser.avatar : undefined),
+            initials:
+              payload.user.initials ||
+              (payload.user.name
+                ? payload.user.name
+                    .split(" ")
+                    .map((n) => n[0])
+                    .filter(Boolean)
+                    .join("")
+                    .slice(0, 2)
+                    .toUpperCase()
+                : currentUser.initials),
+            email: payload.user.email || (isCurrent ? currentUser.email : undefined),
+            isCurrentUser: isCurrent,
           }
         : currentUser;
 

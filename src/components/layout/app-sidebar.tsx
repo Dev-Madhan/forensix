@@ -116,7 +116,11 @@ export function AppSidebar({ user: propUser, ...props }: AppSidebarProps) {
     <Sidebar variant="inset" {...props}>
       {/* Brand Header */}
       <SidebarHeader className="p-4 pb-3">
-        <Link href="/dashboard" className="flex items-center gap-2.5 group">
+        <Link
+          href="/"
+          className="flex items-center gap-2.5 group cursor-pointer"
+          title="Return to main page"
+        >
           <Image
             src="/images/Logo.png"
             alt="Forensix Logo"

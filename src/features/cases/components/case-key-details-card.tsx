@@ -25,7 +25,7 @@ export function CaseKeyDetailsCard({
   className,
 }: CaseKeyDetailsCardProps) {
   // Assigned user is resolved deterministically from caseData (identical on SSR & client)
-  const assignedUserName = caseData.assignedToName || "Madhan Kumar";
+  const assignedUserName = caseData.assignedToName || "Unassigned Officer";
 
   const renderPriorityValue = (priority: string) => {
     const p = (priority || "").toUpperCase();

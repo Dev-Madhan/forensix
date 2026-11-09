@@ -2,7 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
-import { Undo2, Redo2, Trash2, RotateCcw, Folder, ChevronDown, Check, User, Plus } from "lucide-react";
+import { Undo2, Redo2, Trash2, RotateCcw, Folder, ChevronDown, Check, User } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import {
@@ -237,9 +237,8 @@ export function CompositeSketchHeader() {
             <Button
               variant="outline"
               size="sm"
-              className="h-7 px-2 text-xs font-medium border-dashed border-border/80 bg-black/40 hover:bg-white/5 rounded items-center gap-1.5 text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+              className="h-7 px-2 text-xs font-medium border-dashed border-border/80 bg-black/40 hover:bg-white/5 rounded items-center text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
             >
-              <Plus className="size-3 text-muted-foreground shrink-0" />
               <span className="text-[11px]">+ Enroll Witness</span>
             </Button>
           </Link>

@@ -321,7 +321,7 @@ export function PrintSummaryDialog({
               <span>Chain of Custody Formally Authenticated</span>
             </div>
             <p className="font-semibold text-zinc-800 dark:text-zinc-200 pt-0.5">
-              Lead Investigator: {caseData.assignedToName || "Madhan Kumar"}
+              Lead Investigator: {caseData.assignedToName || "Lead Investigator"}
             </p>
             <p className="font-mono text-[9px]">
               {caseData.assignedToEmail || "officer@forensix.gov"}
